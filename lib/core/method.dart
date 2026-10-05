@@ -16,6 +16,7 @@ enum CoreMethod {
   getProfileConfig,
   getProxies,
   changeProxy,
+  unfixProxy,
   getTraffic,
   getTotalTraffic,
   getNodeTraffic,
