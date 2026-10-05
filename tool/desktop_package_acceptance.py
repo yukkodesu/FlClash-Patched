@@ -47,9 +47,27 @@ def powershell(script):
     return run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script]).stdout.strip()
 
 
+def failure_details(error):
+    result = {'error': str(error)}
+    if isinstance(error, (subprocess.CalledProcessError, subprocess.TimeoutExpired)):
+        def decoded(value):
+            return value.decode('utf-8', errors='replace') if isinstance(value, bytes) else value or ''
+        result.update(command=error.cmd, stdout=decoded(error.stdout), stderr=decoded(error.stderr))
+        if isinstance(error, subprocess.CalledProcessError):
+            result['returnCode'] = error.returncode
+        else:
+            result['timeoutSeconds'] = error.timeout
+    if hasattr(error, 'tray_inventory'):
+        result['trayInventory'] = error.tray_inventory
+    return result
+
+
 def digest(path):
+    value = hashlib.sha256()
     with path.open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+        for chunk in iter(lambda: stream.read(64 * 1024), b''):
+            value.update(chunk)
+    return value.hexdigest()
 
 
 def inspect_payload(root, target, staged=None):
@@ -508,6 +526,40 @@ def helper_probe(root, expected):
         run([str(helper), 'uninstall'], privileged=True)
 
 
+def windows_tray_inventory(pid):
+    source = '''
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$rootElement = [System.Windows.Automation.AutomationElement]::RootElement
+$walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
+$queue = New-Object 'System.Collections.Generic.Queue[System.Windows.Automation.AutomationElement]'
+$windows = $rootElement.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+foreach ($window in $windows) {
+  if ($window.Current.ClassName -in @('Shell_TrayWnd','Shell_SecondaryTrayWnd','NotifyIconOverflowWindow')) { $queue.Enqueue($window) }
+}
+$items = @()
+$truncated = $false
+while ($queue.Count -gt 0 -and $items.Count -lt 256) {
+  $item = $queue.Dequeue()
+  try {
+    $current = $item.Current
+    $items += @{name=$current.Name;class=$current.ClassName;automationId=$current.AutomationId;ownerPid=$current.ProcessId;offscreen=$current.IsOffscreen;controlType=$current.ControlType.ProgrammaticName}
+    $child = $walker.GetFirstChild($item)
+    while ($null -ne $child -and ($items.Count + $queue.Count) -lt 256) {
+      $queue.Enqueue($child)
+      $child = $walker.GetNextSibling($child)
+    }
+    if ($null -ne $child) { $truncated = $true }
+  } catch { $items += @{error=$_.Exception.Message} }
+}
+@{items=@($items);truncated=($truncated -or $queue.Count -gt 0)} | ConvertTo-Json -Depth 5 -Compress
+'''
+    value = json.loads(run(['powershell', '-NoProfile', '-NonInteractive', '-Command', source], timeout=20).stdout)
+    value['clientPid'] = pid
+    return value
+
+
 def activate_tray(pid):
     if PLATFORM == 'linux':
         panel_pid = os.environ.get('MEOW_PACKAGE_PANEL_PID', '')
@@ -610,7 +662,7 @@ error "No product-owned accessible status item"
 end tell'''
         return {'scope': 'native accessible product status item activation', 'ownerPid': pid,
                 'item': run(['osascript', '-e', source]).stdout.strip()}
-    value = powershell('''
+    source = '''
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type @'
@@ -648,8 +700,15 @@ if (-not [TrayInput]::SetCursorPos([int]$point.X,[int]$point.Y)) { throw 'Cannot
 [TrayInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
 [TrayInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
 @{scope='native notification-area pointer activation';name=$trayItem.Current.Name;ownerPid=$trayItem.Current.ProcessId;x=$point.X;y=$point.Y} | ConvertTo-Json -Compress
-''')
-    return json.loads(value)
+'''
+    try:
+        return json.loads(powershell(source))
+    except Exception as error:
+        try:
+            error.tray_inventory = windows_tray_inventory(pid)
+        except Exception as inventory_error:
+            error.tray_inventory = failure_details(inventory_error)
+        raise
 
 
 def screenshot(path):
@@ -803,7 +862,7 @@ def main():
             record('passed', originalProduct=original.verify(),
                    unverified=['release updater network/download behavior', 'TUN acceptance is a separate native suite', *(['Linux rendered tray screenshots await image review'] if PLATFORM == 'linux' else [])])
         except Exception as error:
-            record('failed', error=str(error), processes=product_processes())
+            record('failed', **failure_details(error), processes=product_processes())
             raise
         finally:
             if client is not None and client.poll() is None:
