@@ -1,8 +1,13 @@
 import 'dart:async';
 
+import '../method.dart';
+
 import 'launcher.dart';
 import 'model.dart';
 import 'transport.dart';
+
+typedef CoreSessionShutdown =
+    Future<void> Function(DesktopCoreSession session, Duration timeout);
 
 abstract interface class DesktopCoreLifecycleController {
   DesktopCoreState get state;
@@ -129,6 +134,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
   final DesktopCoreTimeouts timeouts;
   final String Function() sessionIdFactory;
   final bool verifyPeerPid;
+  final CoreSessionShutdown? shutdownSession;
   final DesktopCoreTransportBinding _transport;
 
   final StreamController<DesktopCoreState> _stateController =
@@ -144,6 +150,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
   Future<void>? _worker;
   Future<void>? _unexpectedDisconnectOperation;
   CoreProcessLease? _unconfirmedLease;
+  DesktopCoreFailure? _cleanupFailure;
   Future<CoreLifecycleResult>? _closeResult;
   int _revision = 0;
   _LifecycleIntent _desired = const _LifecycleIntent(
@@ -159,6 +166,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
     DesktopCoreTimeouts timeouts = const DesktopCoreTimeouts(),
     String Function()? sessionIdFactory,
     bool verifyPeerPid = false,
+    CoreSessionShutdown? shutdownSession,
   }) {
     return DesktopCoreLifecycle._(
       transportFactory: transportFactory,
@@ -166,6 +174,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
       timeouts: timeouts,
       sessionIdFactory: sessionIdFactory ?? createCoreSessionId,
       verifyPeerPid: verifyPeerPid,
+      shutdownSession: shutdownSession,
       transport: DesktopCoreTransportBinding(transportFactory()),
     );
   }
@@ -176,6 +185,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
     required this.timeouts,
     required this.sessionIdFactory,
     required this.verifyPeerPid,
+    required this.shutdownSession,
     required DesktopCoreTransportBinding transport,
   }) : _transport = transport {
     _transportSubscription = _transport.events.listen(_handleTransportEvent);
@@ -292,12 +302,13 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
   }
 
   Future<_LifecycleAchievement> _reconcile(_LifecycleIntent intent) async {
+    final cleanupFailure = _cleanupFailure;
+    if (cleanupFailure != null && intent.target != _LifecycleTarget.closed) {
+      throw cleanupFailure;
+    }
     final unconfirmedLease = _unconfirmedLease;
-    if (unconfirmedLease != null) {
-      await _stopUnconfirmedLease(
-        unconfirmedLease,
-        allowFailure: intent.target == _LifecycleTarget.closed,
-      );
+    if (unconfirmedLease != null && intent.target != _LifecycleTarget.closed) {
+      await _cleanObsoleteLease(unconfirmedLease, intent.revision);
     }
     switch (intent.target) {
       case _LifecycleTarget.running:
@@ -309,7 +320,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
           await _stopSession(
             running,
             intent.revision,
-            allowUnconfirmedExit: _terminalRequested,
+            forceCleanupOnFailure: _terminalRequested,
           );
           if (!_wantsRunning) {
             return _abandonedStart();
@@ -322,7 +333,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
           await _stopSession(
             session,
             intent.revision,
-            allowUnconfirmedExit: _terminalRequested,
+            forceCleanupOnFailure: _terminalRequested,
           );
         }
         if (!_wantsRunning) {
@@ -335,7 +346,7 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
           await _stopSession(
             session,
             intent.revision,
-            allowUnconfirmedExit: false,
+            forceCleanupOnFailure: false,
           );
         }
         if (_desired.target == _LifecycleTarget.stopped) {
@@ -344,18 +355,27 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
         return _LifecycleAchievement.idle;
       case _LifecycleTarget.closed:
         final session = _session;
-        if (session != null) {
-          await _stopSession(
-            session,
-            intent.revision,
-            allowUnconfirmedExit: true,
-          );
+        DesktopCoreFailure? closeFailure = cleanupFailure;
+        try {
+          if (unconfirmedLease != null) {
+            await _cleanObsoleteLease(unconfirmedLease, intent.revision);
+          }
+          if (session != null) {
+            await _stopSession(
+              session,
+              intent.revision,
+              forceCleanupOnFailure: true,
+            );
+          }
+        } on DesktopCoreFailure catch (failure) {
+          closeFailure = failure;
         }
         await _transportSubscription.cancel();
         await _transport.close();
         _publish(DesktopCoreClosed(intent.revision));
         await _stateController.close();
         await _crashController.close();
+        if (closeFailure != null) throw closeFailure;
         return _LifecycleAchievement.closed;
     }
   }
@@ -549,53 +569,48 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
     );
   }
 
-  Future<void> _stopUnconfirmedLease(
-    CoreProcessLease lease, {
-    required bool allowFailure,
-  }) async {
-    try {
-      final result = await lease.stop(timeouts.disconnection);
-      if (result.exitConfirmed) {
-        _unconfirmedLease = null;
-      } else if (!allowFailure) {
-        throw _failure(
-          code: 'process_exit_unconfirmed',
-          phase: DesktopCorePhase.stopping,
-          revision: _desired.revision,
-          lease: lease,
-        );
-      }
-    } catch (_) {
-      if (!allowFailure) {
-        rethrow;
-      }
-    } finally {
-      if (allowFailure) {
-        _unconfirmedLease = null;
-      }
-    }
-  }
-
   Future<void> _stopSession(
     DesktopCoreSession session,
     int revision, {
-    required bool allowUnconfirmedExit,
+    required bool forceCleanupOnFailure,
   }) async {
     _publish(DesktopCoreStopping(revision: revision, session: session));
     final disconnected = _disconnectFor(session);
+    DesktopCoreFailure? cleanupFailure;
     try {
-      final stopResult = await session.lease.stop(timeouts.disconnection);
-      if (!stopResult.exitConfirmed) {
-        if (!allowUnconfirmedExit) {
-          throw _failure(
-            code: 'process_exit_unconfirmed',
+      final shutdown = shutdownSession;
+      if (shutdown != null) {
+        try {
+          await shutdown(
+            session,
+            timeouts.gracefulShutdown,
+          ).timeout(timeouts.gracefulShutdown);
+          await session.lease.waitForExit(timeouts.processExit);
+        } catch (error, stackTrace) {
+          cleanupFailure = _failure(
+            code: 'resources_release_unconfirmed',
             phase: DesktopCorePhase.stopping,
             revision: revision,
             session: session,
+            cause: error,
+            stackTrace: stackTrace,
           );
+          if (!forceCleanupOnFailure &&
+              error is CoreMethodException &&
+              error.code == 'resources_release_unconfirmed') {
+            throw cleanupFailure;
+          }
         }
-        _clearSession(session);
-        return;
+      }
+      final stopResult = await session.lease.stop(timeouts.disconnection);
+      if (!stopResult.exitConfirmed) {
+        throw _failure(
+          code: 'process_exit_unconfirmed',
+          phase: DesktopCorePhase.stopping,
+          revision: revision,
+          session: session,
+          cause: cleanupFailure,
+        );
       }
       if (!disconnected.isCompleted) {
         await Future.any<void>([
@@ -608,16 +623,20 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
         if (!_terminalRequested) {
           await _transport.replace(transportFactory());
         }
+        if (cleanupFailure != null) {
+          _cleanupFailure = cleanupFailure;
+          throw cleanupFailure;
+        }
         return;
       }
       _clearSession(session);
+      if (cleanupFailure != null) {
+        _cleanupFailure = cleanupFailure;
+        throw cleanupFailure;
+      }
     } on DesktopCoreFailure {
       rethrow;
     } catch (error, stackTrace) {
-      if (allowUnconfirmedExit) {
-        _clearSession(session);
-        return;
-      }
       throw _failure(
         code: 'stop_failed',
         phase: DesktopCorePhase.stopping,
@@ -753,7 +772,8 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
     }
     late final Future<void> operation;
     operation = session.lease
-        .stop(timeouts.disconnection)
+        .waitForExit(timeouts.gracefulShutdown)
+        .then((_) => session.lease.stop(timeouts.disconnection))
         .then<void>((result) {
           if (!result.exitConfirmed) {
             _unconfirmedLease = session.lease;
