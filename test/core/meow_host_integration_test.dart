@@ -45,18 +45,19 @@ void main() {
       AppPath.cacheDirectory = () async => home;
       await RustLib.init();
 
+      late final CoreRpcClient rpcClient;
       final lifecycle = DesktopCoreLifecycle(
         transportFactory: () => IPCCoreTransport(
           address: system.isWindows ? windowsPipeName : unixSocketPath,
         ),
         launcherResolver: _DirectHost(executable),
         verifyPeerPid: system.isWindows,
+        shutdownSession: (session, timeout) =>
+            rpcClient.shutdownSession(session, timeout),
       );
+      rpcClient = CoreRpcClient(lifecycle.transport);
       final controller = CoreController.scoped(
-        CoreService.forTesting(
-          lifecycle: lifecycle,
-          rpcClient: CoreRpcClient(lifecycle.transport),
-        ),
+        CoreService.forTesting(lifecycle: lifecycle, rpcClient: rpcClient),
       );
       final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final requests = origin.listen((request) async {
@@ -166,7 +167,9 @@ rules:
               echoed.complete();
             }
           },
-          onDone: () => closed.complete(),
+          onDone: () {
+            if (!closed.isCompleted) closed.complete();
+          },
           onError: (Object error) {
             if (!closed.isCompleted) closed.completeError(error);
           },
@@ -201,10 +204,21 @@ rules:
           Socket.connect('127.0.0.1', proxyPort),
           throwsA(isA<SocketException>()),
         );
+        expect(
+          (await controller.restart()).outcome,
+          CoreLifecycleOutcome.applied,
+        );
+        final restarted = await controller.getRuntimeState();
+        expect(restarted.initialized, isFalse);
+        expect(restarted.configured, isFalse);
+        expect(restarted.running, isFalse);
       } finally {
         client.close(force: true);
         tunnel?.destroy();
-        await controller.close();
+        expect(
+          (await controller.close()).outcome,
+          CoreLifecycleOutcome.applied,
+        );
         for (final peer in peers) {
           peer.destroy();
         }
