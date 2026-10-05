@@ -533,10 +533,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: windows, os: windows-2022, arch: amd64 }
-          - { platform: windows, os: windows-11-arm, arch: arm64 }
-          - { platform: linux, os: ubuntu-22.04, arch: amd64 }
-          - { platform: linux, os: ubuntu-22.04-arm, arch: arm64 }
           - { platform: macos, os: macos-26-intel, arch: amd64 }
           - { platform: macos, os: macos-26, arch: arm64 }
     steps:
