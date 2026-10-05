@@ -173,6 +173,28 @@ jobs:
         run: cargo doc --locked --workspace --no-deps
       - name: UDP port 53 listener regression
         run: cargo test --locked -p meow-listener --all-features --lib udp_port_53
+      - name: Cache local Shadowsocks test peer
+        id: standalone-ssserver
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/meow-test-peers/bin/ssserver
+          key: standalone-ssserver-linux-amd64-1.24.0-stream-aead2022-rust1.98.1
+      - name: Build pinned local Shadowsocks test peer
+        if: steps.standalone-ssserver.outputs.cache-hit != 'true'
+        run: >-
+          cargo install shadowsocks-rust --version 1.24.0 --locked --force
+          --bin ssserver --features "stream-cipher aead-cipher-2022"
+          --root "$RUNNER_TEMP/meow-test-peers"
+      - name: Prepare verified local plugin peer
+        run: |
+          sudo apt-get install -y --no-install-recommends shadowsocks-v2ray-plugin=1.3.1-4
+          dpkg-query -W -f='${Version}\n' shadowsocks-v2ray-plugin | grep -Fx '1.3.1-4'
+          PEER_BIN="$RUNNER_TEMP/meow-test-peers/bin"
+          mkdir -p "$PEER_BIN"
+          ln -s /usr/bin/ss-v2ray-plugin "$PEER_BIN/v2ray-plugin"
+          "$PEER_BIN/ssserver" --version | grep -F '1.24.0'
+          "$PEER_BIN/v2ray-plugin" -version
+          echo "$PEER_BIN" >> "$GITHUB_PATH"
       - name: Curated standalone unit and integration tests
         run: |
           cargo test --locked --lib --bin meow \
@@ -184,7 +206,7 @@ jobs:
             --test trojan_integration --test vless_config_test --test vless_integration \
             --test v2ray_plugin_integration --test pre_resolve_test \
             --test tls_test --test boring_tls_test --test ws_test --test crate_invariants_test \
-            --test crate_publish_metadata_test
+            --test crate_publish_metadata_test -- --nocapture
 
   meow-host:
     if: inputs.acceptance_build_run == ''

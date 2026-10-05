@@ -268,6 +268,11 @@ from `core/meow-rs` as listed in its `CONTRIBUTING.md`. Protocol-specific Docker
 or local-peer suites remain required when their protocol code changes, as that
 document specifies. Normal package builds depend on this gate; artifact-only
 acceptance of an existing build does not recompile its core.
+The plugin integration target uses local peers: shadowsocks-rust 1.24.0 is built
+with the upstream locked stream-cipher/aead-cipher-2022 features, and Ubuntu's
+verified shadowsocks-v2ray-plugin 1.3.1-4 package supplies the plugin binary.
+Their presence is checked before tests; neither a Go build nor remote proxy nodes
+are needed. Test output remains visible so ignored or skipped cases are auditable.
 
 The `meow-host` matrix executes CoreController E2E with native host and Rust API artifacts on Windows/Linux/macOS x64
 and ARM64. Each native job then compiles the ignored native TUN executable as its normal build user and invokes it
