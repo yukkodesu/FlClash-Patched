@@ -6,12 +6,88 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 SCRIPT = Path(__file__).with_name('desktop_package_acceptance.py')
 
 
 class PackageAcceptanceContract(unittest.TestCase):
+    def test_failed_child_retains_stdout_stderr_and_exit_code(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with self.assertRaises(subprocess.CalledProcessError) as raised:
+            module.run([sys.executable, '-c', "import sys; print('child stdout'); print('child stderr', file=sys.stderr); sys.exit(7)"])
+        details = module.failure_details(raised.exception)
+        self.assertEqual(details['returnCode'], 7)
+        self.assertIn('child stdout', details['stdout'])
+        self.assertIn('child stderr', details['stderr'])
+
+    def test_timed_out_child_retains_partial_output(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with self.assertRaises(subprocess.TimeoutExpired) as raised:
+            module.run([sys.executable, '-c', "import sys, time; print('before timeout', flush=True); time.sleep(10)"], timeout=1)
+        details = module.failure_details(raised.exception)
+        self.assertEqual(details['timeoutSeconds'], 1)
+        self.assertIn('before timeout', details['stdout'])
+        json.dumps(details)
+
+    def test_tray_failure_keeps_original_error_and_bounded_read_only_inventory(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        failure = subprocess.CalledProcessError(1, ['powershell'], output='activation output', stderr='actual UIA error')
+        inventory = {'clientPid': 123, 'items': [{'name': 'Notification Chevron', 'class': 'TrayButton'}]}
+        with mock.patch.object(module, 'PLATFORM', 'windows'), mock.patch.object(module, 'run', side_effect=[failure, subprocess.CompletedProcess([], 0, json.dumps(inventory), '')]) as runner:
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                module.activate_tray(123)
+        self.assertIs(raised.exception, failure)
+        details = module.failure_details(failure)
+        self.assertEqual(details['stderr'], 'actual UIA error')
+        self.assertEqual(details['trayInventory'], inventory)
+        command = runner.call_args_list[1]
+        self.assertEqual(command.kwargs['timeout'], 20)
+        script = command.args[0][-1]
+        self.assertIn('Shell_TrayWnd', script)
+        self.assertIn('NotifyIconOverflowWindow', script)
+        self.assertIn('256', script)
+        self.assertNotIn('Invoke()', script)
+        self.assertNotIn('mouse_event', script)
+
+    def test_tray_inventory_timeout_does_not_replace_activation_failure(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        failure = subprocess.CalledProcessError(1, ['powershell'], stderr='activation failed')
+        timeout = subprocess.TimeoutExpired(['powershell'], 20, output=b'partial inventory')
+        with mock.patch.object(module, 'PLATFORM', 'windows'), mock.patch.object(module, 'run', side_effect=[failure, timeout]):
+            with self.assertRaises(subprocess.CalledProcessError) as raised:
+                module.activate_tray(123)
+        self.assertIs(raised.exception, failure)
+        details = module.failure_details(failure)
+        self.assertEqual(details['trayInventory']['timeoutSeconds'], 20)
+        self.assertEqual(details['trayInventory']['stdout'], 'partial inventory')
+
+    def test_package_digest_accepts_standard_vectors_without_python311_helper(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        cases = [
+            (b'', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'),
+            (b'hello', '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824'),
+            (b'a' * 1_000_000, 'cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0'),
+        ]
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.dict(module.hashlib.__dict__):
+            module.hashlib.__dict__.pop('file_digest', None)
+            path = Path(temporary) / 'artifact'
+            for payload, expected in cases:
+                with self.subTest(size=len(payload)):
+                    path.write_bytes(payload)
+                    self.assertEqual(module.digest(path), expected)
+
     def test_workstation_cli_refuses_before_creating_evidence_or_installation(self):
         with tempfile.TemporaryDirectory() as temporary:
             log = Path(temporary) / 'evidence.jsonl'
