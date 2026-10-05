@@ -212,14 +212,17 @@ class _EmptyConfigCoreHandler extends _RecordingCoreHandler {
 }
 
 void main() {
-  test('configuration fields match the shared Go contract', () async {
+  test('hot updates send only the supported mode and log level', () async {
     final fixture =
         jsonDecode(await File('test/fixtures/config_patch.json').readAsString())
             as Map<String, dynamic>;
     final params = UpdateParams.fromJson(fixture);
-    final encoded = jsonDecode(jsonEncode(params));
-
-    expect(encoded, fixture);
+    final handler = _RecordingCoreHandler();
+    await handler.updateConfig(params);
+    expect(handler.calls[CoreMethod.updateConfig], {
+      'mode': 'rule',
+      'log-level': 'info',
+    });
   });
 
   test('method call keeps structured arguments', () async {

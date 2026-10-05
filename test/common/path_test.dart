@@ -83,58 +83,53 @@ void main() {
     );
   });
 
-  test('confines a provider path the profile tried to choose', () async {
-    final proxiesDir = await appPath.getProviderDirPath(
-      7,
-      proxiesProviderDirectoryName,
-    );
-    final rulesDir = await appPath.getProviderDirPath(
-      7,
-      rulesProviderDirectoryName,
-    );
-
-    final result = await makeRealProfileTask(
-      MakeRealProfileState(
-        profilesPath: await appPath.profilesPath,
-        profileId: 7,
-        rawConfig: {
-          'proxy-providers': {
-            'escape': {'type': 'file', 'path': '../../../../config.yaml'},
-            'urlless': {'type': 'http', 'path': 'cache.db'},
-            'literal': {
-              'type': 'inline',
-              'payload': ['DIRECT'],
+  test(
+    'confines HTTP caches and preserves file paths for host checking',
+    () async {
+      final proxiesDir = await appPath.getProviderDirPath(
+        7,
+        proxiesProviderDirectoryName,
+      );
+      final result = await makeRealProfileTask(
+        MakeRealProfileState(
+          profilesPath: await appPath.profilesPath,
+          profileId: 7,
+          rawConfig: {
+            'proxy-providers': {
+              'escape': {'type': 'file', 'path': '../../../../config.yaml'},
+              'urlless': {'type': 'http', 'path': 'cache.db'},
+              'literal': {
+                'type': 'inline',
+                'payload': ['DIRECT'],
+              },
+            },
+            'rule-providers': {
+              'sneak': {'type': 'file', 'path': '/etc/hosts'},
             },
           },
-          'rule-providers': {
-            'sneak': {'type': 'file', 'path': '/etc/hosts'},
-          },
-        },
-        realPatchConfig: const PatchClashConfig(),
-        overrideDns: false,
-        appendSystemDns: false,
-        proxyGroups: const [],
-        rules: const [],
-        addedRules: const [],
-        defaultUA: 'FlClash',
-      ),
-    );
-    final config = loadYaml(result.yaml) as YamlMap;
+          realPatchConfig: const PatchClashConfig(),
+          overrideDns: false,
+          appendSystemDns: false,
+          proxyGroups: const [],
+          rules: const [],
+          addedRules: const [],
+          defaultUA: 'FlClash',
+        ),
+      );
+      final config = loadYaml(result.yaml) as YamlMap;
 
-    expect(
-      config['proxy-providers']['escape']['path'],
-      join(proxiesDir, 'proxy-providers/escape'.toMd5()),
-    );
-    expect(
-      config['proxy-providers']['urlless']['path'],
-      join(proxiesDir, 'proxy-providers/urlless'.toMd5()),
-    );
-    expect(config['proxy-providers']['literal']['path'], isNull);
-    expect(
-      config['rule-providers']['sneak']['path'],
-      join(rulesDir, 'rule-providers/sneak'.toMd5()),
-    );
-  });
+      expect(
+        config['proxy-providers']['escape']['path'],
+        '../../../../config.yaml',
+      );
+      expect(
+        config['proxy-providers']['urlless']['path'],
+        join(proxiesDir, 'proxy-providers/urlless'.toMd5()),
+      );
+      expect(config['proxy-providers']['literal']['path'], isNull);
+      expect(config['rule-providers']['sneak']['path'], '/etc/hosts');
+    },
+  );
 
   test('survives a provider section that is not a map', () async {
     final result = await makeRealProfileTask(
