@@ -57,7 +57,7 @@ jobs:
           flutter pub get
           python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
       - name: Repeat installed ARM64 GUI cold start and exact IPC symptom
-        run: python tool/diagnose_arm64_cold_start.py --dist dist --log build/arm64-ipc-diagnosis/diagnosis.jsonl --iterations 12 --seconds 8 --skip-controller-prelude
+        run: python tool/diagnose_arm64_cold_start.py --dist dist --log build/arm64-ipc-diagnosis/diagnosis.jsonl --iterations 12 --seconds 8 --skip-controller-prelude --skip-helper-prelude
       - uses: actions/upload-artifact@v7
         if: always()
         with:

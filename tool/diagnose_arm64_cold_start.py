@@ -43,6 +43,7 @@ def main():
     parser.add_argument('--iterations', type=int, default=25)
     parser.add_argument('--seconds', type=float, default=8)
     parser.add_argument('--skip-controller-prelude', action='store_true')
+    parser.add_argument('--skip-helper-prelude', action='store_true')
     args = parser.parse_args()
     package.require_runner()
     if package.PLATFORM != 'windows' or platform.machine().lower() != 'arm64':
@@ -85,7 +86,10 @@ def main():
                 record('core-controller-prelude-omitted', reason='single-variable minimisation')
             else:
                 record('core-controller-prelude', **package.core_controller_e2e(installation.root, args.log.parent))
-            record('helper-prelude', **package.helper_probe(installation.root, CORE_SHA))
+            if args.skip_helper_prelude:
+                record('helper-prelude-omitted', reason='single-variable minimisation')
+            else:
+                record('helper-prelude', **package.helper_probe(installation.root, CORE_SHA))
             for index in range(args.iterations):
                 if package.product_processes():
                     raise RuntimeError('Previous trial retains product processes.')
