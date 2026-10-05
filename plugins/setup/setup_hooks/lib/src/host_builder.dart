@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 
 import 'build_cache.dart';
 import 'fingerprint.dart';
+import 'macos_toolchain.dart';
 import 'options.dart';
 import 'rust_builder.dart';
 import 'target.dart';
@@ -16,6 +17,8 @@ class HostBuilder {
     required this.cache,
     required this.notice,
     this.harnessInputs = const [],
+    this.macOSDeploymentTarget,
+    this.macOSCompiler,
   });
 
   final String rootDir;
@@ -23,8 +26,20 @@ class HostBuilder {
   final BuildCache cache;
   final BuildNotice notice;
   final List<String> harnessInputs;
+  final String? macOSDeploymentTarget;
+  final Uri? macOSCompiler;
 
   Future<BuildExecution> build(Target target) {
+    final apple = target.platform == 'macos'
+        ? MacOSCargoToolchain.resolve(
+            rustTriple: target.rustTriple,
+            compiler: macOSCompiler,
+            deploymentTarget:
+                macOSDeploymentTarget ??
+                Platform.environment['MACOSX_DEPLOYMENT_TARGET'] ??
+                '12.0',
+          )
+        : null;
     final corePath = p.join(rootDir, config.coreDir);
     String gitValue(List<String> args) =>
         (runCommand('git', args, workingDirectory: corePath).stdout as String)
@@ -70,7 +85,11 @@ class HostBuilder {
           ..addValue('source_commit', commit)
           ..addValue('arguments', args)
           ..addValue('config', config.toFingerprintMap())
-          ..addValue('environment', rustEnvironment());
+          ..addValue('environment', {
+            ...rustEnvironment(),
+            ...?apple?.environment,
+          })
+          ..addValue('apple_toolchain', apple?.fingerprint);
         addRustToolchain(
           builder,
           workingDirectory: corePath,
@@ -89,6 +108,7 @@ class HostBuilder {
             excludedDirectories: const {'.git', 'target', '.idea'},
           ),
           ...harnessInputs,
+          ...?apple?.inputs,
         ]);
         return builder.finishWithInputs();
       },
@@ -97,7 +117,7 @@ class HostBuilder {
           'cargo',
           args,
           workingDirectory: corePath,
-          environment: {'MEOW_HOST_COMMIT': commit},
+          environment: {'MEOW_HOST_COMMIT': commit, ...?apple?.environment},
         );
         copyFile(
           p.join(

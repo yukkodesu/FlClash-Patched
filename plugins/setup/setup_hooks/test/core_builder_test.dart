@@ -73,6 +73,7 @@ void main() {
         android: os == OS.android
             ? AndroidCodeConfig(targetNdkApi: ndkApi)
             : null,
+        macOS: os == OS.macOS ? MacOSCodeConfig(targetVersion: 13) : null,
       ).setupBuildInput(builder);
     }
     return builder.build();
@@ -108,6 +109,7 @@ void main() {
         expect(request.rootDir, repository.path);
         expect(request.harnessDir, p.join(packageRoot.path, 'setup_hooks'));
         expect(request.target.rustTriple, triple);
+        expect(request.macOSDeploymentTarget, os == OS.macOS ? '13.0' : null);
       }
     });
 
