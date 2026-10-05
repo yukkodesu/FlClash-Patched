@@ -4,7 +4,7 @@ project(runner LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "FlClash")
+set(BINARY_NAME "FlClashMeow")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.
@@ -34,9 +34,9 @@ endif()
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(APPLICATION_ID "cc.chenx.flclash.debug")
+  set(APPLICATION_ID "com.yukko.flclashmeow.debug")
 else()
-  set(APPLICATION_ID "cc.chenx.flclash")
+  set(APPLICATION_ID "com.yukko.flclashmeow")
 endif()
 
 # Compilation settings that should be applied to most targets.
@@ -114,8 +114,8 @@ endforeach(bundled_library)
 # Produced by the setup build hook during flutter_assemble.
 set(CORE_ARTIFACTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../libclash/linux")
 install(PROGRAMS
-  "${CORE_ARTIFACTS_DIR}/FlClashCore"
-  "${CORE_ARTIFACTS_DIR}/FlClashHelperService"
+  "${CORE_ARTIFACTS_DIR}/FlClashMeowCore"
+  "${CORE_ARTIFACTS_DIR}/FlClashMeowHelperService"
   DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 install(FILES "${CORE_ARTIFACTS_DIR}/manifest.json"

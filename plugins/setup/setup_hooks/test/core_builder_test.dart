@@ -80,10 +80,8 @@ void main() {
 
   group('requestFor', () {
     test('has nothing to build without code assets', () {
-      const builder = CoreBuilder();
-
       expect(
-        builder.requestFor(
+        const CoreBuilder().requestFor(
           buildInput(
             os: OS.linux,
             architecture: Architecture.x64,
@@ -92,118 +90,46 @@ void main() {
         ),
         isNull,
       );
-      expect(
-        builder
-            .requestFor(
-              buildInput(os: OS.iOS, architecture: Architecture.arm64),
-            )
-            ?.target,
-        Target.iosArm64,
-      );
     });
 
-    test('rejects simulator builds instead of staging device archives', () {
-      expect(
-        () => const CoreBuilder().requestFor(
-          buildInput(
-            os: OS.iOS,
-            architecture: Architecture.arm64,
-            iosSdk: IOSSdk.iPhoneSimulator,
+    test('maps Flutter desktop builds to matching Rust targets', () {
+      const cases = [
+        (OS.linux, Architecture.x64, 'x86_64-unknown-linux-gnu'),
+        (OS.linux, Architecture.arm64, 'aarch64-unknown-linux-gnu'),
+        (OS.windows, Architecture.x64, 'x86_64-pc-windows-msvc'),
+        (OS.windows, Architecture.arm64, 'aarch64-pc-windows-msvc'),
+        (OS.macOS, Architecture.x64, 'x86_64-apple-darwin'),
+        (OS.macOS, Architecture.arm64, 'aarch64-apple-darwin'),
+      ];
+      for (final (os, arch, triple) in cases) {
+        final request = const CoreBuilder().requestFor(
+          buildInput(os: os, architecture: arch),
+        )!;
+        expect(request.rootDir, repository.path);
+        expect(request.harnessDir, p.join(packageRoot.path, 'setup_hooks'));
+        expect(request.target.rustTriple, triple);
+      }
+    });
+
+    test('rejects mobile and unavailable architectures', () {
+      for (final (os, arch) in [
+        (OS.android, Architecture.arm64),
+        (OS.iOS, Architecture.arm64),
+        (OS.windows, Architecture.ia32),
+      ]) {
+        expect(
+          () => const CoreBuilder().requestFor(
+            buildInput(os: os, architecture: arch),
           ),
-        ),
-        throwsA(isA<BuildException>()),
-      );
-    });
-
-    test('resolves the repository and target from the hook input', () {
-      final request = const CoreBuilder().requestFor(
-        buildInput(os: OS.linux, architecture: Architecture.x64),
-      )!;
-
-      expect(request.rootDir, repository.path);
-      expect(request.harnessDir, p.join(packageRoot.path, 'setup_hooks'));
-      expect(request.target, Target.linuxAmd64);
-      expect(request.androidToolchain, isNull);
-    });
-
-    test('reads GOAMD64 from the setup user define', () {
-      final request = const CoreBuilder().requestFor(
-        buildInput(
-          os: OS.linux,
-          architecture: Architecture.x64,
-          userDefines: {'goamd64': 'v3'},
-        ),
-      )!;
-
-      expect(request.target.goamd64, 'v3');
-      expect(request.target.goarch, 'amd64');
-    });
-
-    test('builds the requested macOS architecture regardless of host', () {
-      const builder = CoreBuilder();
-
-      expect(
-        builder
-            .requestFor(
-              buildInput(os: OS.macOS, architecture: Architecture.x64),
-            )!
-            .target,
-        Target.macosAmd64,
-      );
-      expect(
-        builder
-            .requestFor(
-              buildInput(os: OS.macOS, architecture: Architecture.arm64),
-            )!
-            .target,
-        Target.macosArm64,
-      );
-    });
-
-    test('derives the Android compiler from the NDK clang Flutter passes', () {
-      final bin = p.join(repository.path, 'ndk', 'prebuilt', 'host', 'bin');
-      final request = const CoreBuilder().requestFor(
-        buildInput(
-          os: OS.android,
-          architecture: Architecture.arm64,
-          compiler: Uri.file(p.join(bin, 'clang')),
-          ndkApi: 23,
-        ),
-      )!;
-
-      expect(request.target, Target.androidArm64);
-      expect(
-        request.androidToolchain!.clangFor(Target.androidArm64),
-        p.join(
-          bin,
-          'aarch64-linux-android23-clang${Platform.isWindows ? '.cmd' : ''}',
-        ),
-      );
-    });
-
-    test('fails when Flutter passes no Android compiler', () {
-      expect(
-        () => const CoreBuilder().requestFor(
-          buildInput(os: OS.android, architecture: Architecture.arm64),
-        ),
-        throwsA(isA<InfraError>()),
-      );
-    });
-
-    test('rejects an architecture without a Core', () {
-      expect(
-        () => const CoreBuilder().requestFor(
-          buildInput(os: OS.windows, architecture: Architecture.ia32),
-        ),
-        throwsA(isA<BuildException>()),
-      );
+          throwsA(isA<BuildException>()),
+        );
+      }
     });
 
     test('fails when the package is not inside the repository', () {
       final elsewhere = Directory(
         p.join(repository.path, 'elsewhere', 'plugins', 'setup'),
       )..createSync(recursive: true);
-
       expect(
         () => const CoreBuilder().requestFor(
           buildInput(
@@ -216,21 +142,20 @@ void main() {
       );
     });
   });
-
   group('run', () {
     test(
       'reports read files and written directories as dependencies',
       () async {
-        final goFile = p.join(repository.path, 'core', 'lib.go');
+        final sourceFile = p.join(repository.path, 'core', 'main.rs');
         final coreDir = p.join(repository.path, 'libclash', 'linux');
         BuildRequest? seen;
         final builder = CoreBuilder(
           build: (request) async {
             seen = request;
             return BuildReport(
-              inputs: [goFile],
+              inputs: [sourceFile],
               outputs: [
-                p.join(coreDir, 'FlClashCore'),
+                p.join(coreDir, 'FlClashMeowCore'),
                 p.join(coreDir, 'manifest.json'),
               ],
               rebuilt: true,
@@ -246,7 +171,7 @@ void main() {
 
         expect(seen?.target, Target.linuxAmd64);
         expect(BuildOutput(output.json).dependencies, [
-          Uri.file(goFile),
+          Uri.file(sourceFile),
           Uri.directory(coreDir),
         ]);
       },
@@ -320,7 +245,7 @@ void main() {
     test('reports a failed compile as a build failure', () {
       final builder = CoreBuilder(
         build: (_) async => throw CommandFailedException(
-          executable: 'go',
+          executable: 'cargo',
           arguments: const ['build'],
           exitCode: 2,
           stdout: '',
@@ -345,8 +270,10 @@ void main() {
 
     test('reports a vanished build input as an infrastructure failure', () {
       final builder = CoreBuilder(
-        build: (_) async =>
-            throw const FileSystemException('Cannot open file', 'core/lib.go'),
+        build: (_) async => throw const FileSystemException(
+          'Cannot open file',
+          'core/meow-rs/src/main.rs',
+        ),
       );
 
       expect(
@@ -358,7 +285,7 @@ void main() {
           isA<InfraError>().having(
             (error) => error.message,
             'message',
-            contains('core/lib.go'),
+            contains('core/meow-rs/src/main.rs'),
           ),
         ),
       );
@@ -367,7 +294,7 @@ void main() {
     test('reports a missing toolchain as an infrastructure failure', () {
       final builder = CoreBuilder(
         build: (_) async =>
-            throw const ProcessException('go', ['version'], 'not found'),
+            throw const ProcessException('cargo', ['--version'], 'not found'),
       );
 
       expect(
@@ -379,7 +306,7 @@ void main() {
           isA<InfraError>().having(
             (error) => error.message,
             'message',
-            contains('go'),
+            contains('cargo'),
           ),
         ),
       );

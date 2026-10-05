@@ -9,27 +9,71 @@ import 'error.dart';
 
 final _log = Logger('util');
 
-/// Recovers the toolchains that Xcode's and Gradle's stripped PATH would hide.
+/// Xcode and Flutter do not always expose the native dependencies on PATH.
 final String? _toolSearchPath = _resolveToolSearchPath();
 
 String? _resolveToolSearchPath() {
-  if (Platform.isWindows) return null;
-  final entries = (Platform.environment['PATH'] ?? '').split(':');
+  final separator = Platform.isWindows ? ';' : ':';
+  final entries = (Platform.environment['PATH'] ?? '').split(separator);
   final home = Platform.environment['HOME'];
   final candidates = [
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-    '/usr/local/go/bin',
-    if (home != null && home.isNotEmpty) ...[
-      p.join(home, 'go', 'bin'),
-      p.join(home, '.cargo', 'bin'),
+    if (Platform.isWindows)
+      ..._visualStudioToolDirectories()
+    else ...[
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      if (home != null && home.isNotEmpty) p.join(home, '.cargo', 'bin'),
     ],
   ];
   final missing = candidates
       .where((dir) => !entries.contains(dir) && Directory(dir).existsSync())
       .toList();
   if (missing.isEmpty) return null;
-  return [...entries, ...missing].join(':');
+  return [...entries, ...missing].join(separator);
+}
+
+List<String> _visualStudioToolDirectories() {
+  final programFiles = Platform.environment['ProgramFiles(x86)'];
+  if (programFiles == null) return const [];
+  final vswhere = p.join(
+    programFiles,
+    'Microsoft Visual Studio',
+    'Installer',
+    'vswhere.exe',
+  );
+  if (!File(vswhere).existsSync()) return const [];
+  final result = Process.runSync(vswhere, [
+    '-latest',
+    '-products',
+    '*',
+    '-requires',
+    'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+    '-property',
+    'installationPath',
+  ]);
+  final installation = (result.stdout as String).trim();
+  if (result.exitCode != 0 || installation.isEmpty) return const [];
+  return [
+    p.join(
+      installation,
+      'Common7',
+      'IDE',
+      'CommonExtensions',
+      'Microsoft',
+      'CMake',
+      'CMake',
+      'bin',
+    ),
+    p.join(
+      installation,
+      'Common7',
+      'IDE',
+      'CommonExtensions',
+      'Microsoft',
+      'CMake',
+      'Ninja',
+    ),
+  ];
 }
 
 Map<String, String>? _withToolSearchPath(Map<String, String>? environment) {
