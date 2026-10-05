@@ -43,6 +43,8 @@ Use Flutter **3.47.6**, Git, rustup/Cargo, CMake, a native C/C++ compiler, Pytho
 
 Build on the matching operating system. Architecture values are amd64 or arm64; Windows/Linux require a matching native build host. Select one command for your target:
 
+Linux packaging supports Debian, pacman, AppImage and zip. RPM is excluded because the current packager ignores uninstall hooks and Core hash protection. See the [uninstall scope and custom XDG limitation](linux/packaging/README.md).
+
 ~~~bash
 dart setup.dart windows --arch amd64
 dart setup.dart linux --arch arm64

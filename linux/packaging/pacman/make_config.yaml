@@ -30,3 +30,43 @@ categories:
 
 startup_notify: true
 startup_wm_class: com.yukko.flclashmeow
+
+postuninstall_scripts:
+  - 'systemctl disable --now flclash-meow-helper.service >/dev/null 2>&1 || true'
+  - 'rm -f /etc/systemd/system/flclash-meow-helper.service'
+  - 'systemctl daemon-reload >/dev/null 2>&1 || true'
+  - |
+      getent passwd | while IFS=: read -r user password uid gid gecos home shell; do
+        [ "$uid" -ge 1000 ] && [ "$uid" -lt 65534 ] && [ -d "$home" ] || continue
+        runuser -u "$user" -- sh -s -- "$home" <<'MEOW_UNREGISTER'
+      home=$1
+      startup="$home/.config/autostart/FlClash-Meow.desktop"
+      handler="$home/.local/share/applications/flclash-meow-url-handler.desktop"
+      for executable in /usr/share/FlClashMeow/FlClashMeow /usr/bin/FlClashMeow; do
+        if [ -f "$startup" ] && [ ! -L "$startup" ] && grep -Fxq "Exec=$executable" "$startup"; then
+          rm -f -- "$startup"
+        fi
+        if [ -f "$handler" ] && [ ! -L "$handler" ] && grep -Fxq "Exec=\"$executable\" %u" "$handler"; then
+          rm -f -- "$handler"
+          for mime in "$home/.config/mimeapps.list" "$home/.config/"*-mimeapps.list "$home/.local/share/applications/mimeapps.list" "$home/.local/share/applications/"*-mimeapps.list; do
+            [ -f "$mime" ] && [ ! -L "$mime" ] || continue
+            temporary=$(mktemp "$mime.meow.XXXXXX") || continue
+            if awk '
+              /^x-scheme-handler\/flclash-meow=/ {
+                count=split(substr($0,index($0,"=")+1),entries,";"); value=""
+                for (i=1;i<=count;i++)
+                  if (entries[i]!="" && entries[i]!="flclash-meow-url-handler.desktop")
+                    value=value entries[i] ";"
+                if (value!="") print "x-scheme-handler/flclash-meow=" value
+                next
+              }
+              { print }
+            ' "$mime" >"$temporary"; then
+              chmod --reference="$mime" "$temporary" && mv -f -- "$temporary" "$mime"
+            fi
+            rm -f -- "$temporary"
+          done
+        fi
+      done
+      MEOW_UNREGISTER
+      done
