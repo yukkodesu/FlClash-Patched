@@ -45,6 +45,15 @@ The chosen run must already be completed. Before downloading, the job requires a
 
 ## Verification state
 
+[Early six-target build probe](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37374536042)
+uses exact client `d675cea604e7535f025169da46a7457b54c1376e` and core
+`b5ae8471d1d79ad0e82026f1da9060458abcfa23` on a disposable CI branch. Only its
+workflow differs from implementation base `6b955d61`; it does not run the normal
+regression gates and cannot establish final acceptance. Its actual artifacts may
+be used to discover installer/GUI failures through the guarded artifact-only job.
+Final reviewed integration source still requires all normal gates and rebuilt
+packages. The probe workflow must not be merged into integration.
+
 The workstation-safe guard and package-integrity public boundary tests passed with Python. A read-only inspection of a real Windows x64 release payload found its Core/manifest/Helper coherent and its AOT update identity present. No workstation package install, service install, UI action or network configuration change was performed. Native install/tray/uninstall acceptance remains pending the six architecture jobs and their recorded JSONL/screenshots; this document is not a claim that those jobs passed.
 
 ```sh

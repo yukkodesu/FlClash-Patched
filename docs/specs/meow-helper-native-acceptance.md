@@ -2,8 +2,23 @@
 
 This is an opt-in service lifetime check for disposable GitHub-hosted Windows
 and Linux runners. It does not run on a developer workstation or self-hosted
-runner, and it does not enable TUN or change DNS, routes or system proxy settings.
+runner. The ordinary case leaves network settings unchanged; a separate guarded
+TUN case verifies DNS/routes, fake-IP traffic and restoration on disposable runners.
 macOS privileged launch has a separate host acceptance path.
+
+The driver runs ordinary and TUN cases separately. The TUN case uses the actual
+CoreController/HelperLauncher/IPC path, two listener generations and the unchanged
+30-second graceful cleanup/two-second exit budgets. It records baseline, running,
+stopped, terminal-close and final DNS/routes/journals and confirms managed Core exit.
+
+[Seventh CI](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37371601020)
+at client `6b955d61`/core `b5ae8471` passed both real cases on Linux x64/ARM64 and
+Windows x64. Terminal close took 80 ms/70 ms/5274 ms respectively; original
+DNS/routes returned, journals were empty and no managed Core remained. Windows
+ARM64 did not acquire a runner. These production Release results do not resolve
+the independent Windows Debug TUN IPC EOF. Linux direct Core DNS traffic does
+not establish sustained OS resolver redirection. Package installation remains a
+separate acceptance requirement; the harness stages protected test installations.
 
 Build the production artifacts with `dart run bin/build_desktop.dart <platform>
 <amd64|arm64>` from `plugins/setup/setup_hooks`. Keep the native `rust_api` library

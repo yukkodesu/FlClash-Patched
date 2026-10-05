@@ -19,6 +19,14 @@ reported 2,792 passed / 0 failed / 4 ignored across 36 binaries, plus 3 UDP/53
 and 114 isolated API tests. The same five missing-Country.mmdb early returns
 remain a coverage limit.
 
+The [seventh-run standalone job](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37371601020/job/111971581879)
+passed at exact client `6b955d61a2e81ac974771200b2ab88921cd485e6` and core
+`b5ae8471d1d79ad0e82026f1da9060458abcfa23`. Its independently parsed single
+curated slice again reports 2,792 passed / 0 failed / 4 ignored across 36 binaries,
+with five Country.mmdb early returns. Separate UDP/53 (3) and API (114), all
+three workspace Clippy variants, minimal CLI and strict rustdoc passed. The full
+log is retained as `D:/Code/.worktrees/meow-tooling/ci-seventh-standalone.log`.
+
 Formatting, all three workspace Clippy variants, minimal standalone CLI Clippy,
 and workspace rustdoc passed. UDP/53 passed 3 tests. One complete curated command
 reported **2,792 passed, 0 failed, 4 ignored**, reaching all 21 CONTRIBUTING
