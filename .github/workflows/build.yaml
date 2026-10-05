@@ -165,6 +165,7 @@ jobs:
           flutter pub get
           python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
       - name: Mandatory CoreController integration test
+        id: core-e2e
         shell: bash
         env:
           FLCLASH_MEOW_HOST: ${{ github.workspace }}/core/meow-rs/target/${{ matrix.triple }}/release/flclash-meow-host${{ matrix.platform == 'windows' && '.exe' || '' }}
@@ -183,6 +184,30 @@ jobs:
           name: native-acceptance-${{ matrix.platform }}-${{ matrix.arch }}
           path: build/native-acceptance
           if-no-files-found: ignore
+      - name: Stage hash-coupled production Core and Helper
+        id: helper-stage
+        if: always() && steps.core-e2e.outcome == 'success' && matrix.platform != 'macos'
+        working-directory: plugins/setup/setup_hooks
+        shell: bash
+        run: |
+          dart pub get
+          dart run bin/build_desktop.dart ${{ matrix.platform }} ${{ matrix.arch }}
+      - name: Actual privileged Helper lifetime acceptance
+        if: always() && steps.helper-stage.outcome == 'success' && matrix.platform != 'macos'
+        shell: bash
+        env:
+          FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR: ${{ github.workspace }}/plugins/rust_api/rust/target/${{ matrix.triple }}/release
+        run: |
+          python tool/privileged_helper_acceptance.py \
+            --bundle libclash/${{ matrix.platform }} \
+            --log .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
+      - name: Upload Helper lifetime evidence
+        if: always() && matrix.platform != 'macos'
+        uses: actions/upload-artifact@v7
+        with:
+          name: helper-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
+          if-no-files-found: warn
   rust:
     name: Rust
     runs-on: ubuntu-latest
