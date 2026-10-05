@@ -4,12 +4,14 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/state.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:proxy/proxy.dart' as system_proxy;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ProxyManager extends ConsumerStatefulWidget {
   final Widget child;
+  final system_proxy.Proxy? proxyAdapter;
 
-  const ProxyManager({super.key, required this.child});
+  const ProxyManager({super.key, this.proxyAdapter, required this.child});
 
   @override
   ConsumerState createState() => _ProxyManagerState();
@@ -22,11 +24,12 @@ class _ProxyManagerState extends ConsumerState<ProxyManager> {
     final isStart = proxyState.isStart;
     final systemProxy = proxyState.systemProxy;
     final port = proxyState.port;
+    final adapter = widget.proxyAdapter ?? proxy;
     bool? result;
     if (isStart && systemProxy) {
-      result = await proxy?.startProxy(port, proxyState.bypassDomain);
+      result = await adapter?.startProxy(port, proxyState.bypassDomain);
     } else {
-      result = await proxy?.stopProxy();
+      result = await adapter?.stopProxy(onlyIfNeeded: true);
     }
     if (result == false) {
       commonPrint.log('update system proxy failed', logLevel: LogLevel.warning);
