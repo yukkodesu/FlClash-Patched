@@ -312,7 +312,7 @@ jobs:
             sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" \
               FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE="$FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE" \
               FLCLASH_MEOW_PROXY_EVIDENCE_PATH="$FLCLASH_MEOW_PROXY_EVIDENCE_PATH" \
-              "$(command -v dart)" run tool/native_proxy_acceptance.dart
+              "${FLUTTER_ROOT:?}/bin/cache/dart-sdk/bin/dart" run tool/native_proxy_acceptance.dart
           fi
           python -c "import json, os; assert json.load(open(os.environ['FLCLASH_MEOW_PROXY_EVIDENCE_PATH']))['outcome'] == 'passed'"
       - name: Actual Windows system proxy ownership acceptance

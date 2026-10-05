@@ -285,7 +285,9 @@ The same six native jobs run the system proxy fixture with
 `RUNNER_ENVIRONMENT=github-hosted`. Unix invokes
 `dart run tool/native_proxy_acceptance.dart` from `plugins/proxy`; Linux supplies
 an isolated D-Bus session with GNOME schemas/dconf, and macOS uses the runner's
-real `networksetup` under sudo. Windows builds the production plugin's
+real `networksetup` under sudo. The macOS fixture verifies the privileged native
+contract; ordinary GUI authorization remains part of package acceptance.
+Windows builds the production plugin's
 `proxy_test` target through `tool/native_proxy_windows/CMakeLists.txt` with its
 matching Flutter engine, then selects `ProxyNativeAcceptance.*`. These fixtures
 record original settings, ownership restoration, later-writer preservation and
