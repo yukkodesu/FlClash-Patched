@@ -510,7 +510,12 @@ def helper_probe(root, expected):
 
 def activate_tray(pid):
     if PLATFORM == 'linux':
+        panel_pid = os.environ.get('MEOW_PACKAGE_PANEL_PID', '')
+        if not panel_pid.isdigit() or int(panel_pid) <= 1:
+            raise RuntimeError('Linux tray acceptance requires its native Xfce panel PID.')
+        panels = wait_for(lambda: run(['xdotool', 'search', '--onlyvisible', '--pid', panel_pid, '--class', 'xfce4-panel'], check=False).stdout.split(), 'visible native desktop tray panel')
         source = '''import json, sys
+from pathlib import Path
 from gi.repository import Gio, GLib
 bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 def call(name, path, interface, member, signature=None, values=()):
@@ -527,6 +532,34 @@ for name in names:
         title = call(name, '/StatusNotifierItem', 'org.freedesktop.DBus.Properties', 'Get', '(ss)', ('org.kde.StatusNotifierItem', 'Title'))[0]
         if title != 'FlClash-Meow':
             continue
+        watcher = 'org.kde.StatusNotifierWatcher'
+        state = call(watcher, '/StatusNotifierWatcher', 'org.freedesktop.DBus.Properties', 'GetAll', '(s)', ('org.kde.StatusNotifierWatcher',))[0]
+        if not state.get('IsStatusNotifierHostRegistered'):
+            raise RuntimeError('No registered native StatusNotifier host')
+        registered = []
+        for item in state.get('RegisteredStatusNotifierItems', []):
+            service, separator, path = item.partition('/')
+            if separator and call('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus', 'GetConnectionUnixProcessID', '(s)', (service,))[0] == owner:
+                registered.append(item)
+        if not registered:
+            raise RuntimeError('Product StatusNotifier item is not registered in the desktop host')
+        watcher_pid = call('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus', 'GetConnectionUnixProcessID', '(s)', (watcher,))[0]
+        panel_pid = int(sys.argv[2])
+        if Path(f'/proc/{panel_pid}/comm').read_text().strip() != 'xfce4-panel':
+            raise RuntimeError('Unexpected native tray panel process')
+        ancestry = []
+        current = watcher_pid
+        while current > 1 and current not in ancestry:
+            ancestry.append(current)
+            if current == panel_pid:
+                break
+            fields = dict(line.split(':', 1) for line in Path(f'/proc/{current}/status').read_text().splitlines() if ':' in line)
+            current = int(fields['PPid'].strip())
+        if panel_pid not in ancestry:
+            raise RuntimeError('StatusNotifier watcher is not owned by the disposable panel')
+        icon = call(name, '/StatusNotifierItem', 'org.freedesktop.DBus.Properties', 'GetAll', '(s)', ('org.kde.StatusNotifierItem',))[0]
+        if icon.get('Status') != 'Active':
+            raise RuntimeError('Product native tray icon is not active')
         menu = call(name, '/StatusNotifierItem', 'org.freedesktop.DBus.Properties', 'Get', '(ss)', ('org.kde.StatusNotifierItem', 'Menu'))[0]
         revision, layout = call(name, menu, 'com.canonical.dbusmenu', 'GetLayout', '(iias)', (0, -1, []))
         def find(item):
@@ -542,14 +575,16 @@ for name in names:
         if found is None:
             raise RuntimeError('Published tray has no Show menu item')
         call(name, menu, 'com.canonical.dbusmenu', 'Event', '(isvu)', (found[0], 'clicked', GLib.Variant('i', 0), 0))
-        print(json.dumps({'scope': 'native StatusNotifierItem and DBusMenu Show activation', 'ownerPid': owner, 'busName': name, 'menu': menu, 'item': found}))
+        print(json.dumps({'scope': 'native Xfce StatusNotifier host and DBusMenu Show activation; screenshot awaits image review', 'ownerPid': owner, 'busName': name, 'menu': menu, 'item': found, 'watcherPid': watcher_pid, 'panelAncestry': ancestry, 'registeredItems': registered, 'title': title, 'iconName': icon.get('IconName'), 'status': icon.get('Status')}))
         break
     except GLib.Error:
         continue
 else:
     raise RuntimeError('No product-owned native StatusNotifierItem')
 '''
-        return json.loads(run(['/usr/bin/python3', '-c', source, str(pid)]).stdout)
+        result = json.loads(run(['/usr/bin/python3', '-c', source, str(pid), panel_pid]).stdout)
+        result['panelWindows'] = [{'id': window, 'geometry': run(['xdotool', 'getwindowgeometry', '--shell', window]).stdout} for window in panels]
+        return result
     if PLATFORM == 'macos':
         source = f'''tell application "System Events"
 set targetProcess to first application process whose unix id is {pid}
@@ -634,6 +669,16 @@ $graphics.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$bounds.Size)
 $image.Save($env:MEOW_PACKAGE_SCREENSHOT,[System.Drawing.Imaging.ImageFormat]::Png)
 $graphics.Dispose(); $image.Dispose()
 ''')
+
+
+def linux_watcher_items():
+    source = '''import json
+from gi.repository import Gio, GLib
+bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+result = bus.call_sync('org.kde.StatusNotifierWatcher', '/StatusNotifierWatcher', 'org.freedesktop.DBus.Properties', 'Get', GLib.Variant('(ss)', ('org.kde.StatusNotifierWatcher', 'RegisteredStatusNotifierItems')), None, Gio.DBusCallFlags.NONE, 3000, None)
+print(json.dumps(result.unpack()[0]))
+'''
+    return json.loads(run(['/usr/bin/python3', '-c', source]).stdout)
 
 
 def main():
@@ -734,6 +779,10 @@ def main():
                     client = None
                     wait_for(lambda: not product_processes(), 'terminal application/Core process cleanup')
                     record('normal-exit', autoLaunch=auto_launch, processes=product_processes())
+                    if PLATFORM == 'linux':
+                        wait_for(lambda: not set(tray['registeredItems']).intersection(linux_watcher_items()), 'native tray removing the exited application icon')
+                        record('tray-unregistered', remainingItems=linux_watcher_items(), imageReview='pending native screenshot review')
+                        screenshot(options.log.parent / f'tray-after-exit-{index}.png')
             installation.uninstall()
             record('after-uninstall', registrations=registrations(), processes=product_processes(), services=service_registration(), originalProduct=original.verify())
             if product_processes() or installation.client.exists():
@@ -752,7 +801,7 @@ def main():
             if PLATFORM == 'macos' and after['autostartEnabled']:
                 raise RuntimeError('Removing the macOS application left an enabled product background item.')
             record('passed', originalProduct=original.verify(),
-                   unverified=['Linux rendered tray presentation requires a desktop tray watcher', 'release updater network/download behavior', 'TUN acceptance is a separate native suite'])
+                   unverified=['release updater network/download behavior', 'TUN acceptance is a separate native suite', *(['Linux rendered tray screenshots await image review'] if PLATFORM == 'linux' else [])])
         except Exception as error:
             record('failed', error=str(error), processes=product_processes())
             raise
