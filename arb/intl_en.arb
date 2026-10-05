@@ -863,6 +863,7 @@
   "memoryCleanup": "Clean up",
   "memoryReadFailed": "Unable to read memory. Retrying…",
   "meowTunScope": "Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.",
+  "meowLinuxTunDnsWarning": "On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.",
   "meowTunFakeIp": "Fake-IP only",
   "meowTunGlobal": "Global IPv4 (experimental)",
   "meowAgeUnsupported": "AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.",

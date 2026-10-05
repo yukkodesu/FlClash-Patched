@@ -21,6 +21,8 @@
 | 认证 | meow 始终豁免来源地址 127.0.0.1/32 和 ::1/128，空 skip-auth-prefixes 也不能移除。配置检查会提示此差异；监听 loopback 不等于认证本机程序。 |
 | TUN | Fake-IP 范围捕获与实验性 global 路由捕获不同。IPv6 捕获需要相应 global 配置及平台验证。开关开启或 Helper 就绪均不能证明正在捕获流量。不支持的 mihomo stack、strict-route、route-address、endpoint-independent-nat 开关已移除。 |
 
+Linux 的其他 DNS 管理程序可能覆盖 TUN 对解析器的修改。Fake-IP 需要通过内核 DNS 解析，请先确认系统解析器实际指向内核，再依赖流量捕获。现有原生记录尚未证实系统 DNS 自动重定向持续生效。
+
 不接入 Tailscale/ZeroTier/EasyTier 控制、AGE 密钥操作、Go GC/goroutine/pprof 诊断、DNS 逐次查询追踪、provider 侧载、手动 geodata 热替换事务及独立内核/外部 UI 更新器。可选 external-controller 默认关闭，与客户端 IPC 独立。完整差异见[能力与配置策略](docs/specs/meow-desktop-client.md#6-功能取舍)。
 
 ## 源码构建

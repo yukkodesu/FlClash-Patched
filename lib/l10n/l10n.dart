@@ -7220,6 +7220,16 @@ class AppLocalizations {
     );
   }
 
+  /// `On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.`
+  String get meowLinuxTunDnsWarning {
+    return Intl.message(
+      'On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.',
+      name: 'meowLinuxTunDnsWarning',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Fake-IP only`
   String get meowTunFakeIp {
     return Intl.message(

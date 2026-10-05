@@ -988,6 +988,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage(
       "Возможности ядра",
     ),
+    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
+      "В Linux другие службы DNS могут перезаписать настройки DNS для TUN. Для Fake-IP запросы должны идти к DNS ядра; проверьте системный резолвер, прежде чем полагаться на перехват трафика.",
+    ),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage(
       "Выберите профиль перед запуском.",
     ),
