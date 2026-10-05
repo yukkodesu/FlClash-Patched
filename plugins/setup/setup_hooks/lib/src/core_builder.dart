@@ -14,7 +14,7 @@ typedef CoreBuildFunction = Future<BuildReport> Function(BuildRequest request);
 
 final _log = Logger('setup_hooks');
 
-/// CI sets `build_assets: false` for `flutter test`; no test loads the Core.
+/// Native CI builds the host explicitly before running CoreController tests.
 bool buildsAssets(BuildInput input) =>
     input.userDefines['build_assets'] != false;
 
