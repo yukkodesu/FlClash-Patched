@@ -1,11 +1,42 @@
 # Standalone core regression evidence
 
-Recorded 2026-10-06 on Windows x64 with the workspace-pinned Rust 1.98.1.
+Recorded 2026-10-06 from local Windows x64 and native Ubuntu x64 CI with Rust 1.98.1.
 This supplements the [desktop acceptance record](meow-desktop-acceptance.md).
 There is **no complete single-invocation Windows curated-suite pass**.
-The pinned-source Linux CI job remains required for the standalone contract.
+The pinned-source Linux standalone job passed, with the coverage limits below.
 
-## Source and checks
+## Completed Linux CI
+
+[Fifth-run standalone job](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37363869604/job/111944437569)
+completed successfully at `2026-10-05T19:54:18Z`. Its log verifies exact client
+`72a997b1e63363f4886910e59d7bbf18cee5355b` and core
+`3cf7d8da370958c03c87ef4384e9f9b2213014b4`.
+
+Formatting, all three workspace Clippy variants, minimal standalone CLI Clippy,
+and workspace rustdoc passed. UDP/53 passed 3 tests. One complete curated command
+reported **2,792 passed, 0 failed, 4 ignored**, reaching all 21 CONTRIBUTING
+integration targets. The separate no-TUN API command passed 114 tests. RAII's
+3 tests and the proxy library's 693 tests passed on this platform.
+
+The log confirms `shadowsocks 1.24.0`, APT plugin package `1.3.1-4`, and the
+plugin's own `v2ray-plugin custom` / Go1.17.3 version text. Both
+`test_ss_v2ray_plugin_websocket_mux` and `test_ss_v2ray_plugin_tls_websocket_mux`
+passed with real local peers; no missing-ssserver skip occurred.
+
+Four upstream tests were explicitly ignored: the DNS TCP burst-budget test and
+three sing-box live-node probes. Five country-index tests returned early with
+`Country.mmdb fixture not available`: building an allowlist, an empty allowlist,
+sharing repeated range Arcs, duplicate GEOIP parser reuse, and case-insensitive
+allowlists. Cargo includes these early returns in its pass count; their real MMDB
+coverage remains unverified. The full log is retained locally as
+`D:/Code/.worktrees/meow-tooling/ci-fifth-standalone-linux.log`.
+
+This proves the documented standalone Linux regression gate at the pinned source,
+not complete desktop acceptance. The fifth run's Plugins and macOS ARM jobs were
+cancelled after about 15 minutes without acquiring a hosted runner, as their
+check-run annotations confirm; they are not source test failures or passing cells.
+
+## Local Windows source and checks
 
 | Source | Check | Result |
 | --- | --- | --- |
