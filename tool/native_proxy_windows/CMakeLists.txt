@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.14)
 project(meow_native_proxy_acceptance LANGUAGES CXX)
 enable_testing()
 
+file(TO_CMAKE_PATH "${FLUTTER_ENGINE_DIR}" FLUTTER_ENGINE_DIR)
+file(TO_CMAKE_PATH "${PROXY_SOURCE_DIR}" PROXY_SOURCE_DIR)
+
 if(NOT WIN32 OR NOT EXISTS "${FLUTTER_ENGINE_DIR}/flutter_windows.dll.lib")
   message(FATAL_ERROR "A matching native Windows Flutter engine is required")
 endif()
