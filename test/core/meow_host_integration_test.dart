@@ -71,15 +71,20 @@ void main() {
         socket.listen(socket.add, onError: (_) => socket.destroy());
       });
       Socket? tunnel;
+      Socket? socks;
+      StreamIterator<List<int>>? socksResponses;
+      final proxyHost = (await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+      )).expand((interface) => interface.addresses).first.address;
       final reservation = await ServerSocket.bind(
-        InternetAddress.loopbackIPv4,
+        InternetAddress(proxyHost),
         0,
       );
       final proxyPort = reservation.port;
       await reservation.close();
       final client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 3)
-        ..findProxy = (_) => 'PROXY 127.0.0.1:$proxyPort';
+        ..findProxy = (_) => 'PROXY $proxyHost:$proxyPort';
       try {
         await controller.start();
         final info = await controller.getCoreInfo();
@@ -111,6 +116,9 @@ void main() {
             '''
 strict: true
 mixed-port: $proxyPort
+allow-lan: true
+bind-address: $proxyHost
+authentication: [fixture:local-only]
 mode: rule
 hosts:
   test.example: 127.0.0.42
@@ -150,7 +158,7 @@ rules:
         final running = await controller.getRuntimeState();
         expect(running.running, isTrue);
         expect(running.tunActive, isFalse);
-        expect(running.listeners.single.address, '127.0.0.1:$proxyPort');
+        expect(running.listeners.single.address, '$proxyHost:$proxyPort');
         final dnsAddress = running.dnsListen!.split(':');
         final dnsSocket = await RawDatagramSocket.bind(
           InternetAddress.loopbackIPv4,
@@ -204,7 +212,18 @@ rules:
           dnsSocket.close();
         }
 
+        final unauthorized = await (await client.getUrl(
+          Uri.parse(url),
+        )).close();
+        expect(unauthorized.statusCode, HttpStatus.proxyAuthenticationRequired);
+        await unauthorized.drain<void>();
+        final proxyAuthorization =
+            'Basic ${base64.encode(utf8.encode('fixture:local-only'))}';
         final request = await client.getUrl(Uri.parse(url));
+        request.headers.set(
+          HttpHeaders.proxyAuthorizationHeader,
+          proxyAuthorization,
+        );
         final response = await request.close();
         expect(response.statusCode, HttpStatus.ok);
         expect(
@@ -217,7 +236,7 @@ rules:
         expect(delay, isNotNull);
         expect(delay!.value, greaterThanOrEqualTo(0));
 
-        tunnel = await Socket.connect('127.0.0.1', proxyPort);
+        tunnel = await Socket.connect(proxyHost, proxyPort);
         final established = Completer<void>();
         final echoed = Completer<void>();
         final closed = Completer<void>();
@@ -241,6 +260,7 @@ rules:
         );
         tunnel.write(
           'CONNECT 127.0.0.1:${echo.port} HTTP/1.1\r\n'
+          'Proxy-Authorization: $proxyAuthorization\r\n'
           'Host: 127.0.0.1:${echo.port}\r\n\r\n',
         );
         await established.future.timeout(const Duration(seconds: 5));
@@ -261,12 +281,58 @@ rules:
           ),
           isNot(contains(held.id)),
         );
+        final unauthorizedSocks = await Socket.connect(proxyHost, proxyPort);
+        try {
+          final method = unauthorizedSocks
+              .expand((bytes) => bytes)
+              .take(2)
+              .toList()
+              .timeout(const Duration(seconds: 3));
+          unauthorizedSocks.add([5, 1, 0]);
+          expect(await method, [5, 255]);
+        } finally {
+          unauthorizedSocks.destroy();
+        }
+        socks = await Socket.connect(proxyHost, proxyPort);
+        final responses = StreamIterator<List<int>>(socks);
+        socksResponses = responses;
+        final pending = <int>[];
+        Future<List<int>> readSocks(int length) async {
+          while (pending.length < length) {
+            expect(
+              await responses.moveNext().timeout(const Duration(seconds: 3)),
+              isTrue,
+            );
+            pending.addAll(responses.current);
+          }
+          final bytes = pending.take(length).toList();
+          pending.removeRange(0, length);
+          return bytes;
+        }
+
+        socks.add([5, 1, 2]);
+        expect(await readSocks(2), [5, 2]);
+        socks.add([
+          1,
+          7,
+          ...ascii.encode('fixture'),
+          10,
+          ...ascii.encode('local-only'),
+        ]);
+        expect(await readSocks(2), [1, 0]);
+        socks.add([5, 1, 0, 1, 127, 0, 0, 1, echo.port >> 8, echo.port & 255]);
+        final socksReply = await readSocks(4);
+        expect(socksReply.take(3), [5, 0, 0]);
+        expect(socksReply[3], anyOf(1, 4));
+        await readSocks(socksReply[3] == 1 ? 6 : 18);
+        socks.add(ascii.encode('meow'));
+        expect(ascii.decode(await readSocks(4)), 'meow');
         expect(await controller.stopListener(), isTrue);
         final stopped = await controller.getRuntimeState();
         expect(stopped.running, isFalse);
         expect(stopped.configured, isTrue);
         await expectLater(
-          Socket.connect('127.0.0.1', proxyPort),
+          Socket.connect(proxyHost, proxyPort),
           throwsA(isA<SocketException>()),
         );
         expect(
@@ -280,6 +346,8 @@ rules:
       } finally {
         client.close(force: true);
         tunnel?.destroy();
+        socks?.destroy();
+        await socksResponses?.cancel();
         expect(
           (await controller.close()).outcome,
           CoreLifecycleOutcome.applied,
