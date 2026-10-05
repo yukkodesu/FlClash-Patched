@@ -21,6 +21,15 @@ BUNDLE_ID = 'com.yukko.flclashmeow'
 PLATFORM = {'win32': 'windows', 'linux': 'linux', 'darwin': 'macos'}.get(sys.platform)
 SUFFIX = '.exe' if os.name == 'nt' else ''
 LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+WINDOWS_UIA_SETUP = '''
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$providerName = [System.Windows.Automation.AutomationElement].Assembly.GetName()
+$providerName.Name = 'UIAutomationClientsideProviders'
+$providerAssembly = [System.Reflection.Assembly]::Load($providerName)
+[System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providerAssembly.GetName())
+'''
 
 
 def require_runner():
@@ -527,10 +536,7 @@ def helper_probe(root, expected):
 
 
 def windows_tray_inventory(pid):
-    source = '''
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
+    source = WINDOWS_UIA_SETUP + '''
 $rootElement = [System.Windows.Automation.AutomationElement]::RootElement
 $walker = [System.Windows.Automation.TreeWalker]::RawViewWalker
 $queue = New-Object 'System.Collections.Generic.Queue[System.Windows.Automation.AutomationElement]'
@@ -553,7 +559,7 @@ while ($queue.Count -gt 0 -and $items.Count -lt 256) {
     if ($null -ne $child) { $truncated = $true }
   } catch { $items += @{error=$_.Exception.Message} }
 }
-@{items=@($items);truncated=($truncated -or $queue.Count -gt 0)} | ConvertTo-Json -Depth 5 -Compress
+@{items=@($items);truncated=($truncated -or $queue.Count -gt 0);providerAssembly=$providerAssembly.FullName} | ConvertTo-Json -Depth 5 -Compress
 '''
     value = json.loads(run(['powershell', '-NoProfile', '-NonInteractive', '-Command', source], timeout=20).stdout)
     value['clientPid'] = pid
@@ -662,9 +668,7 @@ error "No product-owned accessible status item"
 end tell'''
         return {'scope': 'native accessible product status item activation', 'ownerPid': pid,
                 'item': run(['osascript', '-e', source]).stdout.strip()}
-    source = '''
-Add-Type -AssemblyName UIAutomationClient
-Add-Type -AssemblyName UIAutomationTypes
+    source = WINDOWS_UIA_SETUP + '''
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -699,7 +703,7 @@ $point = $trayItem.GetClickablePoint()
 if (-not [TrayInput]::SetCursorPos([int]$point.X,[int]$point.Y)) { throw 'Cannot position pointer on tray icon' }
 [TrayInput]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
 [TrayInput]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
-@{scope='native notification-area pointer activation';name=$trayItem.Current.Name;ownerPid=$trayItem.Current.ProcessId;x=$point.X;y=$point.Y} | ConvertTo-Json -Compress
+@{scope='native notification-area pointer activation';name=$trayItem.Current.Name;ownerPid=$trayItem.Current.ProcessId;x=$point.X;y=$point.Y;providerAssembly=$providerAssembly.FullName} | ConvertTo-Json -Compress
 '''
     try:
         return json.loads(powershell(source))
