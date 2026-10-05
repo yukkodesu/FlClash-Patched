@@ -597,7 +597,7 @@ jobs:
           python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
       - name: Prepare disposable Linux desktop
         if: matrix.platform == 'linux'
-        run: sudo apt-get install -y xvfb openbox xfce4-panel xfconf xdotool scrot dbus-x11 python3-gi libgtk-3-0 libayatana-appindicator3-1
+        run: sudo apt-get install -y xvfb openbox xfce4-panel xfconf xdotool scrot dbus-x11 python3-gi xdg-utils libgtk-3-0 libayatana-appindicator3-1
       - name: Install and accept actual artifact
         shell: bash
         env:

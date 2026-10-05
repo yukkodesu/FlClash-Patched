@@ -432,7 +432,7 @@ class Installation:
             self.installed = True
             run(['apt-get', 'install', '-y', str(self.artifact)], privileged=True, timeout=240)
             files = run(['dpkg-query', '-L', package]).stdout.splitlines()
-            clients = [Path(path) for path in files if Path(path).name == 'FlClashMeow']
+            clients = [Path(path) for path in files if Path(path).name == 'FlClashMeow' and Path(path).is_file() and not Path(path).is_symlink()]
             if len(clients) != 1:
                 raise RuntimeError(f'Unexpected packaged client executables: {clients}.')
             self.client = clients[0]
