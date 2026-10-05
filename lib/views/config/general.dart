@@ -324,17 +324,6 @@ class GeneralView extends ConsumerWidget {
   }) {
     return [
       if (system.isDesktop) ...[
-        _appSettingToggle(
-          title: (l) => l.autoLaunch,
-          subtitle: (l) => l.autoLaunchDesc,
-          select: (state) => state.autoLaunch,
-          update: (state, value) => state.copyWith(
-            autoLaunch: value,
-            highPriorityAutoLaunch: value
-                ? state.highPriorityAutoLaunch
-                : false,
-          ),
-        ),
         if (system.isWindows && autoLaunch)
           _appSettingToggle(
             title: (l) => l.highPriorityAutoLaunch,
@@ -421,12 +410,6 @@ class GeneralView extends ConsumerWidget {
   List<Widget> _inboundItems(bool authentication) {
     return [
       const PortItem(),
-      _clashToggle(
-        title: (l) => l.allowLan,
-        subtitle: (l) => l.allowLanDesc,
-        select: (state) => state.allowLan,
-        update: (state, value) => state.copyWith(allowLan: value),
-      ),
       const AuthenticationItem(),
       if (authentication) ...const [
         AuthenticationAccountItem(),
@@ -439,27 +422,6 @@ class GeneralView extends ConsumerWidget {
   List<Widget> _connectionItems({required bool closeConnections}) {
     return [
       const TestUrlItem(),
-      _clashToggle(
-        title: (l) => l.unifiedDelay,
-        subtitle: (l) => l.unifiedDelayDesc,
-        select: (state) => state.unifiedDelay,
-        update: (state, value) => state.copyWith(unifiedDelay: value),
-      ),
-      _clashToggle(
-        title: (l) => l.tcpConcurrent,
-        subtitle: (l) => l.tcpConcurrentDesc,
-        select: (state) => state.tcpConcurrent,
-        update: (state, value) => state.copyWith(tcpConcurrent: value),
-      ),
-      if (system.isDesktop) const KeepAliveIntervalItem(),
-      _clashToggle(
-        title: (l) => l.findProcessMode,
-        subtitle: (l) => l.findProcessModeDesc,
-        select: (state) => state.findProcessMode == FindProcessMode.always,
-        update: (state, value) => state.copyWith(
-          findProcessMode: value ? FindProcessMode.always : FindProcessMode.off,
-        ),
-      ),
       _appSettingToggle(
         title: (l) => l.autoCloseConnections,
         subtitle: (l) => l.autoCloseConnectionsDesc,
@@ -512,7 +474,6 @@ class GeneralView extends ConsumerWidget {
               : GeodataLoader.standard,
         ),
       ),
-      if (!system.isIOS) const GeositeMatcherItem(),
     ];
   }
 

@@ -8,17 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:material_ui/material_ui.dart';
 
-import 'traffic_details.dart';
-
 class TrafficUsage extends StatelessWidget {
   const TrafficUsage({super.key});
-
-  void _showDetails(BuildContext context) {
-    dialogs.showCommonDialog<void>(
-      context: context,
-      child: const TrafficDetails(),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +19,6 @@ class TrafficUsage extends StatelessWidget {
       child: RepaintBoundary(
         child: CommonCard(
           radius: AppCorner.lg,
-          onPressed: () => _showDetails(context),
-          onLongPress: () => _showDetails(context),
           child: Column(
             children: [
               Container(
@@ -47,28 +36,10 @@ class TrafficUsage extends StatelessWidget {
                     Flexible(
                       child: TooltipText(
                         text: Text(
-                          appLocalizations.trafficUsage,
+                          appLocalizations.meowAllTraffic,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: context.textTheme.titleSmall?.copyWith(
-                            color: context.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    AspectRatio(
-                      aspectRatio: 1,
-                      child: ExcludeFocus(
-                        child: IconButton(
-                          tooltip: appLocalizations.details(
-                            appLocalizations.trafficUsage,
-                          ),
-                          padding: EdgeInsets.zero,
-                          onPressed: () => _showDetails(context),
-                          icon: Icon(
-                            Symbols.info,
-                            size: 16.ap,
                             color: context.colorScheme.onSurfaceVariant,
                           ),
                         ),

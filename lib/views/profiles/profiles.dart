@@ -6,7 +6,6 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
-import 'package:fl_clash/views/profiles/age_key_generator.dart';
 import 'package:fl_clash/views/profiles/overwrite/overwrite.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
@@ -266,17 +265,6 @@ class ProfileItem extends ConsumerWidget {
       context,
       builder: (context) => AdaptiveSheetScaffold(
         title: context.appLocalizations.edit,
-        actions: [
-          IconButtonData(
-            icon: Symbols.key,
-            tooltip: context.appLocalizations.ageKeyGenerateTitle,
-            onPressed: () {
-              dialogs.showCommonDialog<void>(
-                child: const AgeKeyGeneratorDialog(),
-              );
-            },
-          ),
-        ],
         body: EditProfileView(profile: profile, context: context),
       ),
     );

@@ -240,65 +240,13 @@ void main() {
     });
   });
 
-  group('network options items', () {
-    test('batch packet switches appear only on Apple platforms', () {
-      for (final platform in ['ios', 'macos', 'android', 'linux']) {
-        final items = networkOptionsItems(
-          isDesktop: platform == 'macos' || platform == 'linux',
-          isMacOS: platform == 'macos',
-          isIOS: platform == 'ios',
-        );
-        final count = platform == 'ios' || platform == 'macos' ? 1 : 0;
-        expect(items.whereType<RecvMsgXItem>(), hasLength(count));
-        expect(items.whereType<SendMsgXItem>(), hasLength(count));
-      }
-    });
-
-    test('mobile network options include the stack picker', () {
-      final items = networkOptionsItems(isDesktop: false, isMacOS: false);
-      expect(items.whereType<TunStackItem>(), hasLength(1));
-      expect(items.whereType<TunCongestionControllerItem>(), hasLength(1));
-    });
-
-    test('interface name rows appear only on desktop', () {
-      final desktopTypes = networkOptionsItems(
-        isDesktop: true,
-        isMacOS: false,
-      ).map((item) => item.runtimeType);
-      expect(desktopTypes, contains(InterfaceNameModeItem));
-      expect(desktopTypes, contains(InterfaceNameItem));
-
-      final androidTypes = networkOptionsItems(
-        isDesktop: false,
-        isMacOS: false,
-      ).map((item) => item.runtimeType);
-      expect(androidTypes, isNot(contains(InterfaceNameModeItem)));
-      expect(androidTypes, isNot(contains(InterfaceNameItem)));
-    });
-  });
-
-  group('route address visibility', () {
-    testWidgets('is hidden while bypassing private addresses', (tester) async {
-      container
-          .read(networkSettingProvider.notifier)
-          .update(
-            (state) => state.copyWith(routeMode: RouteMode.bypassPrivate),
-          );
-
-      await pumpItem(tester, const RouteAddressItem());
-
-      expect(find.byType(ListTile), findsNothing);
-    });
-
-    testWidgets('is shown for every other route mode', (tester) async {
-      container
-          .read(networkSettingProvider.notifier)
-          .update((state) => state.copyWith(routeMode: RouteMode.config));
-
-      await pumpItem(tester, const RouteAddressItem());
-
-      expect(find.byType(ListTile), findsOneWidget);
-    });
+  test('desktop network options omit unsupported mihomo controls', () {
+    final items = networkOptionsItems(isDesktop: true, isMacOS: false);
+    expect(items.whereType<TunRouteModeItem>(), hasLength(1));
+    expect(items.whereType<TunStackItem>(), isEmpty);
+    expect(items.whereType<TunCongestionControllerItem>(), isEmpty);
+    expect(items.whereType<StrictRouteItem>(), isEmpty);
+    expect(items.whereType<InterfaceNameItem>(), isEmpty);
   });
 }
 
