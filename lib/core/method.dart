@@ -4,6 +4,9 @@ import 'package:fl_clash/enum/enum.dart';
 
 enum CoreMethod {
   message,
+  getCoreInfo,
+  getRuntimeState,
+  checkConfig,
   initClash,
   getIsInit,
   forceGc,

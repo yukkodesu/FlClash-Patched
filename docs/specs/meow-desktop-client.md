@@ -1,7 +1,8 @@
 # 基于 FlClash 的 meow-rs 单内核桌面客户端方案
 
 - 日期：2026-10-05。
-- 文档状态：本地方案已完成；尚未发布到 issue tracker。
+- 文档状态：实施中；GitHub spec 为 https://github.com/yukkodesu/FlClash-Patched/issues/1。
+- 最终产品名：FlClash-Meow。
 - 产品范围：独立客户端 fork，仅使用 meow-rs；本期覆盖 Windows、macOS、Linux。
 - 已确认决策：Rust host 留在自有 meow-rs fork；接受内核能力差异；不建设双内核兼容体系。
 - 已确认测试 Seam：以现有 CoreController 为主要验收入口，复用必要的 IPC、生命周期和 Helper 契约测试。
@@ -282,4 +283,4 @@ host 专属协议和 Adapter 集中在独立 crate；对其他 meow Module 的�
 
 ### Issue 发布状态
 
-当前会话和仓库说明未提供 issue tracker 与 triage 标签配置。依照 to-spec 技能，需先运行 `/setup-matt-pocock-skills` 配置目标 tracker 和标签词汇，之后将本文发布为 issue 并应用 `ready-for-agent`。不根据多个 Git remote 猜测应发布到现有产品还是新客户端 fork。
+用户已提供自己的两个 fork 并确认产品名。目标 tracker 为 yukkodesu/FlClash-Patched 的 GitHub Issues；spec 已发布为 #1，应用 `ready-for-agent`。实施 tickets 为 #2–#8，依赖关系和验收记录保存在同目录的任务图中。所有改动只推送到用户自己的 fork；保留原仓库作为来源。

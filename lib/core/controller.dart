@@ -15,11 +15,9 @@ class CoreController {
   late CoreHandlerInterface _interface;
 
   CoreController._internal() {
-    if (system.isMobile) {
-      _interface = coreLib!;
-    } else {
-      _interface = coreService!;
-    }
+    _interface =
+        coreService ??
+        (throw UnsupportedError('FlClash-Meow supports desktop platforms.'));
   }
 
   @visibleForTesting
@@ -47,6 +45,12 @@ class CoreController {
   Future<CoreLifecycleResult> stop() => _interface.stop();
 
   Future<CoreLifecycleResult> close() => _interface.close();
+
+  Future<CoreInfo> getCoreInfo() => _interface.getCoreInfo();
+
+  Future<CoreRuntimeState> getRuntimeState() => _interface.getRuntimeState();
+
+  Future<ConfigCheck> checkConfig(String yaml) => _interface.checkConfig(yaml);
 
   static Future<void> ensureHomeDir() async {
     final homePath = await appPath.homeDirPath;
@@ -81,6 +85,7 @@ class CoreController {
   }
 
   Future<bool> init(int version) async {
+    await getCoreInfo();
     await ensureHomeDir();
     await initGeo();
     final homeDirPath = await appPath.homeDirPath;
@@ -113,10 +118,10 @@ class CoreController {
     if (preloadInvoke == null) {
       return _interface.setupConfig(params);
     }
-    final (result, _) = await (
-      _interface.setupConfig(params),
-      preloadInvoke(),
-    ).wait;
+    final result = await _interface.setupConfig(params);
+    if (result.isEmpty) {
+      await preloadInvoke();
+    }
     return result;
   }
 
@@ -229,8 +234,9 @@ class CoreController {
     final data = Map<String, dynamic>.from(
       await _interface.getProfileConfig(id),
     );
-    data['rules'] = data['rule'];
-    data.remove('rule');
+    if (data.containsKey('rule')) {
+      data['rules'] = data.remove('rule');
+    }
     return data;
   }
 
