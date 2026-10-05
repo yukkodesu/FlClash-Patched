@@ -28,9 +28,307 @@ class _HostBinding extends AutomatedTestWidgetsFlutterBinding {
   bool get overrideHttpClient => false;
 }
 
+Future<void> _withRealHost(
+  String executable,
+  Future<void> Function(CoreController controller) exercise,
+) async {
+  final home = await Directory.systemTemp.createTemp('flclash-meow-groups-');
+  final support = AppPath.supportDirectory;
+  final temporary = AppPath.temporaryDirectory;
+  final cache = AppPath.cacheDirectory;
+  AppPath.supportDirectory = () async => home;
+  AppPath.temporaryDirectory = () async => home;
+  AppPath.cacheDirectory = () async => home;
+  await RustLib.init();
+  late final CoreRpcClient rpc;
+  final lifecycle = DesktopCoreLifecycle(
+    transportFactory: () => IPCCoreTransport(
+      address: system.isWindows ? windowsPipeName : unixSocketPath,
+    ),
+    launcherResolver: _DirectHost(executable),
+    verifyPeerPid: system.isWindows,
+    shutdownSession: (session, timeout) =>
+        rpc.shutdownSession(session, timeout),
+  );
+  rpc = CoreRpcClient(lifecycle.transport);
+  final controller = CoreController.scoped(
+    CoreService.forTesting(lifecycle: lifecycle, rpcClient: rpc),
+  );
+  try {
+    await controller.start();
+    final data = Directory(await appPath.homeDirPath);
+    await data.create(recursive: true);
+    for (final name in ['Country.mmdb', 'GeoLite2-ASN.mmdb', 'geosite.dat']) {
+      await File('${data.path}/$name').writeAsBytes([]);
+    }
+    expect(await controller.init(1), isTrue);
+    await exercise(controller);
+  } finally {
+    expect((await controller.close()).outcome, CoreLifecycleOutcome.applied);
+    RustLib.dispose();
+    AppPath.supportDirectory = support;
+    AppPath.temporaryDirectory = temporary;
+    AppPath.cacheDirectory = cache;
+    await home.delete(recursive: true);
+  }
+}
+
+Future<List<Group>> _groups(CoreController controller, String testUrl) {
+  return controller.getProxiesGroups(
+    sortType: ProxiesSortType.none,
+    delayMap: const {},
+    selectedMap: const {},
+    defaultTestUrl: testUrl,
+  );
+}
+
 void main() {
   final executable = Platform.environment['FLCLASH_MEOW_HOST'];
   _HostBinding();
+
+  test(
+    'CoreController restores group selections and releases automatic fixation',
+    () async {
+      final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final requests = origin.listen((request) async {
+        request.response.statusCode = HttpStatus.noContent;
+        await request.response.close();
+      });
+      final url = 'http://127.0.0.1:${origin.port}/';
+      try {
+        await _withRealHost(executable!, (controller) async {
+          await File(await appPath.configFilePath).writeAsString('''
+proxy-groups:
+  - name: route
+    type: select
+    proxies: [DIRECT, REJECT]
+  - name: automatic
+    type: url-test
+    proxies: [DIRECT, REJECT]
+    url: $url
+    interval: 3600
+rules: ['MATCH,route']
+''');
+          expect(
+            await controller.setupConfig(
+              params: SetupParams(
+                selectedMap: const {'route': 'REJECT', 'automatic': 'REJECT'},
+                testUrl: url,
+              ),
+            ),
+            isEmpty,
+          );
+          var groups = await _groups(controller, url);
+          expect(groups.getGroup('route')!.now, 'REJECT');
+          expect(groups.getGroup('automatic')!.now, 'REJECT');
+          await expectLater(
+            controller.changeProxy(
+              const ChangeProxyParams(groupName: 'route', proxyName: 'missing'),
+            ),
+            throwsA(isA<CoreMethodException>()),
+          );
+          expect(
+            (await _groups(controller, url)).getGroup('route')!.now,
+            'REJECT',
+          );
+          expect(
+            await controller.changeProxy(
+              const ChangeProxyParams(groupName: 'route', proxyName: 'DIRECT'),
+            ),
+            isEmpty,
+          );
+          expect(
+            (await _groups(controller, url)).getGroup('route')!.now,
+            'DIRECT',
+          );
+          expect(
+            await controller.changeProxy(
+              const ChangeProxyParams(groupName: 'automatic', proxyName: ''),
+              closeConnections: true,
+            ),
+            isEmpty,
+          );
+          groups = await _groups(controller, url);
+          expect(groups.getGroup('automatic')!.now, 'DIRECT');
+        });
+      } finally {
+        await requests.cancel();
+        await origin.close(force: true);
+      }
+    },
+    skip: executable == null ? 'Requires the real desktop host.' : false,
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
+
+  test(
+    'CoreController refreshes providers and cancels stale updates across sessions',
+    () async {
+      final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      var names = ['first', 'second'];
+      var fail = false;
+      Completer<void>? release;
+      final pendingRequest = Completer<void>();
+      final lateResponse = Completer<void>();
+      final requests = origin.listen((request) async {
+        final held = request.uri.path == '/nodes' ? release : null;
+        try {
+          if (request.uri.path == '/nodes') {
+            if (held != null) {
+              if (!pendingRequest.isCompleted) pendingRequest.complete();
+              await held.future;
+            }
+            request.response.statusCode = fail
+                ? HttpStatus.serviceUnavailable
+                : HttpStatus.ok;
+            request.response.write(
+              'proxies:\n${names.map((name) => '  - name: $name\n    type: http\n    server: 127.0.0.1\n    port: ${origin.port}\n').join()}',
+            );
+          } else {
+            request.response.statusCode = HttpStatus.noContent;
+          }
+          await request.response.close();
+        } on IOException catch (_) {
+          if (held == null) {
+            rethrow;
+          }
+        } finally {
+          if (held != null && !lateResponse.isCompleted) {
+            lateResponse.complete();
+          }
+        }
+      });
+      final url = 'http://127.0.0.1:${origin.port}/';
+      String configuration(String vehicle) =>
+          '''
+strict: true
+proxy-providers:
+  local:
+    type: $vehicle
+    ${vehicle == 'http' ? 'url: ${url}nodes\n    interval: 3600\n    ' : ''}path: providers/local.yaml
+proxy-groups:
+  - name: route
+    type: select
+    use: [local]
+rules: ['MATCH,route']
+''';
+      try {
+        await _withRealHost(executable!, (controller) async {
+          await File(
+            await appPath.configFilePath,
+          ).writeAsString(configuration('http'));
+          expect(
+            await controller.setupConfig(
+              params: SetupParams(
+                selectedMap: const {'route': 'second'},
+                testUrl: url,
+              ),
+            ),
+            isEmpty,
+          );
+          final provider = await controller.getExternalProvider('local');
+          expect(provider!.count, 2);
+          expect(provider.vehicleType, 'HTTP');
+          expect(provider.updateAt, isNotNull);
+          expect(
+            (await controller.getExternalProviders()).map((item) => item.name),
+            ['local'],
+          );
+          expect(
+            (await _groups(controller, url)).getGroup('route')!.now,
+            'second',
+          );
+          fail = true;
+          await expectLater(
+            controller.updateExternalProvider(providerName: 'local'),
+            throwsA(isA<CoreMethodException>()),
+          );
+          expect((await controller.getExternalProvider('local'))!.count, 2);
+          expect(
+            (await _groups(
+              controller,
+              url,
+            )).getGroup('route')!.all.map((proxy) => proxy.name),
+            ['first', 'second'],
+          );
+          fail = false;
+          names = ['third'];
+          expect(
+            await controller.updateExternalProvider(providerName: 'local'),
+            isEmpty,
+          );
+          expect((await controller.getExternalProvider('local'))!.count, 1);
+          expect(
+            (await _groups(
+              controller,
+              url,
+            )).getGroup('route')!.all.map((proxy) => proxy.name),
+            ['third'],
+          );
+          expect(
+            await controller.changeProxy(
+              const ChangeProxyParams(groupName: 'route', proxyName: 'third'),
+            ),
+            isEmpty,
+          );
+          expect(await controller.startListener(), isTrue);
+          release = Completer<void>();
+          names = ['late'];
+          final pending = controller.updateExternalProvider(
+            providerName: 'local',
+          );
+          final cancelled = expectLater(
+            pending,
+            throwsA(
+              isA<CoreMethodException>().having(
+                (error) => error.code,
+                'code',
+                'request_cancelled',
+              ),
+            ),
+          );
+          await pendingRequest.future.timeout(const Duration(seconds: 3));
+          expect(await controller.stopListener(), isTrue);
+          await cancelled;
+          release!.complete();
+          await lateResponse.future.timeout(const Duration(seconds: 3));
+          expect(
+            (await _groups(
+              controller,
+              url,
+            )).getGroup('route')!.all.map((proxy) => proxy.name),
+            ['third'],
+          );
+          expect(
+            (await controller.restart()).outcome,
+            CoreLifecycleOutcome.applied,
+          );
+          expect(await controller.init(1), isTrue);
+          await File(
+            await appPath.configFilePath,
+          ).writeAsString(configuration('file'));
+          expect(
+            await controller.setupConfig(
+              params: SetupParams(selectedMap: const {}, testUrl: url),
+            ),
+            isEmpty,
+          );
+          expect(
+            (await _groups(
+              controller,
+              url,
+            )).getGroup('route')!.all.map((proxy) => proxy.name),
+            ['third'],
+          );
+        });
+      } finally {
+        if (release != null && !release!.isCompleted) release!.complete();
+        await requests.cancel();
+        await origin.close(force: true);
+      }
+    },
+    skip: executable == null ? 'Requires the real desktop host.' : false,
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
 
   test(
     'CoreController controls a real host and transfers local proxy traffic',
