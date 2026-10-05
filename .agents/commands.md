@@ -261,7 +261,11 @@ compile real Cargo fixtures and verify caching, Core/Helper hash coupling, and f
 `bash tool/check_plugins.sh` discovers local Flutter packages and runs their analysis/tests.
 
 The `meow-host` matrix executes CoreController E2E with native host and Rust API artifacts on Windows/Linux/macOS x64
-and ARM64. Manual `workflow_dispatch` runs all gates plus six desktop package builds and staged Core smoke checks, and
+and ARM64. Each native job then compiles the ignored native TUN executable as its normal build user and invokes it
+elevated through `tool/native_desktop_acceptance.py`. The runner refuses non-disposable/self-hosted environments;
+the harness records local TCP/UDP/DNS traffic, owned DNS/routes, stop/exit and crash recovery. Its output is uploaded
+as native acceptance evidence. Global mode requires a separate experimental opt-in and acceptance record.
+Manual `workflow_dispatch` runs all gates plus six desktop package builds and staged Core smoke checks, and
 uploads artifacts without creating a release. A `v*` tag push additionally publishes the release. A green build does not
 prove elevated TUN installation or package uninstall: record native acceptance in `docs/specs/meow-desktop-acceptance.md`.
 
