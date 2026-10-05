@@ -2,67 +2,51 @@
 
 ## Building
 
-Update submodules first. The mihomo Go core lives in `core/mihomo/`.
+Initialize the pinned `yukkodesu/meow-rs` submodule:
 
 ```bash
 git submodule update --init --recursive
 ```
 
-Full package build, including Go core, Flutter, and packaging, runs through `setup.dart`:
+`setup.dart` packages FlClash-Meow for desktop only, with `amd64|arm64` architecture values. Windows/Linux require a
+matching native host; macOS can build a requested Xcode slice, while CI runs both natively.
 
 ```bash
-dart setup.dart macos
-dart setup.dart macos --arch amd64     # Intel package, including on an Apple Silicon host
-dart setup.dart macos --arch amd64-v3  # same Intel slice; Core built with GOAMD64=v3
-dart setup.dart linux
-dart setup.dart linux --arch amd64-v3  # amd64 host; Core built with GOAMD64=v3
-dart setup.dart windows
-dart setup.dart android
-dart setup.dart ios --no-codesign  # macOS host, arm64 device IPA
+dart setup.dart windows --arch amd64
+dart setup.dart linux --arch arm64
+dart setup.dart macos --arch amd64
+dart setup.dart macos --arch arm64
 ```
 
-The Go core and the Rust helper build automatically: Flutter runs
-`plugins/setup/hook/build.dart` on every `flutter build` and `flutter test`,
-and the hook drives `CoreBuilder` from the `setup_hooks` package in
-`plugins/setup/setup_hooks/`. Android builds take the NDK from the C compiler
-Flutter hands the hook; no `ANDROID_NDK` variable is needed.
-Artifacts land in `libclash/`. The hook reruns only when Go, Rust, or
-`setup_hooks` inputs change; the fingerprint cache lives in
-`.dart_tool/setup_build_cache/`. To force a rebuild, delete that directory:
+Flutter runs `plugins/setup/hook/build.dart` during native builds and tests. The pure Dart harness builds the embedded
+Rust host first, then embeds its final SHA256 in the Windows/Linux Helper and writes `manifest.json`. Artifacts land in
+`libclash/<platform>/`. To build these artifacts directly:
 
 ```bash
-rm -rf .dart_tool/setup_build_cache
+cd plugins/setup/setup_hooks
+dart pub get
+dart run bin/build_desktop.dart windows amd64
 ```
 
-Flutter hides the hook's output on success, so to see why the Core was or was
-not rebuilt read `.dart_tool/setup_build_cache/hook.log`; each invocation starts
-with a `===` line carrying its timestamp and target.
+The cache lives in `.dart_tool/setup_build_cache/` at the repository root. Deleting it forces the harness to invoke
+Cargo again; Cargo keeps its own dependency cache. Hooks mirror output into `.dart_tool/setup_build_cache/hook.log`.
 
-The hook runs for `flutter test` and for `dart run` of any root-package script
-too, so a pure Dart test run needs the Go toolchain, and on Linux and Windows
-also `cargo` and `rustc` — the Helper fingerprint shells out to both even on a
-cache hit. The hook protocol carries no build mode and no caller, so the only
-switch is the user-define in the root `pubspec.yaml`:
+Both hooks need their Rust toolchains even on a cache hit. For a Dart-only test loop, temporarily disable them:
 
 ```yaml
 hooks:
   user_defines:
     setup:
-      build_assets: true   # false turns the Go core and Helper hook into a no-op
+      build_assets: false
     rust_api:
-      build_assets: true   # false does the same for the Rust library
+      build_assets: false
 ```
 
-CI flips both to `false` with `yq` before `flutter test` and before
-`dart run tool/changelog.dart`. The changelog script loads neither library.
-The editor tests do load `librust_api`, so the Rust job builds that release
-library and the test shards open it through
-`FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR`.
-Never commit `false`: a build with it set stages whatever `libclash/` already
-holds and bundles no Rust library, which is why `setup.dart` refuses to package
-while it is set. Locally, `false` is worth setting for a Dart-only test loop,
-but the hook cache keys on the user-define, so the first build afterwards runs
-the hooks again.
+Restore both to `true` before committing or packaging. `setup.dart` refuses to package with either disabled.
+Tests using the editor/IPC library need `FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR` pointing at the directory
+containing `rust_api.dll`, `librust_api.so`, or `librust_api.dylib`. Native CI builds that library and the real host
+explicitly and runs CoreController E2E with both paths set. Ordinary unit shards may skip that test when
+`FLCLASH_MEOW_HOST` is absent.
 
 ## Flutter Development
 
@@ -148,7 +132,7 @@ What those suites own:
 - `test/core/desktop/`: replaceable IPC transport, RPC request correlation/failure, direct/Helper process leases, and
   latest-intent desktop lifecycle convergence.
 - `test/core/service_test.dart`: `CoreService` composition and terminal close behavior.
-- `test/core/protocol_contract_test.dart`: shared Dart/Go method and event-envelope compatibility, including event batches.
+- `test/core/protocol_contract_test.dart`: Dart method and event-envelope compatibility, including event batches.
 - `test/providers/action_test.dart`: Core start/restart orchestration and overlapping restart requests.
 - `test/providers/system_action_test.dart`: ordered, idempotent exit cleanup and watchdog behavior.
 - `test/widgets/core_status_button_test.dart`: 600-millisecond connecting presentation hold, immediate failure display,
@@ -156,34 +140,47 @@ What those suites own:
 
 ## Native Component Verification
 
-The CI Go-wrapper checks can be reproduced without CGO:
+Run host checks from the submodule so its pinned Rust toolchain applies:
 
 ```bash
-cd core
-CGO_ENABLED=0 go test .
-CGO_ENABLED=0 go vet .
+cd core/meow-rs
+cargo fmt --all -- --check
+cargo clippy --locked -p flclash-meow-host --all-targets -- -D warnings
+cargo test --locked -p flclash-meow-host
+cargo build --locked --release -p flclash-meow-host
 ```
 
-The Windows Helper's loopback/session protocol tests are host-independent by default. Windows CI additionally enables its
-service implementation:
+The privileged Helper has separate protocol, process ownership, and integrity tests:
 
 ```bash
 cargo fmt --manifest-path services/helper/Cargo.toml -- --check
-cargo test --manifest-path services/helper/Cargo.toml
-cargo test --manifest-path services/helper/Cargo.toml --features windows-service
+cargo test --locked --manifest-path services/helper/Cargo.toml
+cargo test --locked --manifest-path services/helper/Cargo.toml --features windows-service
 ```
 
-The last command requires Windows for meaningful service coverage. Native Android lifecycle edits should at minimum
-compile the modules they touch; use JDK 17 in this checkout:
+The last command needs Windows to cover its service implementation. Helper/TUN installation and routing need a
+disposable elevated native machine; ordinary local tests must not change the developer's DNS or routes.
+
+Build `rust_api` from `plugins/rust_api/rust` with its own toolchain, then run CoreController E2E from the root.
+For Windows PowerShell, with native hooks temporarily disabled:
+
+```powershell
+$env:FLCLASH_MEOW_HOST = "$PWD/libclash/windows/FlClashMeowCore.exe"
+$env:FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR = "$PWD/plugins/rust_api/rust/target/release"
+flutter test test/core/meow_host_integration_test.dart --reporter expanded
+```
+
+For Unix shells (adjust the host artifact for macOS):
 
 ```bash
-cd android
-JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew :service:compileDebugKotlin
-JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ./gradlew :app:compileDebugKotlin
+FLCLASH_MEOW_HOST="$PWD/libclash/linux/FlClashMeowCore" \
+FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR="$PWD/plugins/rust_api/rust/target/release" \
+flutter test test/core/meow_host_integration_test.dart --reporter expanded
 ```
 
-Always-on VPN entry, system VPN revoke, actual permission UI, and rapid device start/stop still require Android device or
-emulator validation; Kotlin compilation cannot prove those system callbacks.
+This is the main application boundary for identity/capabilities, config rejection and application, listener start/stop,
+proxy selection, proxied traffic, connection events, delay tests, and terminal shutdown. IPC/Helper contracts remain
+independent. Native CI explicitly sets paths and checks the host exists before invoking the test.
 
 ## Changelog And Release
 
@@ -247,10 +244,8 @@ while `v<pubspec version>` is still tagged it refuses to collect anything and th
 
 ## Verify
 
-Every branch push runs `dart-checks` alongside eight `dart-tests` shards.
-After formatting and analysis, `dart-checks` runs the full test suite with
-coverage enabled and checks the total and per-group floors. The equivalent
-local root-package checks are:
+Every branch push runs formatting/analysis, eight root Flutter test shards, plugin gates, Helper/Rust API checks,
+and six native host jobs. Reproduce root checks with:
 
 ```bash
 bash tool/check_commit_msg_test.sh
@@ -258,33 +253,17 @@ bash tool/check_comment_density_test.sh
 flutter pub get
 dart format --output=none --set-exit-if-changed lib test tool plugins setup.dart
 flutter analyze --no-fatal-infos
-flutter test --reporter expanded --coverage
-dart run tool/check_coverage.dart coverage/lcov.info 75
+flutter test --reporter expanded
 ```
 
-Each CI test shard uses `--total-shards=8 --shard-index=0` (indices 0–7), with
-fail-fast enabled for the test matrix and no coverage collection. Coverage is
-collected only by `dart-checks`, without artifact transfers or report merging.
-Release builds depend directly on `dart-checks` (including its coverage gate)
-and all test shards.
+The pure Dart setup harness uses `dart analyze` and `dart test` from its package directory. Its build-boundary tests
+compile real Cargo fixtures and verify caching, Core/Helper hash coupling, and failure preservation.
+`bash tool/check_plugins.sh` discovers local Flutter packages and runs their analysis/tests.
 
-Run `flutter analyze` locally before committing when practical.
-
-Release builds run only for `v*` tag pushes; pull requests trigger nothing.
-Root analysis excludes `plugins/**`, and root tests do not discover nested
-plugin packages, so parallel jobs validate the rest from their own package
-directories: `plugins` (local Flutter packages and the setup build tool), `go`
-(the Core wrapper, plus an NDK-backed vet of the Android files), `android`
-(JVM unit tests for `:common`, `:service` and `:app`, with the Flutter compile
-tasks excluded so no native build hook runs), `rust` (both crates), and a
-Windows runner for the helper's `windows-service` feature. Release builds start
-once all of them pass.
-
-`bash tool/check_plugins.sh` is that plugin gate, and CI runs the same script.
-It discovers every `plugins/*/pubspec.yaml`, analyzes each package, and runs
-`flutter test` wherever `test/*_test.dart` exists. Adding a plugin package needs
-no workflow edit; enumerating packages by hand in the workflow is what
-previously left `plugins/tray` unanalyzed and untested.
+The `meow-host` matrix executes CoreController E2E with native host and Rust API artifacts on Windows/Linux/macOS x64
+and ARM64. Manual `workflow_dispatch` runs all gates plus six desktop package builds and staged Core smoke checks, and
+uploads artifacts without creating a release. A `v*` tag push additionally publishes the release. A green build does not
+prove elevated TUN installation or package uninstall: record native acceptance in `docs/specs/meow-desktop-acceptance.md`.
 
 ## Worktree Tooling
 

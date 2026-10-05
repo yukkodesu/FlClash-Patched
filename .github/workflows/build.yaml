@@ -1,6 +1,7 @@
 name: build
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - '**'
@@ -124,7 +125,7 @@ jobs:
           - { platform: windows, arch: arm64, os: windows-11-arm, triple: aarch64-pc-windows-msvc }
           - { platform: linux, arch: amd64, os: ubuntu-22.04, triple: x86_64-unknown-linux-gnu }
           - { platform: linux, arch: arm64, os: ubuntu-22.04-arm, triple: aarch64-unknown-linux-gnu }
-          - { platform: macos, arch: amd64, os: macos-26, triple: x86_64-apple-darwin }
+          - { platform: macos, arch: amd64, os: macos-26-intel, triple: x86_64-apple-darwin }
           - { platform: macos, arch: arm64, os: macos-26, triple: aarch64-apple-darwin }
     steps:
       - uses: actions/checkout@v7
@@ -138,9 +139,10 @@ jobs:
         with:
           workspaces: core/meow-rs
           key: meow-${{ matrix.triple }}
-      - name: Install Linux native dependencies
-        if: matrix.platform == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang pkg-config
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: ${{ matrix.platform }}
+          triple: ${{ matrix.triple }}
       - name: Validate host
         working-directory: core/meow-rs
         run: |
@@ -148,6 +150,30 @@ jobs:
           cargo clippy --locked -p flclash-meow-host --all-targets -- -D warnings
           cargo test --locked -p flclash-meow-host
           cargo build --locked --release -p flclash-meow-host --target ${{ matrix.triple }}
+      - name: Build native rust_api library
+        working-directory: plugins/rust_api/rust
+        run: cargo build --locked --release --target ${{ matrix.triple }}
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Prepare real host integration test
+        shell: bash
+        run: |
+          flutter pub get
+          python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
+      - name: Mandatory CoreController integration test
+        shell: bash
+        env:
+          FLCLASH_MEOW_HOST: ${{ github.workspace }}/core/meow-rs/target/${{ matrix.triple }}/release/flclash-meow-host${{ matrix.platform == 'windows' && '.exe' || '' }}
+          FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR: ${{ github.workspace }}/plugins/rust_api/rust/target/${{ matrix.triple }}/release
+        run: |
+          test -n "$FLCLASH_MEOW_HOST" && test -f "$FLCLASH_MEOW_HOST"
+          test -f "$FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR/${{ matrix.platform == 'windows' && 'rust_api.dll' || (matrix.platform == 'linux' && 'librust_api.so' || 'librust_api.dylib') }}"
+          "$FLCLASH_MEOW_HOST" --version
+          flutter test test/core/meow_host_integration_test.dart --reporter expanded
   rust:
     name: Rust
     runs-on: ubuntu-latest
@@ -203,7 +229,7 @@ jobs:
         run: cargo test --manifest-path services/helper/Cargo.toml --features windows-service
 
   build:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     needs: [ dart-checks, dart-tests, plugins, meow-host, rust, windows-helper-test ]
     runs-on: ${{ matrix.os }}
     strategy:
@@ -213,7 +239,7 @@ jobs:
           - { platform: windows, os: windows-11-arm, arch: arm64, triple: aarch64-pc-windows-msvc }
           - { platform: linux, os: ubuntu-22.04, arch: amd64, triple: x86_64-unknown-linux-gnu }
           - { platform: linux, os: ubuntu-22.04-arm, arch: arm64, triple: aarch64-unknown-linux-gnu }
-          - { platform: macos, os: macos-26, arch: amd64, triple: x86_64-apple-darwin }
+          - { platform: macos, os: macos-26-intel, arch: amd64, triple: x86_64-apple-darwin }
           - { platform: macos, os: macos-26, arch: arm64, triple: aarch64-apple-darwin }
       fail-fast: false
 
@@ -236,6 +262,10 @@ jobs:
         uses: dtolnay/rust-toolchain@1.98.1
         with:
           targets: ${{ matrix.triple }}
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: ${{ matrix.platform }}
+          triple: ${{ matrix.triple }}
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -272,6 +302,11 @@ jobs:
 
       - name: Setup
         run: dart setup.dart ${{ matrix.platform }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} --arch ${{ matrix.arch }} -v
+      - name: Smoke staged core
+        shell: bash
+        run: |
+          test -d dist && test -n "$(find dist -type f -print -quit)"
+          "libclash/${{ matrix.platform }}/FlClashMeowCore${{ matrix.platform == 'windows' && '.exe' || '' }}" --version
       - name: Upload
         uses: actions/upload-artifact@v7
         with:
@@ -280,6 +315,7 @@ jobs:
           overwrite: true
 
   upload:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     needs: [ build ]

@@ -30,7 +30,16 @@ name = "flclash-meow-host"
 version = "0.1.0"
 edition = "2021"
 ''');
-      write('core/meow-rs/src/main.rs', 'fn main() { println!("first"); }');
+      write(
+        'core/meow-rs/src/main.rs',
+        'fn main() { println!("first {}", env!("MEOW_HOST_COMMIT")); }',
+      );
+      write('core/meow-rs/build.rs', r'''
+fn main() {
+    println!("cargo:rustc-env=MEOW_HOST_COMMIT={}", std::env::var("MEOW_HOST_COMMIT").unwrap());
+    println!("cargo:rerun-if-env-changed=MEOW_HOST_COMMIT");
+}
+''');
       write('services/helper/Cargo.toml', '''
 [package]
 name = "helper"
@@ -55,6 +64,30 @@ fn main() {
         ], workingDirectory: p.join(root.path, dir));
         expect(result.exitCode, 0, reason: '${result.stderr}');
       }
+      final coreDir = p.join(root.path, 'core', 'meow-rs');
+      for (final args in [
+        ['init'],
+        ['add', '.'],
+        [
+          '-c',
+          'user.name=Build fixture',
+          '-c',
+          'user.email=build@example.invalid',
+          'commit',
+          '-m',
+          'fixture',
+        ],
+      ]) {
+        final result = Process.runSync('git', args, workingDirectory: coreDir);
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+      }
+      final commit =
+          (Process.runSync('git', [
+                    'rev-parse',
+                    'HEAD',
+                  ], workingDirectory: coreDir).stdout
+                  as String)
+              .trim();
       final request = BuildRequest(rootDir: root.path, target: target);
       final core = File(
         p.join(
@@ -73,6 +106,10 @@ fn main() {
       final manifest = File(p.join(core.parent.path, 'manifest.json'));
 
       expect((await buildPlatform(request)).rebuilt, isTrue);
+      expect(
+        (Process.runSync(core.path, []).stdout as String).trim(),
+        'first $commit',
+      );
       final firstCore = await core.readAsBytes();
       final firstHash = sha256.convert(firstCore).toString();
       if (target.hasHelper) {
@@ -84,6 +121,31 @@ fn main() {
           'coreSha256': firstHash,
         });
       }
+      expect((await buildPlatform(request)).rebuilt, isFalse);
+
+      final advance = Process.runSync('git', [
+        '-c',
+        'user.name=Build fixture',
+        '-c',
+        'user.email=build@example.invalid',
+        'commit',
+        '--allow-empty',
+        '-m',
+        'advance pin',
+      ], workingDirectory: coreDir);
+      expect(advance.exitCode, 0, reason: '${advance.stderr}');
+      final advancedCommit =
+          (Process.runSync('git', [
+                    'rev-parse',
+                    'HEAD',
+                  ], workingDirectory: coreDir).stdout
+                  as String)
+              .trim();
+      expect((await buildPlatform(request)).rebuilt, isTrue);
+      expect(
+        (Process.runSync(core.path, []).stdout as String).trim(),
+        'first $advancedCommit',
+      );
       expect((await buildPlatform(request)).rebuilt, isFalse);
 
       write('core/meow-rs/src/main.rs', 'fn main() { println!("second"); }');

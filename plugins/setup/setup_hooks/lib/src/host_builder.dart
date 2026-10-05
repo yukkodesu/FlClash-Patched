@@ -26,6 +26,20 @@ class HostBuilder {
 
   Future<BuildExecution> build(Target target) {
     final corePath = p.join(rootDir, config.coreDir);
+    String gitValue(List<String> args) =>
+        (runCommand('git', args, workingDirectory: corePath).stdout as String)
+            .trim();
+    String gitPath(String name) => p.normalize(
+      p.join(corePath, gitValue(['rev-parse', '--git-path', name])),
+    );
+    final commit = gitValue(['rev-parse', 'HEAD']);
+    final reference = gitValue(['rev-parse', '--symbolic-full-name', 'HEAD']);
+    final metadata = [
+      gitPath('HEAD'),
+      if (reference.startsWith('refs/') &&
+          File(gitPath(reference)).existsSync())
+        gitPath(reference),
+    ];
     final args = [
       'build',
       '--locked',
@@ -53,6 +67,7 @@ class HostBuilder {
         final builder = FingerprintBuilder(rootDir: rootDir)
           ..addValue('cache_schema', BuildCache.schemaVersion)
           ..addValue('kind', 'meow-host')
+          ..addValue('source_commit', commit)
           ..addValue('arguments', args)
           ..addValue('config', config.toFingerprintMap())
           ..addValue('environment', rustEnvironment());
@@ -68,6 +83,7 @@ class HostBuilder {
           );
         }
         builder.addFiles([
+          ...metadata,
           ...collectFiles(
             corePath,
             excludedDirectories: const {'.git', 'target', '.idea'},
@@ -77,7 +93,12 @@ class HostBuilder {
         return builder.finishWithInputs();
       },
       build: () async {
-        await runCommandStream('cargo', args, workingDirectory: corePath);
+        await runCommandStream(
+          'cargo',
+          args,
+          workingDirectory: corePath,
+          environment: {'MEOW_HOST_COMMIT': commit},
+        );
         copyFile(
           p.join(
             corePath,
