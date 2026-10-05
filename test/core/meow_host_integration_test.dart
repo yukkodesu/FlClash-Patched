@@ -90,6 +90,8 @@ void main() {
         final info = await controller.getCoreInfo();
         expect(info.name, 'meow-rs');
         expect(info.statisticsScope, 'all');
+        final expectedCommit = Platform.environment['MEOW_HOST_COMMIT'];
+        if (expectedCommit != null) expect(info.commit, expectedCommit);
         final dataHome = Directory(await appPath.homeDirPath);
         await dataHome.create(recursive: true);
         for (final name in [
@@ -134,6 +136,13 @@ rules:
 ''';
         final checked = await controller.checkConfig(yaml);
         expect(checked.valid, isTrue, reason: checked.diagnostics.toString());
+        expect(
+          checked.diagnostics.any(
+            (item) =>
+                item.severity == 'warning' && item.path == 'authentication',
+          ),
+          isTrue,
+        );
         await File(await appPath.configFilePath).writeAsString(yaml);
         final profile = File(await appPath.getProfilePath('17'));
         await profile.parent.create(recursive: true);
