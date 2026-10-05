@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 const _allTargets = <String, String>{
-  'linux': 'deb,rpm,pacman,appimage,zip',
+  'linux': 'deb,pacman,appimage,zip',
   'macos': 'dmg',
   'windows': 'exe,zip',
 };
@@ -125,6 +125,15 @@ List<String> packagesNotBuildingAssets(String pubspec) {
 String createPackageTargets(String platform, String? customTargets) {
   if (!_allTargets.containsKey(platform)) {
     throw ArgumentError.value(platform, 'platform', 'Desktop platforms only');
+  }
+  if (platform == 'linux' &&
+      customTargets?.split(',').any((target) => target.trim() == 'rpm') ==
+          true) {
+    throw ArgumentError.value(
+      customTargets,
+      'targets',
+      'RPM is unavailable: the packager ignores uninstall hooks and Core hash protection',
+    );
   }
   return customTargets ?? _allTargets[platform]!;
 }
@@ -312,7 +321,7 @@ Future<int> _ensureLinuxDependencies() async {
     ['libayatana-appindicator3-dev'],
     ['libsecret-1-dev'],
     ['locate'],
-    ['rpm', 'libarchive-tools', 'patchelf'],
+    ['libarchive-tools', 'patchelf'],
     ['libfuse2'],
   ];
 

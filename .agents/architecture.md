@@ -505,11 +505,10 @@ is registered at package install, and `Linux.registerService` asks for elevation
   as root at every boot, so an unpacked bundle would be a standing escalation), and refuses to replace a unit already
   installed for a different UID rather than restart the service out from under that account.
 - That ownership check is why the `flutter_distributor` fork normalizes the packaging tree to 0755/0644 before
-  `dpkg-deb`, `rpmbuild` and `appimagetool` run: they record modes verbatim, and Ubuntu's per-user default umask
+  `dpkg-deb` and `appimagetool` run: they record modes verbatim, and Ubuntu's per-user default umask
   of 002 would otherwise ship `/opt/flclash-meow` as 0775, which the installer rejects as group-writable.
-- The rpm spec sets `debug_package` and `__os_install_post` to nil for the same reason: rpmbuild's find-debuginfo and
-  brp-strip rewrite `FlClashMeowCore`, and a Core whose SHA256 no longer matches the Helper's embedded value is refused at
-  `/start`. A requested TUN start must surface this failure instead of falling back to an unelevated Core.
+- RPM is excluded from `setup.dart`: the current maker ignores configured uninstall hooks and Core-preservation
+  macros. See `linux/packaging/README.md`; YAML values alone do not verify a generated package's behavior.
 - `FlClashMeowHelperService uninstall` disables the unit, removes it and reloads systemd.
 - The unit carries `Group=` (the owner's primary GID), `RuntimeDirectory=flclash-meow`, the owner's UID/GID in
   `FLCLASH_MEOW_HELPER_OWNER_UID`/`_GID`, a double-quoted `ExecStart=` with `%` escaped, and `Restart=on-failure` under a

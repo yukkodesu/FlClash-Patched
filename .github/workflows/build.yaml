@@ -37,6 +37,9 @@ jobs:
       - name: Test comment density hook
         run: bash tool/check_comment_density_test.sh
 
+      - name: Test product uninstall commands
+        run: python3 tool/product_uninstall_test.py
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:

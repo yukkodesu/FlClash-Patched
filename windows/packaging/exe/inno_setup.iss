@@ -46,6 +46,27 @@ begin
   end;
 end;
 
+procedure UnregisterProduct;
+var
+  Executable, Command: String;
+  ProtocolKey, RunKey: String;
+begin
+  Executable := ExpandConstant('{app}\FlClashMeow.exe');
+  ProtocolKey := 'Software\Classes\flclash-meow';
+  RunKey := 'Software\Microsoft\Windows\CurrentVersion\Run';
+  if RegQueryStringValue(HKCU, ProtocolKey + '\shell\open\command', '', Command) and
+     (CompareText(Command, '"' + Executable + '" "%1"') = 0) then
+    RegDeleteKeyIncludingSubkeys(HKCU, ProtocolKey);
+  if RegQueryStringValue(HKCU, RunKey, 'FlClash-Meow', Command) and
+     (CompareText(Command, Executable) = 0) then
+  begin
+    RegDeleteValue(HKCU, RunKey, 'FlClash-Meow');
+    RegDeleteValue(HKCU,
+      'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run',
+      'FlClash-Meow');
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   UnregisterHelperService;
@@ -57,6 +78,7 @@ function InitializeUninstall(): Boolean;
 begin
   UnregisterHelperService;
   KillProcesses;
+  UnregisterProduct;
   Result := True;
 end;
 

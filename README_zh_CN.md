@@ -43,6 +43,8 @@ flutter pub get
 
 在目标操作系统上构建。架构参数为 amd64 或 arm64；Windows/Linux 需要架构匹配的原生构建机。按目标选择一条命令：
 
+Linux 支持打包 Debian、pacman、AppImage 和 zip。当前打包器忽略 RPM 的卸载钩子和内核哈希保护，因此不提供 RPM。卸载范围及自定义 XDG 路径限制见[打包说明](linux/packaging/README.md)。
+
 ~~~bash
 dart setup.dart windows --arch amd64
 dart setup.dart linux --arch arm64
