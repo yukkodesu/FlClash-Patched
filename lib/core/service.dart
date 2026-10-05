@@ -36,6 +36,7 @@ class CoreService extends CoreHandlerInterface {
   factory CoreService._create() {
     final address = system.isWindows ? windowsPipeName : unixSocketPath;
     final directLauncher = DirectCoreLauncher();
+    late final CoreRpcClient rpcClient;
 
     final lifecycle = DesktopCoreLifecycle(
       transportFactory: () => IPCCoreTransport(address: address),
@@ -46,11 +47,11 @@ class CoreService extends CoreHandlerInterface {
         helperReady: () => helperClient.readiness(),
       ),
       verifyPeerPid: system.isWindows,
+      shutdownSession: (session, timeout) =>
+          rpcClient.shutdownSession(session, timeout),
     );
-    return CoreService._(
-      lifecycle: lifecycle,
-      rpcClient: CoreRpcClient(lifecycle.transport),
-    );
+    rpcClient = CoreRpcClient(lifecycle.transport);
+    return CoreService._(lifecycle: lifecycle, rpcClient: rpcClient);
   }
 
   @visibleForTesting

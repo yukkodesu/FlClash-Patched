@@ -7209,6 +7209,106 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.`
+  String get meowTunScope {
+    return Intl.message(
+      'Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.',
+      name: 'meowTunScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Fake-IP only`
+  String get meowTunFakeIp {
+    return Intl.message(
+      'Fake-IP only',
+      name: 'meowTunFakeIp',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Global IPv4 (experimental)`
+  String get meowTunGlobal {
+    return Intl.message(
+      'Global IPv4 (experimental)',
+      name: 'meowTunGlobal',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.`
+  String get meowAgeUnsupported {
+    return Intl.message(
+      'AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.',
+      name: 'meowAgeUnsupported',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All traffic; connection snapshots contain TCP only`
+  String get meowStatisticsScope {
+    return Intl.message(
+      'All traffic; connection snapshots contain TCP only',
+      name: 'meowStatisticsScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Core capabilities`
+  String get meowCoreCapabilities {
+    return Intl.message(
+      'Core capabilities',
+      name: 'meowCoreCapabilities',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Configuration compatibility`
+  String get meowConfigDiagnostics {
+    return Intl.message(
+      'Configuration compatibility',
+      name: 'meowConfigDiagnostics',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select a profile before starting.`
+  String get meowNoProfile {
+    return Intl.message(
+      'Select a profile before starting.',
+      name: 'meowNoProfile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All traffic`
+  String get meowAllTraffic {
+    return Intl.message(
+      'All traffic',
+      name: 'meowAllTraffic',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `TCP connections`
+  String get meowTcpConnections {
+    return Intl.message(
+      'TCP connections',
+      name: 'meowTcpConnections',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

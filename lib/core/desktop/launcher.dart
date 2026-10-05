@@ -52,6 +52,7 @@ final class DirectCoreLease implements CoreProcessLease {
 
   final Process _process;
   Future<CoreProcessStopResult>? _stopOperation;
+  bool _exitConfirmed = false;
 
   DirectCoreLease({required this.sessionId, required Process process})
     : _process = process;
@@ -61,6 +62,17 @@ final class DirectCoreLease implements CoreProcessLease {
 
   @override
   int get pid => _process.pid;
+
+  @override
+  Future<bool> waitForExit(Duration timeout) async {
+    if (_exitConfirmed) return true;
+    try {
+      await _process.exitCode.timeout(timeout);
+      return _exitConfirmed = true;
+    } on TimeoutException {
+      return false;
+    }
+  }
 
   @override
   Future<CoreProcessStopResult> stop(Duration timeout) {
@@ -79,12 +91,13 @@ final class DirectCoreLease implements CoreProcessLease {
   }
 
   Future<CoreProcessStopResult> _stop(Duration timeout) async {
-    final stopped = _process.kill();
-    try {
-      await _process.exitCode.timeout(timeout);
-      return CoreProcessStopResult(stopped: stopped, exitConfirmed: true);
-    } on TimeoutException {
-      return CoreProcessStopResult(stopped: stopped, exitConfirmed: false);
+    if (_exitConfirmed) {
+      return const CoreProcessStopResult(stopped: false, exitConfirmed: true);
     }
+    final stopped = _process.kill();
+    return CoreProcessStopResult(
+      stopped: stopped,
+      exitConfirmed: await waitForExit(timeout),
+    );
   }
 }

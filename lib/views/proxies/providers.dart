@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -141,39 +140,11 @@ class ProviderItem extends ConsumerWidget {
     proxiesAction.updateGroupsDebounce();
   }
 
-  Future<void> _handleSideLoadProvider(WidgetRef ref) async {
-    if (!provider.canEditAsText) return;
-    final proxiesAction = ref.read(proxiesActionProvider.notifier);
-    await globalState.safeRun<void>(() async {
-      final platformFile = await picker.pickerFile();
-      if (platformFile == null || provider.path == null) return;
-      final bytes = await platformFile.readBytes();
-      await File(provider.path!).safeWriteAsBytes(bytes);
-      final message = await proxiesAction.sideLoadExternalProvider(
-        provider,
-        utf8.decode(bytes),
-        showLoading: true,
-      );
-      if (message.isNotEmpty) throw MessageException(message);
-    });
-    proxiesAction.updateGroupsDebounce();
-  }
-
   void _handlePreview(BuildContext context) {
     if (provider.path == null || !provider.canEditAsText) {
       return;
     }
     BaseNavigator.push<String>(context, ProviderEditorView(provider: provider));
-  }
-
-  void _handleEdit(BuildContext context) {
-    if (provider.path == null || !provider.canEditAsText) {
-      return;
-    }
-    BaseNavigator.push<String>(
-      context,
-      ProviderEditorView(provider: provider, editable: true),
-    );
   }
 
   Future<void> _handleExportFile(BuildContext context) async {
@@ -229,8 +200,11 @@ class ProviderItem extends ConsumerWidget {
       _ => null,
     };
     final chips = [
-      if (provider.updateAt.microsecondsSinceEpoch > 0)
-        MetaChip(label: provider.updateAt.getLastUpdateTimeDesc(context)),
+      MetaChip(
+        label:
+            provider.updateAt?.getLastUpdateTimeDesc(context) ??
+            context.appLocalizations.unknown,
+      ),
       if (provider.count > 0 && countLabel != null) MetaChip(label: countLabel),
     ];
     return chips.isEmpty
@@ -251,22 +225,6 @@ class ProviderItem extends ConsumerWidget {
           label: appLocalizations.preview,
           onPressed: () {
             _handlePreview(context);
-          },
-        ),
-      if (provider.canEditAsText && provider.path != null)
-        CommonPopupMenuItem(
-          icon: Symbols.edit,
-          label: appLocalizations.edit,
-          onPressed: () {
-            _handleEdit(context);
-          },
-        ),
-      if (provider.canEditAsText)
-        CommonPopupMenuItem(
-          icon: Symbols.upload,
-          label: appLocalizations.upload,
-          onPressed: () {
-            _handleSideLoadProvider(ref);
           },
         ),
       if (provider.path != null)

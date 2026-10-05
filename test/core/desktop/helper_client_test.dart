@@ -17,6 +17,27 @@ const _coreSha256 =
 
 void main() {
   test(
+    'a stalled process probe cannot confirm exit or invoke Helper stop',
+    () async {
+      final adapter = _ResponseAdapter(
+        (_) => _jsonResponse({'sessionId': _sessionId, 'stopped': true}),
+      );
+      final lease = HelperCoreLease(
+        sessionId: _sessionId,
+        pid: 42,
+        client: _client(adapter),
+        livenessProbe: (_) => Completer<bool>().future,
+      );
+
+      expect(
+        await lease.waitForExit(const Duration(milliseconds: 10)),
+        isFalse,
+      );
+      expect(adapter.requestCount, 0);
+    },
+  );
+
+  test(
     'start returns a Helper lease identity with matching session and PID',
     () async {
       final adapter = _ResponseAdapter((options) {

@@ -199,38 +199,23 @@ class DnsOptions extends StatelessWidget {
           maxLength: TextInputLimits.dnsListen,
         ),
         _dnsToggle(
-          title: (l) => l.useHosts,
-          subtitle: (l) => l.useHostsDesc,
-          select: (dns) => dns.useHosts,
-          update: (state, value) => state.copyWith.dns(useHosts: value),
-        ),
-        _dnsToggle(
           title: (l) => l.useSystemHosts,
           subtitle: (l) => l.useSystemHostsDesc,
           select: (dns) => dns.useSystemHosts,
           update: (state, value) => state.copyWith.dns(useSystemHosts: value),
         ),
-        const IPv6Item(),
         _dnsToggle(
           title: (l) => l.respectRules,
           subtitle: (l) => l.respectRulesDesc,
           select: (dns) => dns.respectRules,
           update: (state, value) => state.copyWith.dns(respectRules: value),
         ),
-        const PreferH3Item(),
         const DnsModeItem(),
         _dnsText(
           title: (l) => l.fakeipRange,
           select: (dns) => dns.fakeIpRange,
           update: (state, value) => state.copyWith.dns(fakeIpRange: value),
           maxLength: TextInputLimits.cidr,
-        ),
-        _dnsList(
-          title: (l) => l.fakeipFilter,
-          subtitle: (l) => l.fakeipFilterDesc,
-          select: (dns) => dns.fakeIpFilter,
-          update: (state, value) => state.copyWith.dns(fakeIpFilter: value),
-          itemMaxLength: TextInputLimits.domain,
         ),
         _dnsList(
           title: (l) => l.defaultNameserver,
@@ -255,7 +240,6 @@ class DnsOptions extends StatelessWidget {
           update: (state, value) => state.copyWith.dns(fallback: value),
           itemMaxLength: TextInputLimits.dnsServer,
         ),
-        const ProxyServerNameserverPolicyItem(),
         _dnsList(
           title: (l) => l.proxyNameserver,
           subtitle: (l) => l.proxyNameserverDesc,

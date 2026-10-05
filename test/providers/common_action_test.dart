@@ -98,10 +98,10 @@ void main() {
           .read(appSettingProvider.notifier)
           .update((state) => state.copyWith(onlyStatisticsProxy: true));
       when(
-        () => core.getTraffic(true),
+        () => core.getTraffic(false),
       ).thenAnswer((_) async => const Traffic(up: 10, down: 20));
       when(
-        () => core.getTotalTraffic(true),
+        () => core.getTotalTraffic(false),
       ).thenAnswer((_) async => const Traffic(up: 100, down: 200));
 
       await container.read(commonActionProvider.notifier).updateTraffic();
@@ -112,8 +112,8 @@ void main() {
         container.read(totalTrafficProvider),
         const Traffic(up: 100, down: 200),
       );
-      verify(() => core.getTraffic(true)).called(1);
-      verify(() => core.getTotalTraffic(true)).called(1);
+      verify(() => core.getTraffic(false)).called(1);
+      verify(() => core.getTotalTraffic(false)).called(1);
     });
 
     test('swallows a core failure and leaves the total untouched', () async {

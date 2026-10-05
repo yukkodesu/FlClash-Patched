@@ -804,9 +804,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Enter the rule content",
     ),
-    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
-      "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
-    ),
+    "installedAppsPermissionDeniedMessage":
+        MessageLookupByLibrary.simpleMessage(
+          "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
+        ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "This system hides the installed app list until the permission is granted. Authorize it to configure the per-app proxy.",
     ),
@@ -928,6 +929,32 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "memoryStacks": MessageLookupByLibrary.simpleMessage("Stacks"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage("Go memory usage"),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("All traffic"),
+    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage(
+      "Configuration compatibility",
+    ),
+    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage(
+      "Core capabilities",
+    ),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "Select a profile before starting.",
+    ),
+    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
+      "All traffic; connection snapshots contain TCP only",
+    ),
+    "meowTcpConnections": MessageLookupByLibrary.simpleMessage(
+      "TCP connections",
+    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP only"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage(
+      "Global IPv4 (experimental)",
+    ),
+    "meowTunScope": MessageLookupByLibrary.simpleMessage(
+      "Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.",
+    ),
     "messageTest": MessageLookupByLibrary.simpleMessage("Message test"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage(
       "This is a message.",

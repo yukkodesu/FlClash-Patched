@@ -9,26 +9,25 @@ NavigationItemsState navigationItemsState(Ref ref) {
   final hasProxies = ref.watch(
     currentGroupsStateProvider.select((state) => state.value.isNotEmpty),
   );
-  final hasNetworking = ref.watch(
-    groupsProvider.select(
-      (groups) => groups.any(
-        (group) => group.all.any(
-          (proxy) => switch (proxy.type.toLowerCase()) {
-            'tailscale' || 'zerotier' || 'easytier' => true,
-            _ => false,
-          },
-        ),
-      ),
-    ),
-  );
   final isInit = ref.watch(initProvider);
+  final capabilities = ref.watch(coreIdentityProvider)?.capabilities;
   return NavigationItemsState(
     value:
-        navigationPort?.getItems(
-          openLogs: openLogs,
-          hasProxies: !isInit ? hasProfiles : hasProxies,
-          hasNetworking: hasNetworking,
-        ) ??
+        navigationPort
+            ?.getItems(
+              openLogs: openLogs,
+              hasProxies: !isInit ? hasProfiles : hasProxies,
+              hasNetworking: false,
+            )
+            .where(
+              (item) => switch (item.label) {
+                PageLabel.connections =>
+                  capabilities?.contains('connections') ?? false,
+                PageLabel.logs => capabilities?.contains('logs') ?? false,
+                _ => true,
+              },
+            )
+            .toList() ??
         const [],
   );
 }
@@ -72,7 +71,16 @@ DashboardState dashboardState(Ref ref) {
   final dashboardWidgets = ref.watch(
     appSettingProvider.select((state) => state.dashboardWidgets),
   );
-  return DashboardState(dashboardWidgets: dashboardWidgets);
+  return DashboardState(
+    dashboardWidgets: dashboardWidgets
+        .where(
+          (item) =>
+              item != DashboardWidget.memoryInfo &&
+              item != DashboardWidget.goroutineInfo &&
+              item != DashboardWidget.vpnButton,
+        )
+        .toList(),
+  );
 }
 
 @riverpod
