@@ -285,7 +285,68 @@ jobs:
           test -f "$FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR/${{ matrix.platform == 'windows' && 'rust_api.dll' || (matrix.platform == 'linux' && 'librust_api.so' || 'librust_api.dylib') }}"
           "$FLCLASH_MEOW_HOST" --version
           flutter test test/core/meow_host_integration_test.dart --reporter expanded
+      - name: Prepare native Unix system proxy acceptance
+        id: proxy-unix-prepare
+        if: always() && matrix.platform != 'windows' && steps.core-e2e.outcome != 'skipped'
+        working-directory: plugins/proxy
+        shell: bash
+        run: |
+          test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted
+          if [[ '${{ matrix.platform }}' == linux ]]; then
+            sudo apt-get install -y dbus-x11 dconf-cli dconf-service gsettings-desktop-schemas
+          fi
+          flutter pub get
+      - name: Actual Unix system proxy ownership acceptance
+        if: always() && steps.proxy-unix-prepare.outcome == 'success'
+        working-directory: plugins/proxy
+        shell: bash
+        env:
+          FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE: '1'
+          FLCLASH_MEOW_PROXY_EVIDENCE_PATH: ${{ github.workspace }}/build/native-proxy/${{ matrix.platform }}-${{ matrix.arch }}.json
+        run: |
+          test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted
+          mkdir -p "$GITHUB_WORKSPACE/build/native-proxy"
+          if [[ '${{ matrix.platform }}' == linux ]]; then
+            dbus-run-session -- dart run tool/native_proxy_acceptance.dart
+          else
+            sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" \
+              FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE="$FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE" \
+              FLCLASH_MEOW_PROXY_EVIDENCE_PATH="$FLCLASH_MEOW_PROXY_EVIDENCE_PATH" \
+              "$(command -v dart)" run tool/native_proxy_acceptance.dart
+          fi
+          python -c "import json, os; assert json.load(open(os.environ['FLCLASH_MEOW_PROXY_EVIDENCE_PATH']))['outcome'] == 'passed'"
+      - name: Actual Windows system proxy ownership acceptance
+        if: always() && matrix.platform == 'windows' && steps.core-e2e.outcome != 'skipped'
+        shell: pwsh
+        env:
+          FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE: '1'
+          FLCLASH_MEOW_PROXY_EVIDENCE_PATH: ${{ github.workspace }}/build/native-proxy/${{ matrix.platform }}-${{ matrix.arch }}.json
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Native system proxy acceptance requires an opted-in disposable GitHub-hosted runner.' }
+          New-Item -ItemType Directory -Force build/native-proxy | Out-Null
+          flutter precache --windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $architecture = '${{ matrix.arch }}' -eq 'arm64' ? 'ARM64' : 'x64'
+          $engineArchitecture = '${{ matrix.arch }}' -eq 'arm64' ? 'arm64' : 'x64'
+          $engine = Join-Path $env:FLUTTER_ROOT "bin/cache/artifacts/engine/windows-$engineArchitecture"
+          $proxySource = Join-Path $env:GITHUB_WORKSPACE 'plugins/proxy/windows'
+          cmake -S tool/native_proxy_windows -B build/native-proxy/windows -A $architecture "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" "-DFLUTTER_ENGINE_DIR=$engine" "-DPROXY_SOURCE_DIR=$proxySource"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build/native-proxy/windows --config Release --target proxy_test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build/native-proxy/windows/proxy/Release/proxy_test.exe '--gtest_filter=ProxyNativeAcceptance.*'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $evidence = Get-Content -Raw -LiteralPath $env:FLCLASH_MEOW_PROXY_EVIDENCE_PATH | ConvertFrom-Json
+          if ($evidence.outcome -ne 'passed') { throw 'Native system proxy acceptance did not record a passing OS result.' }
+      - name: Upload system proxy ownership evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: proxy-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/native-proxy/*.json
+          if-no-files-found: warn
       - name: Native TUN ownership and crash recovery
+        if: always() && steps.core-e2e.outcome == 'success'
         run: python tool/native_desktop_acceptance.py --log build/native-acceptance/${{ matrix.platform }}-${{ matrix.arch }}.log
       - name: Upload native acceptance evidence
         if: always()

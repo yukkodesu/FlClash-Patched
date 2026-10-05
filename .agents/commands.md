@@ -279,6 +279,20 @@ and ARM64. Each native job then compiles the ignored native TUN executable as it
 elevated through `tool/native_desktop_acceptance.py`. The runner refuses non-disposable/self-hosted environments;
 the harness records local TCP/UDP/DNS traffic, owned DNS/routes, stop/exit and crash recovery. Its output is uploaded
 as native acceptance evidence. Global mode requires a separate experimental opt-in and acceptance record.
+
+The same six native jobs run the system proxy fixture with
+`FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE=1`, `GITHUB_ACTIONS=true` and
+`RUNNER_ENVIRONMENT=github-hosted`. Unix invokes
+`dart run tool/native_proxy_acceptance.dart` from `plugins/proxy`; Linux supplies
+an isolated D-Bus session with GNOME schemas/dconf, and macOS uses the runner's
+real `networksetup` under sudo. Windows builds the production plugin's
+`proxy_test` target through `tool/native_proxy_windows/CMakeLists.txt` with its
+matching Flutter engine, then selects `ProxyNativeAcceptance.*`. These fixtures
+record original settings, ownership restoration, later-writer preservation and
+final fixture baseline in `build/native-proxy/*.json`, uploaded even on failure.
+Missing evidence or an outcome other than `passed` fails CI. Do not opt in on
+a workstation or self-hosted runner; these tests change actual OS proxy settings.
+
 Manual `workflow_dispatch` runs all gates plus six desktop package builds and staged Core smoke checks by default;
 set its `packages` input to `false` for validation without installation artifacts. The default package run
 uploads artifacts without creating a release. A `v*` tag push additionally publishes the release. A green build does not
