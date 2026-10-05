@@ -23,11 +23,15 @@ final class DesktopCoreTimeouts {
   final Duration ready;
   final Duration connection;
   final Duration disconnection;
+  final Duration gracefulShutdown;
+  final Duration processExit;
 
   const DesktopCoreTimeouts({
     this.ready = const Duration(seconds: 10),
     this.connection = const Duration(seconds: 10),
     this.disconnection = const Duration(seconds: 10),
+    this.gracefulShutdown = const Duration(seconds: 30),
+    this.processExit = const Duration(seconds: 2),
   });
 }
 
@@ -57,6 +61,8 @@ abstract interface class CoreProcessLease {
   CoreProcessOwner get owner;
 
   int get pid;
+
+  Future<bool> waitForExit(Duration timeout);
 
   Future<CoreProcessStopResult> stop(Duration timeout);
 }
