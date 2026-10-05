@@ -265,7 +265,8 @@ and ARM64. Each native job then compiles the ignored native TUN executable as it
 elevated through `tool/native_desktop_acceptance.py`. The runner refuses non-disposable/self-hosted environments;
 the harness records local TCP/UDP/DNS traffic, owned DNS/routes, stop/exit and crash recovery. Its output is uploaded
 as native acceptance evidence. Global mode requires a separate experimental opt-in and acceptance record.
-Manual `workflow_dispatch` runs all gates plus six desktop package builds and staged Core smoke checks, and
+Manual `workflow_dispatch` runs all gates plus six desktop package builds and staged Core smoke checks by default;
+set its `packages` input to `false` for validation without installation artifacts. The default package run
 uploads artifacts without creating a release. A `v*` tag push additionally publishes the release. A green build does not
 prove elevated TUN installation or package uninstall: record native acceptance in `docs/specs/meow-desktop-acceptance.md`.
 

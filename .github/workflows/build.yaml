@@ -2,6 +2,11 @@ name: build
 
 on:
   workflow_dispatch:
+    inputs:
+      packages:
+        description: Build desktop installation packages after validation
+        type: boolean
+        default: true
   push:
     branches:
       - '**'
@@ -263,7 +268,7 @@ jobs:
         run: cargo test --manifest-path services/helper/Cargo.toml --features windows-service
 
   build:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    if: (github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     needs: [ dart-checks, dart-tests, plugins, meow-host, rust, windows-helper-test ]
     runs-on: ${{ matrix.os }}
     strategy:
