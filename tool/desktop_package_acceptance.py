@@ -28,7 +28,19 @@ Add-Type -AssemblyName UIAutomationTypes
 $providerName = [System.Windows.Automation.AutomationElement].Assembly.GetName()
 $providerName.Name = 'UIAutomationClientsideProviders'
 $providerAssembly = [System.Reflection.Assembly]::Load($providerName)
-[System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providerAssembly.GetName())
+Add-Type -ReferencedAssemblies ([System.Windows.Automation.AutomationElement].Assembly.Location) -TypeDefinition @'
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Windows.Automation;
+public static class MeowTrayProviders {
+  // Framework UIA inspects the first external frame; PowerShell dynamic frames have no ReflectedType.
+  [MethodImpl(MethodImplOptions.NoInlining)]
+  public static void Register(AssemblyName name) {
+    ClientSettings.RegisterClientSideProviderAssembly(name);
+  }
+}
+'@
+[MeowTrayProviders]::Register($providerAssembly.GetName())
 '''
 
 
@@ -374,7 +386,10 @@ def old_service_registration():
 
 
 def embedded_update_identity(root):
-    candidates = [root / 'data/app.so'] if PLATFORM != 'macos' else [root.parent / 'Frameworks/App.framework/Versions/A/App', root.parent / 'Frameworks/App.framework/App']
+    if PLATFORM == 'macos':
+        candidates = [root.parent / 'Frameworks/App.framework/Versions/A/App', root.parent / 'Frameworks/App.framework/App']
+    else:
+        candidates = [root / ('lib/libapp.so' if PLATFORM == 'linux' else 'data/app.so')]
     snapshot = next((path for path in candidates if path.is_file()), None)
     if snapshot is None or b'yukkodesu/FlClash-Patched' not in snapshot.read_bytes():
         raise RuntimeError('Packaged AOT snapshot has no independent product update repository identity.')

@@ -13,6 +13,36 @@ SCRIPT = Path(__file__).with_name('desktop_package_acceptance.py')
 
 
 class PackageAcceptanceContract(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Windows framework assembly registration')
+    def test_windows_accessibility_provider_registers_in_a_powershell_child(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source = module.WINDOWS_UIA_SETUP + "@{client=[System.Windows.Automation.AutomationElement].Assembly.FullName;provider=$providerAssembly.FullName} | ConvertTo-Json -Compress"
+        result = module.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', source], timeout=20)
+        metadata = json.loads(result.stdout)
+        self.assertEqual(metadata['client'].split(',')[1:], metadata['provider'].split(',')[1:])
+        self.assertTrue(metadata['provider'].startswith('UIAutomationClientsideProviders,'))
+
+    def test_packaged_update_identity_reads_each_platform_aot_snapshot(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            for target, relative in (('windows', 'data/app.so'), ('linux', 'lib/libapp.so'), ('macos', '../Frameworks/App.framework/App')):
+                with self.subTest(platform=target), mock.patch.object(module, 'PLATFORM', target):
+                    root = base / target / 'client'
+                    snapshot = root / relative
+                    snapshot.parent.mkdir(parents=True)
+                    snapshot.write_bytes(b'fixture AOT yukkodesu/FlClash-Patched')
+                    identity = module.embedded_update_identity(root)
+                    self.assertEqual(identity['repository'], 'yukkodesu/FlClash-Patched')
+                    self.assertEqual(identity['snapshotSha256'], module.digest(snapshot))
+                    snapshot.write_bytes(b'fixture AOT original/FlClash')
+                    with self.assertRaisesRegex(RuntimeError, 'independent product update repository identity'):
+                        module.embedded_update_identity(root)
+
     def test_installed_debian_payload_selects_file_inside_same_named_directory(self):
         spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
         module = importlib.util.module_from_spec(spec)
