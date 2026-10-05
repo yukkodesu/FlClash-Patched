@@ -42,6 +42,7 @@ def main():
     parser.add_argument('--log', type=Path, required=True)
     parser.add_argument('--iterations', type=int, default=25)
     parser.add_argument('--seconds', type=float, default=8)
+    parser.add_argument('--skip-controller-prelude', action='store_true')
     args = parser.parse_args()
     package.require_runner()
     if package.PLATFORM != 'windows' or platform.machine().lower() != 'arm64':
@@ -80,7 +81,10 @@ def main():
             if CORE not in version:
                 raise RuntimeError('Installed source mismatch.')
             record('payload', **payload, rustApiSha256=RUST_API_SHA, version=version, clientSha256=package.digest(installation.client))
-            record('core-controller-prelude', **package.core_controller_e2e(installation.root, args.log.parent))
+            if args.skip_controller_prelude:
+                record('core-controller-prelude-omitted', reason='single-variable minimisation')
+            else:
+                record('core-controller-prelude', **package.core_controller_e2e(installation.root, args.log.parent))
             record('helper-prelude', **package.helper_probe(installation.root, CORE_SHA))
             for index in range(args.iterations):
                 if package.product_processes():
