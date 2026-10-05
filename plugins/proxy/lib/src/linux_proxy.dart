@@ -380,7 +380,7 @@ class LinuxProxyCommands {
     required String homeDir,
     required String executable,
   }) {
-    final configFile = path.join(homeDir, '.config', 'kioslaverc');
+    final configFile = path.posix.join(homeDir, '.config', 'kioslaverc');
     return [
       ProxyCommand(executable, [
         '--file',

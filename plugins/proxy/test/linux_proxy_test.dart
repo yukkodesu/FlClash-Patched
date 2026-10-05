@@ -78,7 +78,7 @@ void main() {
         os = _DesktopSettings();
         proxy = os.create();
         prefix = desktop == 'KDE'
-            ? '/home/test\\.config\\kioslaverc'
+            ? '/home/test/.config/kioslaverc'
             : 'org.${desktop == 'MATE' ? 'mate' : 'gnome'}.system.proxy';
         mode = '$prefix/${desktop == 'KDE' ? 'ProxyType' : 'mode'}';
         host = desktop == 'KDE' ? '$prefix/httpProxy' : '$prefix.http/host';
@@ -107,6 +107,12 @@ void main() {
       test('restores original values and only the installed backend', () async {
         final before = Map.of(os.values);
         expect(await start(), isTrue);
+        expect(os.values[mode], desktop == 'KDE' ? '1' : "'manual'");
+        expect(
+          os.values[host],
+          desktop == 'KDE' ? 'http://127.0.0.1:7890' : "'127.0.0.1'",
+        );
+        expect(os.values[bypass], desktop == 'KDE' ? 'local' : "['local']");
         expect(await stop(), isTrue);
         expect(os.values, before);
         os.calls.clear();
