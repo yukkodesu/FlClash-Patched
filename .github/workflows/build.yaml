@@ -450,7 +450,7 @@ jobs:
           python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
       - name: Prepare disposable Linux desktop
         if: matrix.platform == 'linux'
-        run: sudo apt-get install -y xvfb openbox xdotool scrot dbus-x11 python3-gi libgtk-3-0 libayatana-appindicator3-1
+        run: sudo apt-get install -y xvfb openbox xfce4-panel xfconf xdotool scrot dbus-x11 python3-gi libgtk-3-0 libayatana-appindicator3-1
       - name: Install and accept actual artifact
         shell: bash
         env:
@@ -458,7 +458,24 @@ jobs:
           PACKAGE_ARCH: ${{ matrix.arch }}
         run: |
           if [[ "$PACKAGE_PLATFORM" == linux ]]; then
-            dbus-run-session -- xvfb-run -a bash -c 'openbox > /tmp/meow-package-openbox.log 2>&1 & exec /usr/bin/python3 tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl'
+            dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" bash -c '
+              set -euo pipefail
+              mkdir -p build/package-acceptance
+              trap "jobs -pr | xargs -r kill" EXIT
+              openbox > build/package-acceptance/openbox.log 2>&1 &
+              xfconf-query -c xfce4-panel -p /panels -n -a -t int -s 1
+              xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids -n -a -t int -s 1
+              xfconf-query -c xfce4-panel -p /panels/panel-1/position -n -t string -s "p=10;x=640;y=16"
+              xfconf-query -c xfce4-panel -p /panels/panel-1/position-locked -n -t bool -s true
+              xfconf-query -c xfce4-panel -p /panels/panel-1/size -n -t int -s 32
+              xfconf-query -c xfce4-panel -p /panels/panel-1/length -n -t int -s 100
+              xfconf-query -c xfce4-panel -p /panels/panel-1/length-adjust -n -t bool -s false
+              xfconf-query -c xfce4-panel -p /panels/panel-1/autohide-behavior -n -t int -s 0
+              xfconf-query -c xfce4-panel -p /plugins/plugin-1 -n -t string -s systray
+              xfce4-panel --disable-wm-check > build/package-acceptance/xfce-panel.log 2>&1 &
+              export MEOW_PACKAGE_PANEL_PID=$!
+              /usr/bin/python3 tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl
+            '
           else
             python tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl
           fi
