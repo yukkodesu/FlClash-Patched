@@ -259,6 +259,7 @@ class SetupAction extends _$SetupAction {
         return;
       }
       final updated = await _setupScheduler.run(() async {
+        final patch = ref.read(patchClashConfigProvider);
         final applied = _appliedPatch;
         if (applied == null ||
             applied.copyWith(mode: patch.mode, logLevel: patch.logLevel) !=
@@ -583,6 +584,8 @@ class SetupAction extends _$SetupAction {
             final profileId = profile?.id;
             if (profileId != null) await appPath.ensureProviderDirs(profileId);
             if (shouldRestart) {
+              _setLocalRunning(false);
+              ref.read(runtimeStatusProvider.notifier).value = null;
               final result = await _listenerScheduler.run(_core.restart);
               if (result.outcome == CoreLifecycleOutcome.superseded ||
                   revision != _profileRevision) {
