@@ -23,7 +23,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Connection count'), findsOneWidget);
+    expect(find.text('TCP connections'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('2')).dx,

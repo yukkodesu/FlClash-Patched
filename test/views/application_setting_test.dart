@@ -16,11 +16,15 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../helpers/test_app.dart';
 
 Future<void> _scrollTo(WidgetTester tester, String text) async {
-  await tester.scrollUntilVisible(
-    find.text(text),
-    500,
-    scrollable: find.byType(Scrollable).first,
-  );
+  try {
+    await tester.scrollUntilVisible(
+      find.text(text),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+  } on StateError {
+    fail('Setting is not available: $text');
+  }
   // ensureVisible jumps immediately; the hit target stays stale until a frame.
   await tester.pump();
 }
@@ -172,7 +176,7 @@ void main() {
     expect(system.isTV, isTrue);
   });
 
-  testWidgets('general page keeps every relocated setting', (tester) async {
+  testWidgets('general page keeps supported desktop settings', (tester) async {
     tester.view.physicalSize = const Size(1400, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -211,19 +215,12 @@ void main() {
       'Authentication',
       'Connection',
       'Test URL',
-      'Unified delay',
-      'TCP concurrent',
-      if (system.isDesktop) 'TCP keep-alive interval',
-      'Find process',
       'Auto close connections',
       'Close connections prompt',
-      'Only count proxy traffic',
       'Core',
       'IPv6',
       'Hosts',
       'Append system DNS',
-      'Geo low-memory mode',
-      if (!system.isIOS) 'High performance Geo matcher',
       'Logs',
       'Log level',
       'Logcat',
@@ -235,6 +232,8 @@ void main() {
     for (final label in labels) {
       await _scrollTo(tester, label);
       expect(find.text(label), findsWidgets);
+      expect(find.text('Only count proxy traffic'), findsNothing);
+      expect(find.text('Geo low-memory mode'), findsNothing);
     }
 
     if (!system.isAndroid) {

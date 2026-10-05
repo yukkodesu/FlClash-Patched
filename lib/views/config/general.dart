@@ -324,6 +324,17 @@ class GeneralView extends ConsumerWidget {
   }) {
     return [
       if (system.isDesktop) ...[
+        _appSettingToggle(
+          title: (l) => l.autoLaunch,
+          subtitle: (l) => l.autoLaunchDesc,
+          select: (state) => state.autoLaunch,
+          update: (state, value) => state.copyWith(
+            autoLaunch: value,
+            highPriorityAutoLaunch: value
+                ? state.highPriorityAutoLaunch
+                : false,
+          ),
+        ),
         if (system.isWindows && autoLaunch)
           _appSettingToggle(
             title: (l) => l.highPriorityAutoLaunch,
@@ -410,6 +421,12 @@ class GeneralView extends ConsumerWidget {
   List<Widget> _inboundItems(bool authentication) {
     return [
       const PortItem(),
+      _clashToggle(
+        title: (l) => l.allowLan,
+        subtitle: (l) => l.allowLanDesc,
+        select: (state) => state.allowLan,
+        update: (state, value) => state.copyWith(allowLan: value),
+      ),
       const AuthenticationItem(),
       if (authentication) ...const [
         AuthenticationAccountItem(),
@@ -436,12 +453,6 @@ class GeneralView extends ConsumerWidget {
           update: (state, value) =>
               state.copyWith(promptCloseConnections: value),
         ),
-      _appSettingToggle(
-        title: (l) => l.onlyStatisticsProxy,
-        subtitle: (l) => l.onlyStatisticsProxyDesc,
-        select: (state) => state.onlyStatisticsProxy,
-        update: (state, value) => state.copyWith(onlyStatisticsProxy: value),
-      ),
     ];
   }
 
@@ -463,16 +474,6 @@ class GeneralView extends ConsumerWidget {
         onChanged: (ref, value) => ref
             .read(networkSettingProvider.notifier)
             .update((state) => state.copyWith(appendSystemDns: value)),
-      ),
-      _clashToggle(
-        title: (l) => l.geodataLoader,
-        subtitle: (l) => l.geodataLoaderDesc,
-        select: (state) => state.geodataLoader == GeodataLoader.memconservative,
-        update: (state, value) => state.copyWith(
-          geodataLoader: value
-              ? GeodataLoader.memconservative
-              : GeodataLoader.standard,
-        ),
       ),
     ];
   }
@@ -548,30 +549,6 @@ class GeneralView extends ConsumerWidget {
           generateSectionV3(title: appLocalizations.app, items: _appItems()),
         ],
       ),
-    );
-  }
-}
-
-class GeositeMatcherItem extends ConsumerWidget {
-  const GeositeMatcherItem({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ConfigToggleItem(
-      title: (l) => l.geositeMatcher,
-      subtitle: (l) => l.geositeMatcherDesc,
-      selector: patchClashConfigProvider.select(
-        (state) => state.geositeMatcher == GeositeMatcher.mph,
-      ),
-      onChanged: (ref, value) => ref
-          .read(patchClashConfigProvider.notifier)
-          .update(
-            (state) => state.copyWith(
-              geositeMatcher: value
-                  ? GeositeMatcher.mph
-                  : GeositeMatcher.succinct,
-            ),
-          ),
     );
   }
 }
