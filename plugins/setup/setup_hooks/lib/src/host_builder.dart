@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
 
 import 'build_cache.dart';
@@ -59,6 +61,12 @@ class HostBuilder {
           workingDirectory: corePath,
           nativeDependencies: true,
         );
+        final wintun = Platform.environment['MEOW_WINTUN_DLL'];
+        if (wintun != null && wintun.isNotEmpty) {
+          builder.addFile(
+            p.isAbsolute(wintun) ? wintun : p.join(corePath, wintun),
+          );
+        }
         builder.addFiles([
           ...collectFiles(
             corePath,

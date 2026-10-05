@@ -128,6 +128,7 @@ Map<String, String> rustEnvironment() {
     'CXXFLAGS',
     'CMAKE_GENERATOR',
     'CMAKE_TOOLCHAIN_FILE',
+    'LIBCLANG_PATH',
   };
   final values = <String, String>{};
   final entries = Platform.environment.entries.toList()
@@ -139,7 +140,9 @@ Map<String, String> rustEnvironment() {
         entry.key.startsWith('CMAKE_') ||
         entry.key.startsWith('BINDGEN_') ||
         entry.key.startsWith('CC_') ||
-        entry.key.startsWith('CXX_')) {
+        entry.key.startsWith('CXX_') ||
+        entry.key.startsWith('MEOW_') ||
+        entry.key.startsWith('BORING_')) {
       values[entry.key] = entry.value;
     }
   }
