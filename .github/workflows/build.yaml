@@ -174,6 +174,15 @@ jobs:
           test -f "$FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR/${{ matrix.platform == 'windows' && 'rust_api.dll' || (matrix.platform == 'linux' && 'librust_api.so' || 'librust_api.dylib') }}"
           "$FLCLASH_MEOW_HOST" --version
           flutter test test/core/meow_host_integration_test.dart --reporter expanded
+      - name: Native TUN ownership and crash recovery
+        run: python tool/native_desktop_acceptance.py --log build/native-acceptance/${{ matrix.platform }}-${{ matrix.arch }}.log
+      - name: Upload native acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-acceptance-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/native-acceptance
+          if-no-files-found: ignore
   rust:
     name: Rust
     runs-on: ubuntu-latest
