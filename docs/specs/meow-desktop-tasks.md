@@ -6,7 +6,7 @@ Client integration branch: `feat/meow-desktop`, based on `42ebfa1159da0828e30419
 Core integration branch: `feat/flclash-meow-host`, based on `3c27aca92d64c7194c6b590e529da46465fbb7eb`.
 Client repository: `yukkodesu/FlClash-Patched`. Core repository: `yukkodesu/meow-rs`.
 
-GitHub tracker publication is pending write access (connector returns 403; local gh is unauthenticated). The identifiers below are local task identifiers, not GitHub issue numbers. No ticket is resolved until its acceptance evidence is recorded.
+GitHub tracker: https://github.com/yukkodesu/FlClash-Patched/issues/1. The user authenticated gh; Issues was enabled for the client fork and the spec received `ready-for-agent`. Tickets H1/H2/B1/C1/U1/T1/V1 are respectively #2/#3/#4/#5/#6/#7/#8. No ticket is resolved until its acceptance evidence is recorded.
 
 | Task | Dependencies | Acceptance | State |
 |---|---|---|---|
