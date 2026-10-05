@@ -163,6 +163,16 @@ Future<void> main() async {
     );
   }
   try {
+    if (!await start(7890)) {
+      throw StateError('Default native proxy start failed');
+    }
+    evidence['defaultInstalled'] = await snapshot();
+    if (!await stop()) {
+      throw StateError('Default native proxy restoration failed');
+    }
+    final defaultAfter = await snapshot();
+    evidence['defaultAfter'] = defaultAfter;
+    equal(defaultAfter, baseline, 'Default settings restoration');
     await foreign(8088, ['foreign-original']);
     final before = await snapshot();
     evidence['before'] = before;

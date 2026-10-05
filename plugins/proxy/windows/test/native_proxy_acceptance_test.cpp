@@ -174,6 +174,15 @@ TEST(ProxyNativeAcceptance, RestoresOnlyOwnedRealWinInetSettings)
   NativeFixture fixture(*os);
   ASSERT_TRUE(fixture.Capture(fixture.baseline));
   fixture.armed = true;
+  ASSERT_TRUE(Invoke(plugin, "StartProxy"));
+  Snapshot default_installed;
+  ASSERT_TRUE(fixture.Capture(default_installed));
+  fixture.evidence["defaultInstalled"] = JsonSnapshot(default_installed);
+  ASSERT_TRUE(Invoke(plugin, "StopProxy"));
+  Snapshot default_after;
+  ASSERT_TRUE(fixture.Capture(default_after));
+  fixture.evidence["defaultAfter"] = JsonSnapshot(default_after);
+  EXPECT_EQ(JsonSnapshot(default_after), JsonSnapshot(fixture.baseline));
   ASSERT_TRUE(fixture.InstallForeign(8088, L"foreign-original"));
   Snapshot before;
   ASSERT_TRUE(fixture.Capture(before));
