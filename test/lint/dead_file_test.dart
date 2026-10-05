@@ -25,7 +25,7 @@ Iterable<File> _dartFiles({required bool includeGenerated}) sync* {
       final generated =
           entity.path.endsWith('.g.dart') ||
           entity.path.endsWith('.freezed.dart') ||
-          entity.path.contains('/generated/');
+          entity.path.replaceAll('\\', '/').contains('/generated/');
       if (generated && !includeGenerated) continue;
       yield entity;
     }
@@ -49,11 +49,12 @@ void main() {
     // notifier is reached through the provider its annotation generates.
     final consumers = {
       for (final file in _dartFiles(includeGenerated: true))
-        file.path: file.readAsStringSync(),
+        file.path.replaceAll('\\', '/'): file.readAsStringSync(),
     };
     final sources = {
       for (final file in _dartFiles(includeGenerated: false))
-        file.path: consumers[file.path]!,
+        file.path.replaceAll('\\', '/'):
+            consumers[file.path.replaceAll('\\', '/')]!,
     };
     final barrels = {
       for (final MapEntry(key: path, value: source) in sources.entries)

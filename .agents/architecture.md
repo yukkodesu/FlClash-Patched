@@ -39,11 +39,11 @@ callers must not try to reuse a closed platform implementation.
 
 `CoreAction` in `lib/providers/actions/core.dart` owns the user-facing Core status and setup sequence:
 
-- `startCore()` publishes `connecting`, starts the platform Core, publishes `connected`, then initializes Core state. A
-  startup error publishes `disconnected` and displays the error.
-- `restartCore()` coalesces overlapping callers behind one worker. `_requestedRestartRevision` records newer requests,
-  while `_latestExplicitStart` retains the newest requested post-restart running intent. After the lifecycle restart and
-  `initCore()`, the worker reapplies profile/running state until it has consumed the latest revision.
+- `startCore()` publishes `connecting`, starts the desktop Core, then initializes and verifies its identity/runtime
+  before publishing `connected`. A startup error publishes `disconnected` and displays the error.
+- `restartCore()` coalesces overlapping callers behind one worker. `_requestedRestartRevision` records newer requests.
+  After the lifecycle restart and `initCore()`, the worker reapplies the profile and the latest requested running state
+  until it has consumed the latest revision. `SetupAction` serializes profile and listener transitions.
 - The provider is an orchestration and presentation layer, not a process owner. Platform lifecycle code remains responsible
   for determining whether a Core process/service is actually running.
 
