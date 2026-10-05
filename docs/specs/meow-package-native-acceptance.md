@@ -27,6 +27,22 @@ The final AOT snapshot must contain the fork's update repository identity. This 
 
 The CoreController test must load the installed package's `rust_api` library using `FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR`. Artifact-only CI disables setup/rust_api build hooks in its disposable checkout after `flutter pub get`, so it cannot silently replace the downloaded package with freshly built native libraries. No workstation SDK or production pubspec is changed by the fixture.
 
+## Existing build workflow entry
+
+The registered `.github/workflows/build.yaml` accepts `acceptance_build_run`. Its empty default preserves normal validation and the existing `packages` option. A nonempty value runs only the six native `package-acceptance` jobs; ordinary tests, compilation and release jobs are skipped. It does not rebuild the downloaded installer or use staged `libclash` files.
+
+Run this entry from a separate CI ref containing the harness/workflow checkpoint, so its concurrency group cannot cancel an active integration build. For example, after that ref has been pushed:
+
+```sh
+gh workflow run 343794887 --repo yukkodesu/FlClash-Patched \
+  --ref ci/meow-package-acceptance \
+  -f acceptance_build_run=37357154622 -f packages=false
+```
+
+The chosen run must already be completed. Before downloading, the job requires a positive decimal run ID and verifies the authenticated Actions API response: matching run ID, both repositories matching this fork, the expected build workflow path, a push/manual event, completed status and a full source SHA. It fetches that commit and verifies `core/meow-rs` is a submodule with a full core SHA. The run can contain other failed jobs, but each architecture must have its own named installer artifact; a missing artifact fails that job. `build-run.json` preserves the API provenance with the native JSONL and screenshots.
+
+`buildClientCommit` and `coreCommit` identify the installed payload's build source. `harnessCommit` identifies the different checkout running the acceptance fixture; `buildRunId` identifies the artifact-producing run, and `runId` identifies the acceptance run. These values must not be conflated when reporting results.
+
 ## Verification state
 
 The workstation-safe guard and package-integrity public boundary tests passed with Python. A read-only inspection of a real Windows x64 release payload found its Core/manifest/Helper coherent and its AOT update identity present. No workstation package install, service install, UI action or network configuration change was performed. Native install/tray/uninstall acceptance remains pending the six architecture jobs and their recorded JSONL/screenshots; this document is not a claim that those jobs passed.
