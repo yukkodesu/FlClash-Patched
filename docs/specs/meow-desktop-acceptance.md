@@ -7,12 +7,12 @@ mutation has been performed on the user's workstation by the automated tests.
 
 | Target | Locked host build | CoreController local proxy | Package/install isolation | Native TUN/cleanup |
 |---|---|---|---|---|
-| Windows x64 | locked release host and Helper built at initial pin; final package pending | HTTP, actual DNS reply, delay, start/stop, TCP snapshot, real connection close and graceful restart passed | pending | pending |
+| Windows x64 | native CI passed at core `75b3d420`; final pin/package pending | native CI passed; newer local E2E also verifies the actual DNS reply | pending | pending |
 | Windows arm64 | pending | pending | pending | pending |
 | macOS x64 | pending | pending | pending | pending |
-| macOS arm64 | pending | pending | pending | pending |
-| Linux x64 | pending | pending | pending | pending |
-| Linux arm64 | pending | pending | pending | pending |
+| macOS arm64 | native CI passed at core `75b3d420`; final pin pending | native CI passed at client `a357f8ad` | pending | pending |
+| Linux x64 | native CI passed at core `75b3d420`; final pin pending | native CI passed at client `a357f8ad` | pending | pending |
+| Linux arm64 | native CI passed at core `75b3d420`; final pin pending | native CI passed at client `a357f8ad` | pending | pending |
 
 ## Reproducible ordinary proxy check
 
@@ -49,4 +49,5 @@ Unverified native behavior keeps T1/V1 open and the client PR in draft.
 - Windows CoreController E2E now queries the actual ephemeral DNS endpoint and checks a known local A record. All upstream services are local fixtures; geodata fixture files suppress unrelated network downloads.
 - Recovery contract/UI regression: 89 tests passed and Flutter analyze reported no issues. The configuration transaction's entire 39-test suite also passed. A Windows suite-load interruption could not be reproduced by running the six TV navigation cases alone; full regression is still pending.
 - [First native CI run](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37340715186): Windows Helper, Rust runtime library and plugin checks passed. Generated localization format, an old host pin's Clippy violations, and macOS LLVM library-path contamination caused failures; these were repaired before the second run.
-- [Second native CI run](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37341993846): running. Dart format/analyze, Windows Helper, Rust runtime library and plugin checks passed at the time of this record. No native host or package acceptance is inferred from those jobs.
+- [Second native CI run](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37341993846): Windows x64, Linux x64/arm64 and macOS arm64 passed locked host checks, release build, native Rust API build and mandatory CoreController E2E. macOS x64 remains in progress. Windows ARM64 failed in BoringSSL assembly selection and has a target-scoped build fix in progress. Dart shard 3 exposed an obsolete NTP view; it was removed at `dbbfff73`, pending the next full run. Other completed shards, Dart format/analyze, Windows Helper, Rust library and plugin checks passed. These results do not prove package installation or native TUN cleanup.
+- Local client `f1276589` retains runtime failure feedback and derives active indicators from actual listener state. Focused state regression passed 45 tests; failure contract/action regression passed 36 tests and analysis. Only the start-listener RPC receives the longer timeout needed by the existing 300-second native startup budget.
