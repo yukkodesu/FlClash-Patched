@@ -779,7 +779,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "開始する前にプロファイルを選択してください。",
     ),
     "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
-      "前回の TUN リソースの復元が必要です。権限を持つ Helper で再起動し、DNS とルートを復元してから TUN を有効にしてください。通常のプロキシモードは引き続き利用できます。",
+      "前回の TUN 状態の確認または復元が必要です。権限を持つ Helper で再起動し、DNS とルートを確認してから TUN を有効にしてください。通常のプロキシモードは引き続き利用できます。",
     ),
     "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
       "全トラフィックを集計。接続スナップショットは TCP のみ",

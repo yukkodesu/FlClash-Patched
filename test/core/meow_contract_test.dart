@@ -42,6 +42,29 @@ const hostInfo = <String, Object?>{
 };
 
 void main() {
+  test('controller returns bound listener and DNS addresses', () async {
+    final controller = CoreController.scoped(
+      HostContract({
+        'getRuntimeState': {
+          'initialized': true,
+          'configured': true,
+          'running': true,
+          'tunActive': false,
+          'generation': 2,
+          'listeners': [
+            {'name': 'mixed', 'type': 'mixed', 'address': '127.0.0.1:43210'},
+          ],
+          'dnsListen': '127.0.0.1:43211',
+          'externalController': null,
+        },
+      }),
+    );
+    final runtime = await controller.getRuntimeState();
+    expect(runtime.listeners.single.address, '127.0.0.1:43210');
+    expect(runtime.dnsListen, '127.0.0.1:43211');
+    expect(runtime.externalController, isNull);
+  });
+
   test(
     'controller exposes native recovery warnings without claiming TUN active',
     () async {

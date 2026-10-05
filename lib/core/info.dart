@@ -49,6 +49,9 @@ class CoreRuntimeState {
   final bool tunActive;
   final int generation;
   final NativeRecovery recovery;
+  final List<CoreListener> listeners;
+  final String? dnsListen;
+  final String? externalController;
 
   CoreRuntimeState.fromJson(Map<String, dynamic> json)
     : initialized = json['initialized'] as bool,
@@ -59,7 +62,26 @@ class CoreRuntimeState {
       recovery = NativeRecovery.fromJson(
         json['recovery'] as Map<String, dynamic>? ??
             const {'state': 'clean', 'details': <String>[]},
-      );
+      ),
+      listeners = List.unmodifiable(
+        (json['listeners'] as List? ?? const []).map(
+          (item) =>
+              CoreListener.fromJson(Map<String, dynamic>.from(item as Map)),
+        ),
+      ),
+      dnsListen = json['dnsListen'] as String?,
+      externalController = json['externalController'] as String?;
+}
+
+class CoreListener {
+  final String name;
+  final String type;
+  final String address;
+
+  CoreListener.fromJson(Map<String, dynamic> json)
+    : name = json['name'] as String,
+      type = json['type'] as String,
+      address = json['address'] as String;
 }
 
 class NativeRecovery {

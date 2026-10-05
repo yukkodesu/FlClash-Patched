@@ -942,7 +942,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Select a profile before starting.",
     ),
     "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
-      "Previous TUN resources need recovery. Restart with privileged Helper to restore DNS and routes before enabling TUN. Ordinary proxy mode remains available.",
+      "Previous TUN state needs inspection or recovery. Restart with privileged Helper to check DNS and routes before enabling TUN. Ordinary proxy mode remains available.",
     ),
     "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
       "All traffic; connection snapshots contain TCP only",

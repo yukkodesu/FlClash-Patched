@@ -683,7 +683,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage("内核能力"),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage("请先选择配置再启动。"),
     "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
-      "上次运行的 TUN 资源尚未恢复。请通过特权 Helper 重启，恢复 DNS 和路由后再开启 TUN。普通代理模式仍可使用。",
+      "需要检查或恢复上次运行的 TUN 状态。请通过特权 Helper 重启，检查 DNS 和路由后再开启 TUN。普通代理模式仍可使用。",
     ),
     "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
       "统计全部流量；连接快照仅包含 TCP",

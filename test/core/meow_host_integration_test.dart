@@ -85,6 +85,15 @@ void main() {
         final info = await controller.getCoreInfo();
         expect(info.name, 'meow-rs');
         expect(info.statisticsScope, 'all');
+        final dataHome = Directory(await appPath.homeDirPath);
+        await dataHome.create(recursive: true);
+        for (final name in [
+          'Country.mmdb',
+          'GeoLite2-ASN.mmdb',
+          'geosite.dat',
+        ]) {
+          await File('${dataHome.path}/$name').writeAsBytes([]);
+        }
         expect(await controller.init(1), isTrue);
         final idle = await controller.getRuntimeState();
         expect(idle.initialized, isTrue);
@@ -103,8 +112,11 @@ void main() {
 strict: true
 mixed-port: $proxyPort
 mode: rule
+hosts:
+  test.example: 127.0.0.42
 dns:
-  enable: false
+  enable: true
+  listen: 127.0.0.1:0
 proxy-groups:
   - name: local
     type: select
@@ -138,6 +150,59 @@ rules:
         final running = await controller.getRuntimeState();
         expect(running.running, isTrue);
         expect(running.tunActive, isFalse);
+        expect(running.listeners.single.address, '127.0.0.1:$proxyPort');
+        final dnsAddress = running.dnsListen!.split(':');
+        final dnsSocket = await RawDatagramSocket.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        try {
+          final answer = Completer<Datagram>();
+          final subscription = dnsSocket.listen((event) {
+            if (event != RawSocketEvent.read) return;
+            final packet = dnsSocket.receive();
+            if (packet != null && !answer.isCompleted) answer.complete(packet);
+          });
+          try {
+            dnsSocket.send(
+              [
+                0xbe,
+                0xef,
+                1,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                4,
+                ...ascii.encode('test'),
+                7,
+                ...ascii.encode('example'),
+                0,
+                0,
+                1,
+                0,
+                1,
+              ],
+              InternetAddress(dnsAddress.first),
+              int.parse(dnsAddress.last),
+            );
+            final response = (await answer.future.timeout(
+              const Duration(seconds: 3),
+            )).data;
+            expect(response.take(2), [0xbe, 0xef]);
+            expect(response[3] & 0x0f, 0);
+            expect(response.sublist(response.length - 4), [127, 0, 0, 42]);
+          } finally {
+            await subscription.cancel();
+          }
+        } finally {
+          dnsSocket.close();
+        }
 
         final request = await client.getUrl(Uri.parse(url));
         final response = await request.close();

@@ -7,7 +7,7 @@ mutation has been performed on the user's workstation by the automated tests.
 
 | Target | Locked host build | CoreController local proxy | Package/install isolation | Native TUN/cleanup |
 |---|---|---|---|---|
-| Windows x64 | development host built; pinned package pending | HTTP, delay, start/stop, TCP snapshot and real connection close passed | pending | pending |
+| Windows x64 | locked release host and Helper built at initial pin; final package pending | HTTP, actual DNS reply, delay, start/stop, TCP snapshot, real connection close and graceful restart passed | pending | pending |
 | Windows arm64 | pending | pending | pending | pending |
 | macOS x64 | pending | pending | pending | pending |
 | macOS arm64 | pending | pending | pending | pending |
@@ -42,3 +42,11 @@ test in the general Dart suite is not acceptance evidence.
 
 CI run links and exact source commits will be added as results become available.
 Unverified native behavior keeps T1/V1 open and the client PR in draft.
+
+## Integration checks on 2026-10-06
+
+- Client `a357f8ad` pins core `75b3d420d3a94208d8ff6db0d59dd5577ef16782`; native cleanup and storage ownership are still separate work in progress.
+- Windows CoreController E2E now queries the actual ephemeral DNS endpoint and checks a known local A record. All upstream services are local fixtures; geodata fixture files suppress unrelated network downloads.
+- Recovery contract/UI regression: 89 tests passed and Flutter analyze reported no issues. The configuration transaction's entire 39-test suite also passed. A Windows suite-load interruption could not be reproduced by running the six TV navigation cases alone; full regression is still pending.
+- [First native CI run](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37340715186): Windows Helper, Rust runtime library and plugin checks passed. Generated localization format, an old host pin's Clippy violations, and macOS LLVM library-path contamination caused failures; these were repaired before the second run.
+- [Second native CI run](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37341993846): running. Dart format/analyze, Windows Helper, Rust runtime library and plugin checks passed at the time of this record. No native host or package acceptance is inferred from those jobs.

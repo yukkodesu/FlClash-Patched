@@ -7,8 +7,6 @@ import 'package:fl_clash/core/interface.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:flutter/services.dart';
-import 'package:path/path.dart';
 
 class CoreController {
   static CoreController? _instance;
@@ -62,32 +60,9 @@ class CoreController {
     await system.grantHomeDirAccess(homePath);
   }
 
-  static Future<void> initGeo() async {
-    final homePath = await appPath.homeDirPath;
-    const geoFileNameList = [MMDB, GEOIP, GEOSITE, ASN, BUNDLE_MRS];
-    for (final geoFileName in geoFileNameList) {
-      try {
-        final geoFile = File(join(homePath, geoFileName));
-        final isExists = await geoFile.exists();
-        if (isExists) {
-          continue;
-        }
-        final data = await rootBundle.load('assets/data/$geoFileName');
-        final List<int> bytes = data.buffer.asUint8List();
-        await geoFile.writeAsBytes(bytes, flush: true);
-      } catch (e) {
-        commonPrint.log(
-          'Failed to initialize geo data: $e',
-          logLevel: LogLevel.error,
-        );
-      }
-    }
-  }
-
   Future<bool> init(int version) async {
     await getCoreInfo();
     await ensureHomeDir();
-    await initGeo();
     final homeDirPath = await appPath.homeDirPath;
     return _interface.init(InitParams(homeDir: homeDirPath, version: version));
   }

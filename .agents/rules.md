@@ -270,16 +270,10 @@ leaving a repo-wide policy as a comment reaches only the reader of that one file
 ## Testing Rules
 
 The `core/` directory is excluded from automated coverage accounting. Do not add coverage instrumentation or coverage
-collection for code under `core/`. CI still runs `CGO_ENABLED=0 go test .` and `go vet .` to compile/check the Go wrapper,
-plus an NDK-backed `GOOS=android` vet that covers the `android && cgo` files the first two exclude; verify cross-language
-protocol behavior through shared Dart contract tests under `test/core/` and native platform build checks.
-
-A Go test in `core/` that reaches `sendMessage` — directly, or through `handleStartLog` or `updater.GeoUpdateHook` —
-leaves events in the process-wide batcher, which flushes them up to `messageBatchInterval` later into whichever
-connection `captureFrames` has installed by then. Either keep the event out of the batcher or end the test with
-`settleMessageBatcher`. That batcher runs for the whole test binary and reads `conn` under `connMu`, so install a test
-connection with `swapConn`; a bare assignment races every event it happens to be delivering, and `go test -race` catches
-it in an unrelated test.
+collection for code under `core/`. Desktop CI checks the pinned Rust host with locked Cargo tests, fmt and Clippy on
+each native target. Verify application behavior through CoreController in `test/core/`; retain independent IPC,
+lifecycle and privileged Helper contract tests. Native TUN/DNS/route tests require a disposable elevated machine and
+recorded cleanup evidence. See `.agents/commands.md` and `docs/specs/meow-desktop-acceptance.md`.
 
 Use `CoreController.test(mock)` to inject a mocked `CoreHandlerInterface`. Call `CoreController.resetInstance()` in `tearDown` to clean up the singleton between tests.
 
