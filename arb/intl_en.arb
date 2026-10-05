@@ -871,5 +871,6 @@
   "meowConfigDiagnostics": "Configuration compatibility",
   "meowNoProfile": "Select a profile before starting.",
   "meowAllTraffic": "All traffic",
-  "meowTcpConnections": "TCP connections"
+  "meowTcpConnections": "TCP connections",
+  "meowRecoveryRequired": "Previous TUN resources need recovery. Restart with privileged Helper to restore DNS and routes before enabling TUN. Ordinary proxy mode remains available."
 }

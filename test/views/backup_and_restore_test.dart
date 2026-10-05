@@ -162,7 +162,10 @@ void main() {
             .text,
         defaultDavFileName,
       );
-      expect(find.textContaining('FlClash_0.8.92_android_'), findsOneWidget);
+      expect(
+        find.textContaining('FlClash-Meow_0.8.92_android_'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('fits a narrow screen with a long template', (tester) async {

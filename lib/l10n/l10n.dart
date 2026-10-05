@@ -7309,6 +7309,16 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Previous TUN resources need recovery. Restart with privileged Helper to restore DNS and routes before enabling TUN. Ordinary proxy mode remains available.`
+  String get meowRecoveryRequired {
+    return Intl.message(
+      'Previous TUN resources need recovery. Restart with privileged Helper to restore DNS and routes before enabling TUN. Ordinary proxy mode remains available.',
+      name: 'meowRecoveryRequired',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

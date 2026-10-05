@@ -43,6 +43,34 @@ const hostInfo = <String, Object?>{
 
 void main() {
   test(
+    'controller exposes native recovery warnings without claiming TUN active',
+    () async {
+      final controller = CoreController.scoped(
+        HostContract({
+          'getRuntimeState': {
+            'initialized': true,
+            'configured': false,
+            'running': false,
+            'tunActive': false,
+            'generation': 1,
+            'recovery': {
+              'state': 'needsPrivilege',
+              'details': ['Previous DNS lease requires privileged recovery.'],
+            },
+          },
+        }),
+      );
+      final runtime = await controller.getRuntimeState();
+      expect(runtime.initialized, isTrue);
+      expect(runtime.tunActive, isFalse);
+      expect(runtime.recovery.requiresAttention, isTrue);
+      expect(runtime.recovery.details, [
+        'Previous DNS lease requires privileged recovery.',
+      ]);
+    },
+  );
+
+  test(
     'controller exposes actual host capabilities and traffic scope',
     () async {
       final controller = CoreController.scoped(

@@ -844,10 +844,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Введите содержимое правила",
     ),
-    "installedAppsPermissionDeniedMessage":
-        MessageLookupByLibrary.simpleMessage(
-          "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
-        ),
+    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
+      "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
+    ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "Эта система не выдаёт список установленных приложений без разрешения. Предоставьте его, чтобы настроить прокси для отдельных приложений.",
     ),
@@ -991,6 +990,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage(
       "Выберите профиль перед запуском.",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "Ресурсы предыдущего сеанса TUN требуют восстановления. Перезапустите приложение через Helper с повышенными правами, чтобы восстановить DNS и маршруты перед включением TUN. Обычный режим прокси остаётся доступным.",
     ),
     "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
       "Весь трафик; снимки соединений содержат только TCP",

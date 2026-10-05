@@ -18,8 +18,15 @@ class CoreAction extends _$CoreAction {
       final res = await _core.init(version);
       if (!res) throw StateError('Core initialization failed.');
       ref.read(coreIdentityProvider.notifier).value = await _core.getCoreInfo();
-      ref.read(runtimeStatusProvider.notifier).value = await _core
-          .getRuntimeState();
+      final runtime = await _core.getRuntimeState();
+      ref.read(runtimeStatusProvider.notifier).value = runtime;
+      if (runtime.recovery.requiresAttention) {
+        dialogs.showNotifier(
+          '${currentAppLocalizations.meowRecoveryRequired}\n${runtime.recovery.details.join('\n')}',
+          level: MessageLevel.warning,
+          allowCopy: true,
+        );
+      }
     } else {
       await ref.read(proxiesActionProvider.notifier).updateGroups();
     }

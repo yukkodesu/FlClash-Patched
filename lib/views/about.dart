@@ -49,6 +49,7 @@ class AboutView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appLocalizations = context.appLocalizations;
     final identity = ref.watch(coreIdentityProvider);
+    final recovery = ref.watch(runtimeStatusProvider)?.recovery;
     return CommonScaffold(
       title: appLocalizations.about,
       body: ListView(
@@ -91,6 +92,11 @@ class AboutView extends ConsumerWidget {
                         )
                         .join('\n'),
                   ),
+                ),
+              if (recovery?.requiresAttention == true)
+                ListItem(
+                  title: Text(appLocalizations.meowRecoveryRequired),
+                  subtitle: Text(recovery!.details.join('\n')),
                 ),
             ],
           ),

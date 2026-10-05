@@ -804,10 +804,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Enter the rule content",
     ),
-    "installedAppsPermissionDeniedMessage":
-        MessageLookupByLibrary.simpleMessage(
-          "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
-        ),
+    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
+      "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
+    ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "This system hides the installed app list until the permission is granted. Authorize it to configure the per-app proxy.",
     ),
@@ -941,6 +940,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage(
       "Select a profile before starting.",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "Previous TUN resources need recovery. Restart with privileged Helper to restore DNS and routes before enabling TUN. Ordinary proxy mode remains available.",
     ),
     "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
       "All traffic; connection snapshots contain TCP only",

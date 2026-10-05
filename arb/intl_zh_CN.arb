@@ -871,5 +871,6 @@
   "meowConfigDiagnostics": "配置兼容性",
   "meowNoProfile": "请先选择配置再启动。",
   "meowAllTraffic": "全部流量",
-  "meowTcpConnections": "TCP 连接"
+  "meowTcpConnections": "TCP 连接",
+  "meowRecoveryRequired": "上次运行的 TUN 资源尚未恢复。请通过特权 Helper 重启，恢复 DNS 和路由后再开启 TUN。普通代理模式仍可使用。"
 }

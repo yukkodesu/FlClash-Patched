@@ -118,9 +118,12 @@ class TUNItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final recovery = ref.watch(runtimeStatusProvider)?.recovery;
     return ConfigToggleItem(
       title: (l) => l.tun,
-      subtitle: (l) => l.tunDesc,
+      subtitle: (l) => recovery?.requiresAttention == true
+          ? '${l.meowRecoveryRequired}\n${recovery!.details.join('\n')}'
+          : l.tunDesc,
       selector: patchClashConfigProvider.select((state) => state.tun.enable),
       onChanged: _tunWriter(
         (state, value) => state.copyWith.tun(enable: value),

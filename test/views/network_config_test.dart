@@ -1,4 +1,5 @@
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/core/info.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/database.dart';
@@ -125,6 +126,34 @@ void main() {
       });
     }
   });
+
+  testWidgets(
+    'TUN shows unresolved recovery while preserving the disabled setting',
+    (tester) async {
+      container
+          .read(runtimeStatusProvider.notifier)
+          .value = CoreRuntimeState.fromJson({
+        'initialized': true,
+        'configured': false,
+        'running': false,
+        'tunActive': false,
+        'generation': 1,
+        'recovery': {
+          'state': 'needsPrivilege',
+          'details': ['Previous DNS lease requires privileged recovery.'],
+        },
+      });
+
+      await pumpItem(tester, const TUNItem());
+
+      expect(
+        find.textContaining('Previous DNS lease requires privileged recovery.'),
+        findsOneWidget,
+      );
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+      expect(container.read(patchClashConfigProvider).tun.enable, isFalse);
+    },
+  );
 
   group('option pickers', () {
     testWidgets('the stack picker writes the chosen tun stack', (tester) async {

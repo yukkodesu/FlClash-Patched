@@ -48,13 +48,41 @@ class CoreRuntimeState {
   final bool running;
   final bool tunActive;
   final int generation;
+  final NativeRecovery recovery;
 
   CoreRuntimeState.fromJson(Map<String, dynamic> json)
     : initialized = json['initialized'] as bool,
       configured = json['configured'] as bool,
       running = json['running'] as bool,
       tunActive = json['tunActive'] as bool,
-      generation = json['generation'] as int;
+      generation = json['generation'] as int,
+      recovery = NativeRecovery.fromJson(
+        json['recovery'] as Map<String, dynamic>? ??
+            const {'state': 'clean', 'details': <String>[]},
+      );
+}
+
+class NativeRecovery {
+  final String state;
+  final List<String> details;
+
+  NativeRecovery.fromJson(Map<String, dynamic> json)
+    : state = json['state'] as String,
+      details = List.unmodifiable(List<String>.from(json['details'] as List)) {
+    if (!const {
+      'clean',
+      'recovered',
+      'needsPrivilege',
+      'failed',
+    }.contains(state)) {
+      throw const CoreMethodException(
+        code: 'invalid_response',
+        message: 'Unknown native recovery state.',
+      );
+    }
+  }
+
+  bool get requiresAttention => state == 'needsPrivilege' || state == 'failed';
 }
 
 class ConfigDiagnostic {
