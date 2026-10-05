@@ -336,7 +336,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & build/native-proxy/windows/proxy/Release/proxy_test.exe '--gtest_filter=ProxyNativeAcceptance.*'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $evidence = Get-Content -Raw -LiteralPath $env:FLCLASH_MEOW_PROXY_EVIDENCE_PATH | ConvertFrom-Json
+          $evidence = Get-Content -Raw -LiteralPath $env:FLCLASH_MEOW_PROXY_EVIDENCE_PATH | ConvertFrom-Json -AsHashtable
           if ($evidence.outcome -ne 'passed') { throw 'Native system proxy acceptance did not record a passing OS result.' }
       - name: Upload system proxy ownership evidence
         if: always()
