@@ -167,6 +167,8 @@ jobs:
         run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
       - name: Clippy (all features)
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Minimal standalone CLI features
+        run: cargo clippy --locked -p meow-app --all-targets --no-default-features -- -D warnings
       - name: Workspace documentation
         env:
           RUSTDOCFLAGS: -D warnings
@@ -207,6 +209,8 @@ jobs:
             --test v2ray_plugin_integration --test pre_resolve_test \
             --test tls_test --test boring_tls_test --test ws_test --test crate_invariants_test \
             --test crate_publish_metadata_test -- --nocapture
+      - name: Standalone API without TUN feature unification
+        run: cargo test --locked -p meow-api --test api_test -- --nocapture
 
   meow-host:
     if: inputs.acceptance_build_run == ''
