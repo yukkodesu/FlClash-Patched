@@ -20,5 +20,7 @@ verified; configuration values alone do not establish cleanup or Core integrity.
 Run `python3 tool/product_uninstall_test.py` on Linux to exercise the actual
 post-removal shell in temporary homes, with account discovery/identity switching
 stubbed at the operating-system boundary. Windows runs the Inno template contract
-check; actual installer execution is covered by the disposable native package
+and its embedded scheduled-task command against fixture query/delete commands;
+the task is removed only for one argument-free action targeting this install.
+Actual installer execution is covered by the disposable native package
 acceptance workflow. These checks do not install packages or mutate services.

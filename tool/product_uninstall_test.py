@@ -1,5 +1,7 @@
 import os
+import json
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -16,6 +18,42 @@ def linux_cleanup(format_name):
 
 
 class ProductUninstall(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Uses Windows PowerShell with only fixture task commands.')
+    def test_inno_scheduled_task_cleanup_only_unregisters_the_installed_action(self):
+        template = (ROOT / 'windows/packaging/exe/inno_setup.iss').read_text()
+        constant = template.split('TaskCleanupScript =', 1)[1].split('\n\n', 1)[0]
+        lines = re.findall(r"'((?:[^']|'')*)'", constant)
+        payload = '\n'.join(line.replace("''", "'") for line in lines)
+        executable = r'C:\Program Files\FlClash-Meow\FlClashMeow.exe'
+        for action, arguments, action_count, should_remove in (
+            (executable, '', 1, True),
+            (r'C:\custom\FlClashMeow.exe', '', 1, False),
+            (executable, '--foreign-writer', 1, False),
+            (executable, '', 2, False),
+        ):
+            with self.subTest(action=action, arguments=arguments), tempfile.TemporaryDirectory() as temporary:
+                fixture = Path(temporary) / 'tasks.ps1'
+                task = json.dumps({'Actions': [{'Execute': action, 'Arguments': arguments}] * action_count})
+                fixture.write_text('''
+function Import-Module { param($Name, [switch]$Force) }
+function Get-ScheduledTask {
+  param($TaskPath, $TaskName, $ErrorAction)
+  if ($TaskPath -ne '\\' -or $TaskName -ne 'FlClash-Meow') { throw 'Foreign task query' }
+  return ConvertFrom-Json '%s'
+}
+function Unregister-ScheduledTask {
+  param($TaskPath, $TaskName, $Confirm)
+  if ($TaskPath -ne '\\' -or $TaskName -ne 'FlClash-Meow') { throw 'Foreign task deletion' }
+  Write-Output 'owned task removed'
+}
+& {
+%s
+} -Executable '%s'
+''' % (task.replace("'", "''"), payload, executable), encoding='utf-8')
+                output = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-File', str(fixture)], text=True, capture_output=True)
+                self.assertEqual(output.returncode, 0, output.stderr)
+                self.assertEqual('owned task removed' in output.stdout, should_remove)
+
     @unittest.skipUnless(os.name == 'posix', 'Runs the actual postrm shell in temporary homes.')
     def test_linux_uninstall_removes_owned_registration_and_preserves_foreign_entries(self):
         for package in ('deb', 'pacman'):
