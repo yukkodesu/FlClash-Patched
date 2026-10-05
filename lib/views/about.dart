@@ -48,6 +48,7 @@ class AboutView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appLocalizations = context.appLocalizations;
+    final identity = ref.watch(coreIdentityProvider);
     return CommonScaffold(
       title: appLocalizations.about,
       body: ListView(
@@ -65,6 +66,34 @@ class AboutView extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 8),
+          generateSectionV3(
+            title: appLocalizations.meowCoreCapabilities,
+            items: [
+              ListItem(
+                title: Text(
+                  'meow-rs ${identity?.version ?? appLocalizations.loading}',
+                ),
+                subtitle: Text(
+                  identity == null
+                      ? appLocalizations.loading
+                      : '${identity.commit}\n${identity.hostVersion} / IPC ${identity.protocolVersion}\n${appLocalizations.meowStatisticsScope}\n${identity.capabilities.join(', ')}',
+                ),
+              ),
+              if (ref.watch(configurationDiagnosticsProvider).isNotEmpty)
+                ListItem(
+                  title: Text(appLocalizations.meowConfigDiagnostics),
+                  subtitle: Text(
+                    ref
+                        .watch(configurationDiagnosticsProvider)
+                        .map(
+                          (item) =>
+                              '${item.path}: ${item.reason} ${item.suggestion}',
+                        )
+                        .join('\n'),
+                  ),
+                ),
+            ],
+          ),
           generateSectionV3(
             isFirst: true,
             title: appLocalizations.update,
@@ -152,10 +181,6 @@ class _AboutHero extends StatelessWidget {
                 TextSpan(
                   text: appName,
                   style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                TextSpan(
-                  text: ' Patched',
-                  style: TextStyle(fontWeight: FontWeight.w100),
                 ),
               ],
             ),

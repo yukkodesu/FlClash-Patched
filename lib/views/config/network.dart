@@ -582,27 +582,28 @@ List<Widget> networkOptionsItems({
   required bool isDesktop,
   required bool isMacOS,
   bool isIOS = false,
-}) {
-  return [
-    if (isDesktop) const TUNItem(),
-    if (isMacOS) const AutoSetSystemDnsItem(),
-    if (isDesktop) const StrictRouteItem(),
-    const IcmpForwardingItem(),
-    if (isDesktop) const TunDnsHijackItem(),
-    const EndpointIndependentNatItem(),
-    const TunStackItem(),
-    const TunCongestionControllerItem(),
-    if (isMacOS || isIOS) ...[const RecvMsgXItem(), const SendMsgXItem()],
-    const TunMtuItem(),
-    // mihomo's DefaultSocketHook ignores interface-name on Android
-    // (core/lib.go installHooks, vendored dialer.go), so these rows only
-    // apply on desktop.
-    if (isDesktop) ...[
-      const InterfaceNameModeItem(),
-      const InterfaceNameItem(),
-    ],
-    if (!isDesktop) ...[const RouteModeItem(), const RouteAddressItem()],
-  ];
+}) => const [TUNItem(), TunRouteModeItem(), TunDnsHijackItem(), TunMtuItem()];
+
+class TunRouteModeItem extends ConsumerWidget {
+  const TunRouteModeItem({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ConfigOptionsItem<TunRouteMode>(
+      title: (l) => l.routeMode,
+      subtitle: (l) => l.meowTunScope,
+      options: TunRouteMode.values,
+      textBuilder: (mode) => switch (mode) {
+        TunRouteMode.fakeIp => context.appLocalizations.meowTunFakeIp,
+        TunRouteMode.globalExperimental =>
+          context.appLocalizations.meowTunGlobal,
+      },
+      selector: patchClashConfigProvider.select((state) => state.tun.routeMode),
+      onChanged: _tunWriter(
+        (state, value) => state.copyWith.tun(routeMode: value),
+      ),
+    );
+  }
 }
 
 class NetworkListView extends ConsumerWidget {

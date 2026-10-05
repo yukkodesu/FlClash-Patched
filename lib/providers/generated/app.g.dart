@@ -9,6 +9,218 @@ part of '../app.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
+@ProviderFor(RequestedRunning)
+final requestedRunningProvider = RequestedRunningProvider._();
+
+final class RequestedRunningProvider
+    extends $NotifierProvider<RequestedRunning, bool> {
+  RequestedRunningProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'requestedRunningProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$requestedRunningHash();
+
+  @$internal
+  @override
+  RequestedRunning create() => RequestedRunning();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(bool value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<bool>(value),
+    );
+  }
+}
+
+String _$requestedRunningHash() => r'23e87e11e89b97035dcab7c26e3e40fa491e21e0';
+
+abstract class _$RequestedRunning extends $Notifier<bool> {
+  bool build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<bool, bool>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<bool, bool>,
+              bool,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(RuntimeStatus)
+final runtimeStatusProvider = RuntimeStatusProvider._();
+
+final class RuntimeStatusProvider
+    extends $NotifierProvider<RuntimeStatus, CoreRuntimeState?> {
+  RuntimeStatusProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'runtimeStatusProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$runtimeStatusHash();
+
+  @$internal
+  @override
+  RuntimeStatus create() => RuntimeStatus();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(CoreRuntimeState? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<CoreRuntimeState?>(value),
+    );
+  }
+}
+
+String _$runtimeStatusHash() => r'4a5454f4e6ed38b9785cce3930ba0244dc17f57c';
+
+abstract class _$RuntimeStatus extends $Notifier<CoreRuntimeState?> {
+  CoreRuntimeState? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<CoreRuntimeState?, CoreRuntimeState?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<CoreRuntimeState?, CoreRuntimeState?>,
+              CoreRuntimeState?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(CoreIdentity)
+final coreIdentityProvider = CoreIdentityProvider._();
+
+final class CoreIdentityProvider
+    extends $NotifierProvider<CoreIdentity, CoreInfo?> {
+  CoreIdentityProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'coreIdentityProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$coreIdentityHash();
+
+  @$internal
+  @override
+  CoreIdentity create() => CoreIdentity();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(CoreInfo? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<CoreInfo?>(value),
+    );
+  }
+}
+
+String _$coreIdentityHash() => r'90aebe3156c3af48a78bccf42b1685b3826d056e';
+
+abstract class _$CoreIdentity extends $Notifier<CoreInfo?> {
+  CoreInfo? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<CoreInfo?, CoreInfo?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<CoreInfo?, CoreInfo?>,
+              CoreInfo?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(ConfigurationDiagnostics)
+final configurationDiagnosticsProvider = ConfigurationDiagnosticsProvider._();
+
+final class ConfigurationDiagnosticsProvider
+    extends
+        $NotifierProvider<ConfigurationDiagnostics, List<ConfigDiagnostic>> {
+  ConfigurationDiagnosticsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'configurationDiagnosticsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$configurationDiagnosticsHash();
+
+  @$internal
+  @override
+  ConfigurationDiagnostics create() => ConfigurationDiagnostics();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(List<ConfigDiagnostic> value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<List<ConfigDiagnostic>>(value),
+    );
+  }
+}
+
+String _$configurationDiagnosticsHash() =>
+    r'907ab7580464a788f4b29db715f4ecd227bd6448';
+
+abstract class _$ConfigurationDiagnostics
+    extends $Notifier<List<ConfigDiagnostic>> {
+  List<ConfigDiagnostic> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref as $Ref<List<ConfigDiagnostic>, List<ConfigDiagnostic>>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<List<ConfigDiagnostic>, List<ConfigDiagnostic>>,
+              List<ConfigDiagnostic>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
+
 @ProviderFor(AuthorizedTunEnable)
 final authorizedTunEnableProvider = AuthorizedTunEnableProvider._();
 
@@ -2331,7 +2543,7 @@ final class HotKeyRecordingProvider
   }
 }
 
-String _$hotKeyRecordingHash() => r'8cbbdb394fcc10ae564e4e91696668cc8a327507';
+String _$hotKeyRecordingHash() => r'769a1cb2eafe5b4202d165c6de6cb251d01c5590';
 
 abstract class _$HotKeyRecording extends $Notifier<bool> {
   bool build();

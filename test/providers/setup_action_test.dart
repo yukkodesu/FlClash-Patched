@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/core/interface.dart';
+import 'package:fl_clash/core/info.dart';
+import 'package:fl_clash/core/desktop/model.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/models/models.dart';
@@ -23,7 +25,23 @@ import 'package:riverpod/riverpod.dart';
 
 import '../helpers/test_profiles.dart';
 
-class _MockCoreHandlerInterface extends Mock implements CoreHandlerInterface {}
+class _MockCoreHandlerInterface extends Mock implements CoreHandlerInterface {
+  _MockCoreHandlerInterface() {
+    when(() => checkConfig(any())).thenAnswer(
+      (_) async =>
+          ConfigCheck.fromJson({'valid': true, 'diagnostics': <Object?>[]}),
+    );
+    when(() => getRuntimeState()).thenAnswer(
+      (_) async => CoreRuntimeState.fromJson({
+        'initialized': true,
+        'configured': false,
+        'running': false,
+        'tunActive': false,
+        'generation': 0,
+      }),
+    );
+  }
+}
 
 // checkAndUpdateAndCopy checks the file system before it refreshes, so its
 // failure tests need appPath to resolve to a real, writable directory.
@@ -42,7 +60,33 @@ class _FakePathProvider extends PathProviderPlatform {
   Future<String?> getApplicationCachePath() async => root;
 }
 
-class _ListenerHandoffFailureSetupAction extends SetupAction {
+class _ProfileSetupAction extends SetupAction {
+  @override
+  Future<({String yaml, String md5})> getProfile({
+    required SetupState setupState,
+    required PatchClashConfig patchConfig,
+  }) async => (yaml: 'rules: ["MATCH,DIRECT"]', md5: 'valid-profile');
+}
+
+class _TransactionSetupAction extends SetupAction {
+  String nextYaml = 'mixed-port: 7890\nrules: ["MATCH,DIRECT"]';
+  String nextMd5 = 'first';
+  final listenerRequests = <bool>[];
+
+  @override
+  Future<({String yaml, String md5})> getProfile({
+    required SetupState setupState,
+    required PatchClashConfig patchConfig,
+  }) async => (yaml: nextYaml, md5: nextMd5);
+
+  @override
+  Future<bool> setCoreRunning(bool running) async {
+    listenerRequests.add(running);
+    return true;
+  }
+}
+
+class _ListenerHandoffFailureSetupAction extends _ProfileSetupAction {
   final List<bool> coreRunningCalls = [];
 
   @override
@@ -55,7 +99,7 @@ class _ListenerHandoffFailureSetupAction extends SetupAction {
   }
 }
 
-class _MessageFailureSetupAction extends SetupAction {
+class _MessageFailureSetupAction extends _ProfileSetupAction {
   final List<bool> coreRunningCalls = [];
 
   @override
@@ -136,6 +180,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() {
     registerFallbackValue(const SetupParams(selectedMap: {}, testUrl: ''));
+    registerFallbackValue(const InitParams(homeDir: '', version: 0));
   });
 
   late TestSetupAction action;
@@ -605,7 +650,7 @@ void main() {
             currentProfileIdProvider.overrideWithBuild((_, _) => profile.id),
             setupStateProvider.overrideWith((_, _) => nullProfileSetupState),
             coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
-            setupActionProvider.overrideWith(SetupAction.new),
+            setupActionProvider.overrideWith(_ProfileSetupAction.new),
           ],
         );
         addTearDown(scoped.dispose);
@@ -625,7 +670,7 @@ void main() {
     );
 
     test(
-      'a profile that fails to build still pushes the empty config to core',
+      'a profile that fails to build preserves the last applied config',
       () async {
         final profile = Profile.normal(label: 'p');
         final core = _MockCoreHandlerInterface();
@@ -664,8 +709,222 @@ void main() {
             .applyProfile(force: true);
 
         expect(succeeded, isFalse);
-        expect(pushedConfig, isEmpty);
+        expect(pushedConfig, isNull);
+        verifyNever(() => core.setupConfig(any()));
         expect(scoped.read(currentProfileIdProvider), profile.id);
+      },
+    );
+
+    test(
+      'blocking diagnostics preserve the active configuration without restarting',
+      () async {
+        final core = _MockCoreHandlerInterface();
+        final configFile = File(await appPath.configFilePath);
+        await configFile.safeWriteAsString('rules: [MATCH,DIRECT]');
+        when(() => core.checkConfig(any())).thenAnswer(
+          (_) async => ConfigCheck.fromJson({
+            'valid': false,
+            'diagnostics': [
+              {
+                'severity': 'error',
+                'path': 'proxies[0].type',
+                'reason': 'Unsupported protocol: tuic',
+                'suggestion': 'Choose a supported proxy.',
+              },
+            ],
+          }),
+        );
+        final scoped = ProviderContainer(
+          overrides: [
+            currentProfileProvider.overrideWithValue(null),
+            setupStateProvider.overrideWith((_, _) => nullProfileSetupState),
+            coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
+            setupActionProvider.overrideWith(_ProfileSetupAction.new),
+          ],
+        );
+        addTearDown(scoped.dispose);
+
+        final accepted = await scoped
+            .read(setupActionProvider.notifier)
+            .applyProfile(force: true);
+
+        expect(accepted, isFalse);
+        expect(await configFile.readAsString(), 'rules: [MATCH,DIRECT]');
+        expect(
+          scoped.read(configurationDiagnosticsProvider).single.path,
+          'proxies[0].type',
+        );
+        verifyNever(() => core.restart());
+        verifyNever(() => core.setupConfig(any()));
+      },
+    );
+
+    test(
+      'first-run idle configuration cannot start a default direct listener',
+      () async {
+        final core = _MockCoreHandlerInterface();
+        final scoped = ProviderContainer(
+          overrides: [
+            currentProfileProvider.overrideWithValue(null),
+            setupStateProvider.overrideWith((_, _) => nullProfileSetupState),
+            coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
+            setupActionProvider.overrideWith(SetupAction.new),
+          ],
+        );
+        addTearDown(scoped.dispose);
+        var listenerStarted = false;
+
+        final accepted = await scoped
+            .read(setupActionProvider.notifier)
+            .applyProfile(
+              force: true,
+              preloadInvoke: () async => listenerStarted = true,
+            );
+
+        expect(accepted, isFalse);
+        expect(listenerStarted, isFalse);
+        verifyNever(() => core.setupConfig(any()));
+      },
+    );
+
+    for (final stopDuringFailure in [false, true]) {
+      test(
+        'a rejected replacement restores configuration and respects stop=$stopDuringFailure',
+        () async {
+          final core = _MockCoreHandlerInterface();
+          late _TransactionSetupAction action;
+          var configured = false;
+          final applied = <String>[];
+          when(() => core.getRuntimeState()).thenAnswer(
+            (_) async => CoreRuntimeState.fromJson({
+              'initialized': true,
+              'configured': configured,
+              'running': false,
+              'tunActive': false,
+              'generation': 1,
+            }),
+          );
+          when(() => core.getCoreInfo()).thenAnswer(
+            (_) async => CoreInfo.fromJson({
+              'name': 'meow-rs',
+              'version': '0.22.0',
+              'hostVersion': '0.1.0',
+              'commit': 'fixture',
+              'protocolVersion': 1,
+              'capabilities': <String>[],
+              'statisticsScope': 'all',
+              'connectionsScope': 'tcp',
+              'tunModes': <String>[],
+            }),
+          );
+          when(() => core.init(any())).thenAnswer((_) async => true);
+          when(() => core.restart()).thenAnswer((_) async {
+            configured = false;
+            return const CoreLifecycleResult(
+              revision: 1,
+              outcome: CoreLifecycleOutcome.applied,
+            );
+          });
+          when(
+            () => core.getProxies(),
+          ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+          when(() => core.getExternalProviders()).thenAnswer((_) async => []);
+          when(() => core.setupConfig(any())).thenAnswer((_) async {
+            final content = await File(
+              await appPath.configFilePath,
+            ).readAsString();
+            applied.add(content);
+            if (content.contains('7891')) {
+              if (stopDuringFailure) await action.setRunning(false);
+              return 'Listener port is occupied.';
+            }
+            configured = true;
+            return '';
+          });
+          final scoped = ProviderContainer(
+            overrides: [
+              currentProfileProvider.overrideWithValue(null),
+              setupStateProvider.overrideWith((_, _) => nullProfileSetupState),
+              coreHandlerProvider.overrideWithValue(
+                CoreController.scoped(core),
+              ),
+              setupActionProvider.overrideWith(_TransactionSetupAction.new),
+            ],
+          );
+          addTearDown(scoped.dispose);
+          action =
+              scoped.read(setupActionProvider.notifier)
+                  as _TransactionSetupAction;
+          expect(await action.applyProfile(force: true), isTrue);
+          action.nextYaml = 'mixed-port: 7891\nrules: ["MATCH,DIRECT"]';
+          action.nextMd5 = 'second';
+
+          expect(await action.applyProfile(force: true), isFalse);
+
+          expect(applied, [
+            'mixed-port: 7890\nrules: ["MATCH,DIRECT"]',
+            'mixed-port: 7891\nrules: ["MATCH,DIRECT"]',
+            if (!stopDuringFailure) 'mixed-port: 7890\nrules: ["MATCH,DIRECT"]',
+          ]);
+          expect(
+            await File(await appPath.configFilePath).readAsString(),
+            applied.first,
+          );
+          expect(globalState.lastConfigMd5, 'first');
+          verify(() => core.restart()).called(stopDuringFailure ? 1 : 2);
+        },
+      );
+    }
+    test(
+      'a newer profile supersedes pending validation before any file or host mutation',
+      () async {
+        final core = _MockCoreHandlerInterface();
+        final validationStarted = Completer<void>();
+        final releaseValidation = Completer<void>();
+        var checks = 0;
+        final applied = <String>[];
+        when(() => core.checkConfig(any())).thenAnswer((_) async {
+          if (++checks == 1) {
+            validationStarted.complete();
+            await releaseValidation.future;
+          }
+          return ConfigCheck.fromJson({
+            'valid': true,
+            'diagnostics': <Object?>[],
+          });
+        });
+        when(
+          () => core.getProxies(),
+        ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+        when(() => core.getExternalProviders()).thenAnswer((_) async => []);
+        when(() => core.setupConfig(any())).thenAnswer((_) async {
+          applied.add(await File(await appPath.configFilePath).readAsString());
+          return '';
+        });
+        final scoped = ProviderContainer(
+          overrides: [
+            currentProfileProvider.overrideWithValue(null),
+            setupStateProvider.overrideWith((_, _) => nullProfileSetupState),
+            coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
+            setupActionProvider.overrideWith(_TransactionSetupAction.new),
+          ],
+        );
+        addTearDown(scoped.dispose);
+        final action =
+            scoped.read(setupActionProvider.notifier)
+                as _TransactionSetupAction;
+        final first = action.applyProfile(force: true);
+        await validationStarted.future;
+        action.nextYaml = 'mixed-port: 7892\nrules: ["MATCH,DIRECT"]';
+        action.nextMd5 = 'latest';
+        final latest = action.applyProfile(force: true);
+        releaseValidation.complete();
+
+        await Future.wait([first, latest]);
+
+        expect(applied, ['mixed-port: 7892\nrules: ["MATCH,DIRECT"]']);
+        expect(globalState.lastConfigMd5, 'latest');
+        verifyNever(() => core.restart());
       },
     );
 
@@ -779,7 +1038,7 @@ void main() {
 
         await messageAction.setRunning(true, initialize: true);
 
-        expect(messageAction.coreRunningCalls, [true, false]);
+        expect(messageAction.coreRunningCalls, [false]);
         expect(scoped.read(runTimeProvider), isNull);
         verify(() => core.setupConfig(any())).called(1);
       },

@@ -675,6 +675,22 @@ class MessageLookup extends MessageLookupByLibrary {
     "memoryReadFailed": MessageLookupByLibrary.simpleMessage("无法读取内存，正在重试…"),
     "memoryStacks": MessageLookupByLibrary.simpleMessage("栈"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage("Go 内存占用"),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "meow-rs 不支持 AGE 加密配置，请导入解密后的 YAML 配置。",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("全部流量"),
+    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage("配置兼容性"),
+    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage("内核能力"),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage("请先选择配置再启动。"),
+    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
+      "统计全部流量；连接快照仅包含 TCP",
+    ),
+    "meowTcpConnections": MessageLookupByLibrary.simpleMessage("TCP 连接"),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("仅 Fake-IP"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage("全局 IPv4（实验性）"),
+    "meowTunScope": MessageLookupByLibrary.simpleMessage(
+      "Fake-IP 仅捕获 DNS 合成地址。全局模式捕获 IPv4，属于实验功能；捕获 IPv6 需要在配置中明确设置。",
+    ),
     "messageTest": MessageLookupByLibrary.simpleMessage("消息测试"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("这是一条消息。"),
     "min": MessageLookupByLibrary.simpleMessage("最小"),

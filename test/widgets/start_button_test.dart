@@ -191,6 +191,7 @@ void main() {
     addTearDown(container.dispose);
     globalState.container = container;
     container.read(runTimeProvider.notifier).value = 1;
+    container.read(requestedRunningProvider.notifier).value = true;
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -225,6 +226,7 @@ class _RecordingSetupAction extends SetupAction {
   Future<bool> setRunning(bool running, {bool initialize = false}) {
     requests.add(running);
     ref.read(runTimeProvider.notifier).value = running ? 1 : null;
+    ref.read(requestedRunningProvider.notifier).value = running;
     return Future.value(true);
   }
 }

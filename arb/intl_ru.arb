@@ -355,7 +355,6 @@
   "interfaceNameModeCustom": "Вручную",
   "interfaceName": "Имя интерфейса",
   "interfaceNameDesc": "Сетевой интерфейс для исходящих соединений",
-  "copyEnvVar": "Копировать переменные окружения",
   "memoryInfo": "Память",
   "cancel": "Отмена",
   "fileIsUpdate": "Файл изменён. Сохранить изменения?",
@@ -862,5 +861,15 @@
   "memoryOther": "Прочая память среды выполнения",
   "memoryTotal": "Использование памяти Go",
   "memoryCleanup": "Очистить",
-  "memoryReadFailed": "Не удалось прочитать данные памяти. Повторная попытка…"
+  "memoryReadFailed": "Не удалось прочитать данные памяти. Повторная попытка…",
+  "meowTunScope": "Fake-IP перехватывает только синтетические адреса DNS. Глобальный режим перехватывает IPv4 и является экспериментальным. Для IPv6 требуется явная настройка профиля.",
+  "meowTunFakeIp": "Только Fake-IP",
+  "meowTunGlobal": "Глобальный IPv4 (экспериментальный)",
+  "meowAgeUnsupported": "meow-rs не поддерживает профили с шифрованием AGE. Импортируйте расшифрованный профиль YAML.",
+  "meowStatisticsScope": "Весь трафик; снимки соединений содержат только TCP",
+  "meowCoreCapabilities": "Возможности ядра",
+  "meowConfigDiagnostics": "Совместимость конфигурации",
+  "meowNoProfile": "Выберите профиль перед запуском.",
+  "meowAllTraffic": "Весь трафик",
+  "meowTcpConnections": "TCP-соединения"
 }

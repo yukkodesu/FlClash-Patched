@@ -59,7 +59,7 @@ void main() {
     );
 
     await _expandMore(tester);
-    expect(find.byType(TextFormField), findsNWidgets(5));
+    expect(find.byType(TextFormField), findsNWidgets(3));
   });
 
   testWidgets('rejects a mixed port outside the allowed range', (tester) async {
@@ -119,8 +119,6 @@ void main() {
     await tester.enterText(fields.first, '7891');
     await tester.enterText(fields.at(1), '7892');
     await tester.enterText(fields.at(2), '7893');
-    await tester.enterText(fields.at(3), '0');
-    await tester.enterText(fields.at(4), '0');
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Submit'));

@@ -1,6 +1,7 @@
 import 'package:fl_clash/common/app_ports.dart';
 import 'package:fl_clash/common/constant.dart';
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/core/info.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/app.dart';
@@ -120,70 +121,24 @@ void main() {
   });
 
   test('navigation providers select items for width and current page', () {
-    NavigationItem networkingItem() => container
-        .read(navigationItemsStateProvider)
-        .value
-        .singleWhere((item) => item.label == PageLabel.networking);
-    bool showsNetworkingTool() => container
-        .read(moreToolsSelectorStateProvider)
-        .navigationItems
-        .any((item) => item.label == PageLabel.networking);
-
-    expect(networkingItem().modes, isEmpty);
-    expect(showsNetworkingTool(), isFalse);
-    container
-        .read(groupsProvider.notifier)
-        .update(
-          (_) => const [
-            Group(
-              name: 'Tailscale group',
-              type: GroupType.Selector,
-              all: [Proxy(name: 'tailnet', type: 'Tailscale')],
-            ),
-          ],
-        );
-    expect(networkingItem().modes, [NavigationItemMode.more]);
-    expect(showsNetworkingTool(), isTrue);
-    container
-        .read(groupsProvider.notifier)
-        .update(
-          (_) => const [
-            Group(
-              name: 'ZeroTier group',
-              type: GroupType.Selector,
-              all: [Proxy(name: 'zerotier', type: 'ZeroTier')],
-            ),
-          ],
-        );
-    expect(networkingItem().modes, [NavigationItemMode.more]);
-    expect(showsNetworkingTool(), isTrue);
-    container
-        .read(groupsProvider.notifier)
-        .update(
-          (_) => const [
-            Group(
-              name: 'EasyTier group',
-              type: GroupType.Selector,
-              all: [Proxy(name: 'mesh', type: 'EasyTier')],
-            ),
-          ],
-        );
-    expect(networkingItem().modes, [NavigationItemMode.more]);
-    expect(showsNetworkingTool(), isTrue);
-    container
-        .read(groupsProvider.notifier)
-        .update(
-          (_) => const [
-            Group(
-              name: 'Direct group',
-              type: GroupType.Selector,
-              all: [Proxy(name: 'DIRECT', type: 'Direct')],
-            ),
-          ],
-        );
-    expect(networkingItem().modes, isEmpty);
-    expect(showsNetworkingTool(), isFalse);
-
+    container.read(coreIdentityProvider.notifier).value = CoreInfo.fromJson({
+      'name': 'meow-rs',
+      'version': '1',
+      'hostVersion': '1',
+      'commit': 'fixture',
+      'protocolVersion': 1,
+      'capabilities': ['connections', 'logs'],
+      'statisticsScope': 'all',
+      'connectionsScope': 'tcp',
+      'tunModes': [],
+    });
+    expect(
+      container
+          .read(navigationItemsStateProvider)
+          .value
+          .map((item) => item.label),
+      isNot(contains(PageLabel.networking)),
+    );
     container
         .read(viewSizeProvider.notifier)
         .update((_) => Size(maxMobileWidth.toDouble(), 800));
@@ -367,6 +322,16 @@ void main() {
     expect(proxy.port, 8899);
     expect(container.read(isStartProvider), isTrue);
 
+    expect(container.read(trayStateProvider).tunEnable, isFalse);
+    container
+        .read(runtimeStatusProvider.notifier)
+        .value = CoreRuntimeState.fromJson({
+      'initialized': true,
+      'configured': true,
+      'running': true,
+      'tunActive': true,
+      'generation': 1,
+    });
     final tray = container.read(trayStateProvider);
     expect(tray.mode, Mode.global);
     expect(tray.port, 8899);
@@ -396,6 +361,16 @@ void main() {
     container
         .read(authorizedTunEnableProvider.notifier)
         .update((_) => TunAuthorizationState.unauthorized);
+    expect(container.read(shouldPatchSystemDnsProvider), isTrue);
+    container
+        .read(runtimeStatusProvider.notifier)
+        .value = CoreRuntimeState.fromJson({
+      'initialized': true,
+      'configured': true,
+      'running': false,
+      'tunActive': false,
+      'generation': 2,
+    });
     expect(container.read(shouldPatchSystemDnsProvider), isFalse);
 
     container.read(excludeSSIDsProvider.notifier).update((_) => ['Office']);
@@ -590,10 +565,9 @@ void main() {
     container
         .read(networkSettingProvider.notifier)
         .update((state) => state.copyWith(routeMode: RouteMode.bypassPrivate));
-    expect(
-      container.read(sharedStateProvider).vpnOptions?.routeAddress,
-      defaultBypassPrivateRouteAddress,
-    );
+    expect(container.read(sharedStateProvider).vpnOptions?.routeAddress, [
+      '10.0.0.0/8',
+    ]);
   });
 
   // VpnService.setHttpProxy cannot carry credentials.

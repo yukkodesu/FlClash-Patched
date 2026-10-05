@@ -32,9 +32,7 @@ class _EditProfileViewState extends ConsumerState<EditProfileView> {
   late final TextEditingController _labelController;
   late final TextEditingController _urlController;
   late final TextEditingController _autoUpdateDurationController;
-  late final TextEditingController _ageSecretKeyController;
   late bool _autoUpdate;
-  bool _obscureAgeSecretKey = true;
   String? _rawText;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final _fileInfoNotifier = ValueNotifier<FileInfo?>(null);
@@ -49,9 +47,6 @@ class _EditProfileViewState extends ConsumerState<EditProfileView> {
     _autoUpdate = widget.profile.autoUpdate;
     _autoUpdateDurationController = TextEditingController(
       text: widget.profile.autoUpdateDuration.inMinutes.toString(),
-    );
-    _ageSecretKeyController = TextEditingController(
-      text: widget.profile.ageSecretKey,
     );
     _setupAction = ref.read(setupActionProvider.notifier);
     _updateFileInfo();
@@ -75,9 +70,6 @@ class _EditProfileViewState extends ConsumerState<EditProfileView> {
       autoUpdateDuration: Duration(
         minutes: int.parse(_autoUpdateDurationController.text),
       ),
-      ageSecretKey: _ageSecretKeyController.text.trim().isEmpty
-          ? null
-          : _ageSecretKeyController.text.trim(),
     );
     final profilesAction = ref.read(profilesActionProvider.notifier);
     final hasUpdate = widget.profile.url != profile.url;
@@ -234,7 +226,6 @@ class _EditProfileViewState extends ConsumerState<EditProfileView> {
     _urlController.dispose();
     _fileInfoNotifier.dispose();
     _autoUpdateDurationController.dispose();
-    _ageSecretKeyController.dispose();
     super.dispose();
     _setupAction.autoApplyProfile();
   }
@@ -246,37 +237,6 @@ class _EditProfileViewState extends ConsumerState<EditProfileView> {
       _ProfileNameField(controller: _labelController),
       if (widget.profile.type == ProfileType.url) ...[
         _ProfileUrlField(controller: _urlController),
-        ListItem(
-          title: TextFormField(
-            controller: _ageSecretKeyController,
-            obscureText: _obscureAgeSecretKey,
-            decoration: InputDecoration(
-              labelText: appLocalizations.ageSecretKeyOptional,
-              suffixIcon: IconButton(
-                tooltip: _obscureAgeSecretKey
-                    ? appLocalizations.showPassword
-                    : appLocalizations.hidePassword,
-                onPressed: () {
-                  setState(() {
-                    _obscureAgeSecretKey = !_obscureAgeSecretKey;
-                  });
-                },
-                icon: Icon(
-                  _obscureAgeSecretKey
-                      ? Symbols.visibility
-                      : Symbols.visibility_off,
-                ),
-              ),
-            ),
-            validator: (value) {
-              if (value?.isNotEmpty == true &&
-                  !value!.startsWith('AGE-SECRET-KEY-')) {
-                return appLocalizations.ageSecretKeyInvalidValidationDesc;
-              }
-              return null;
-            },
-          ),
-        ),
         ListItem.toggle(
           title: Text(appLocalizations.autoUpdate),
           value: _autoUpdate,

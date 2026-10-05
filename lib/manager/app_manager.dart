@@ -73,15 +73,9 @@ class _AppStateManagerState extends ConsumerState<AppStateManager>
     });
     if (!system.isIOS) {
       ref.listenManual(suspendProvider, (prev, next) {
-        final isStart = ref.read(isStartProvider);
-        if (prev != next && isStart) {
+        if (prev != next && ref.read(requestedRunningProvider)) {
           debouncer.call(FunctionTag.suspend, () async {
-            final core = ref.read(coreHandlerProvider);
-            if (next == true) {
-              await core.stopListener();
-            } else {
-              await core.startListener();
-            }
+            await ref.read(setupActionProvider.notifier).reconcileSuspension();
             ref.read(checkIpNumProvider.notifier).add();
           });
         }
