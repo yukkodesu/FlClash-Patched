@@ -129,6 +129,85 @@ jobs:
           dart analyze
           dart test
 
+  standalone-regression:
+    if: inputs.acceptance_build_run == ''
+    name: Standalone meow regression
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: core/meow-rs
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/meow-rs
+          key: standalone-linux-amd64
+          cache-on-failure: true
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: linux
+          triple: x86_64-unknown-linux-gnu
+      - name: Verify pinned source
+        run: |
+          CORE_SHA="$(git rev-parse HEAD)"
+          CLIENT_SHA="$(git -C ../.. rev-parse HEAD)"
+          PIN="$(git -C ../.. rev-parse HEAD:core/meow-rs)"
+          test "$CORE_SHA" = "$PIN"
+          printf 'client=%s\ncore=%s\n' "$CLIENT_SHA" "$CORE_SHA"
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy (default features)
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Clippy (no default features)
+        run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
+      - name: Clippy (all features)
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Workspace documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --workspace --no-deps
+      - name: UDP port 53 listener regression
+        run: cargo test --locked -p meow-listener --all-features --lib udp_port_53
+      - name: Cache local Shadowsocks test peer
+        id: standalone-ssserver
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/meow-test-peers/bin/ssserver
+          key: standalone-ssserver-linux-amd64-1.24.0-stream-aead2022-rust1.98.1
+      - name: Build pinned local Shadowsocks test peer
+        if: steps.standalone-ssserver.outputs.cache-hit != 'true'
+        run: >-
+          cargo install shadowsocks-rust --version 1.24.0 --locked --force
+          --bin ssserver --features "stream-cipher aead-cipher-2022"
+          --root "$RUNNER_TEMP/meow-test-peers"
+      - name: Prepare verified local plugin peer
+        run: |
+          sudo apt-get install -y --no-install-recommends shadowsocks-v2ray-plugin=1.3.1-4
+          dpkg-query -W -f='${Version}\n' shadowsocks-v2ray-plugin | grep -Fx '1.3.1-4'
+          PEER_BIN="$RUNNER_TEMP/meow-test-peers/bin"
+          mkdir -p "$PEER_BIN"
+          ln -s /usr/bin/ss-v2ray-plugin "$PEER_BIN/v2ray-plugin"
+          "$PEER_BIN/ssserver" --version | grep -F '1.24.0'
+          "$PEER_BIN/v2ray-plugin" -version
+          echo "$PEER_BIN" >> "$GITHUB_PATH"
+      - name: Curated standalone unit and integration tests
+        run: |
+          cargo test --locked --lib --bin meow \
+            --test socks5_udp_user \
+            --test common_test --test dns_cache_test --test config_test \
+            --test statistics_test --test rules_test --test api_test \
+            --test raii_guard_test --test http_connection_close \
+            --test config_persistence_test --test systemd_config_test \
+            --test trojan_integration --test vless_config_test --test vless_integration \
+            --test v2ray_plugin_integration --test pre_resolve_test \
+            --test tls_test --test boring_tls_test --test ws_test --test crate_invariants_test \
+            --test crate_publish_metadata_test -- --nocapture
+
   meow-host:
     if: inputs.acceptance_build_run == ''
     name: Meow host (${{ matrix.platform }}/${{ matrix.arch }})
@@ -293,7 +372,7 @@ jobs:
 
   build:
     if: inputs.acceptance_build_run == '' && ((github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
-    needs: [ dart-checks, dart-tests, plugins, meow-host, rust, windows-helper-test ]
+    needs: [ dart-checks, dart-tests, plugins, standalone-regression, meow-host, rust, windows-helper-test ]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
