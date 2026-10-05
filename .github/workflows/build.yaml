@@ -144,6 +144,7 @@ jobs:
         with:
           workspaces: core/meow-rs
           key: meow-${{ matrix.triple }}
+          cache-on-failure: true
       - uses: ./.github/actions/desktop-native
         with:
           platform: ${{ matrix.platform }}
@@ -319,6 +320,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.platform }}-${{ matrix.arch || 'all' }}
+          cache-on-failure: true
           workspaces: |
             services/helper
             core/meow-rs
