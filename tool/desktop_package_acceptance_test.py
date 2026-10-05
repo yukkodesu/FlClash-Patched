@@ -13,6 +13,48 @@ SCRIPT = Path(__file__).with_name('desktop_package_acceptance.py')
 
 
 class PackageAcceptanceContract(unittest.TestCase):
+    def test_installed_debian_payload_selects_file_inside_same_named_directory(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'product.deb').write_bytes(b'fixture package')
+            installed = root / 'FlClashMeow'
+            installed.mkdir()
+            client = installed / 'FlClashMeow'
+            client.write_bytes(b'ordinary client')
+            responses = [subprocess.CompletedProcess([], 0, value, '') for value in (
+                'flclash-meow', 'amd64', 'not-installed', '', f'{installed}\n{client}\n',
+            )]
+            with mock.patch.object(module, 'PLATFORM', 'linux'), mock.patch.object(module, 'run', side_effect=responses):
+                installation = module.Installation(root, 'amd64')
+                installation.install()
+            self.assertEqual(installation.client, client)
+            self.assertEqual(installation.root, installed)
+
+    def test_installed_debian_payload_still_rejects_multiple_client_files(self):
+        spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'product.deb').write_bytes(b'fixture package')
+            files = []
+            for name in ('first', 'second'):
+                directory = root / name
+                directory.mkdir()
+                client = directory / 'FlClashMeow'
+                client.write_bytes(b'ordinary client')
+                files.append(str(client))
+            responses = [subprocess.CompletedProcess([], 0, value, '') for value in (
+                'flclash-meow', 'amd64', 'not-installed', '', '\n'.join(files),
+            )]
+            with mock.patch.object(module, 'PLATFORM', 'linux'), mock.patch.object(module, 'run', side_effect=responses):
+                installation = module.Installation(root, 'amd64')
+                with self.assertRaisesRegex(RuntimeError, 'Unexpected packaged client executables'):
+                    installation.install()
+
     def test_failed_child_retains_stdout_stderr_and_exit_code(self):
         spec = importlib.util.spec_from_file_location('package_acceptance', SCRIPT)
         module = importlib.util.module_from_spec(spec)
