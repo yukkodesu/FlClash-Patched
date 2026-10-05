@@ -44,6 +44,7 @@ def main():
     parser.add_argument('--seconds', type=float, default=8)
     parser.add_argument('--skip-controller-prelude', action='store_true')
     parser.add_argument('--skip-helper-prelude', action='store_true')
+    parser.add_argument('--skip-original-fixture', action='store_true')
     args = parser.parse_args()
     package.require_runner()
     if package.PLATFORM != 'windows' or platform.machine().lower() != 'arm64':
@@ -69,7 +70,10 @@ def main():
         record('source', sourceClient=CLIENT, sourceCore=CORE, buildRunId=37374536042,
                harness=package.run(['git', 'rev-parse', 'HEAD']).stdout.strip(), installerSha256=INSTALLER_SHA)
         try:
-            fixture.install()
+            if args.skip_original_fixture:
+                record('original-fixture-omitted', reason='single-variable minimisation')
+            else:
+                fixture.install()
             installation.install()
             payload = package.inspect_payload(installation.root, 'windows')
             libraries = list(installation.root.rglob('rust_api.dll'))
