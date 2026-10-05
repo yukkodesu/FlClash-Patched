@@ -48,8 +48,19 @@ class CommonAction extends _$CommonAction {
     _isUpdatingTraffic = true;
     try {
       try {
-        ref.read(runtimeStatusProvider.notifier).value = await _core
-            .getRuntimeState();
+        final previousFailure = ref.read(runtimeStatusProvider)?.failure;
+        final runtime = await _core.getRuntimeState();
+        ref.read(runtimeStatusProvider.notifier).value = runtime;
+        final failure = runtime.failure;
+        if (failure != null &&
+            failure.isNotEmpty &&
+            failure != previousFailure) {
+          dialogs.showNotifier(
+            failure,
+            level: MessageLevel.error,
+            allowCopy: true,
+          );
+        }
       } catch (error) {
         commonPrint.log(
           'Runtime state refresh failed: $error',

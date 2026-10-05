@@ -568,7 +568,11 @@ abstract class CoreHandlerInterface with CoreInterface {
 
   @override
   Future<bool> startListener() async {
-    return await _invokeMethod<bool>(method: CoreMethod.startListener) ?? false;
+    return await _invokeMethod<bool>(
+          method: CoreMethod.startListener,
+          timeout: const Duration(minutes: 6),
+        ) ??
+        false;
   }
 
   @override

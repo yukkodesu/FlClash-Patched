@@ -50,6 +50,7 @@ class AboutView extends ConsumerWidget {
     final appLocalizations = context.appLocalizations;
     final identity = ref.watch(coreIdentityProvider);
     final recovery = ref.watch(runtimeStatusProvider)?.recovery;
+    final failure = ref.watch(runtimeStatusProvider)?.failure;
     return CommonScaffold(
       title: appLocalizations.about,
       body: ListView(
@@ -97,6 +98,11 @@ class AboutView extends ConsumerWidget {
                 ListItem(
                   title: Text(appLocalizations.meowRecoveryRequired),
                   subtitle: Text(recovery!.details.join('\n')),
+                ),
+              if (failure?.isNotEmpty == true)
+                ListItem(
+                  title: Text(appLocalizations.error),
+                  subtitle: Text(failure!),
                 ),
             ],
           ),

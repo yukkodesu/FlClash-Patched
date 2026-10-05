@@ -52,6 +52,7 @@ class CoreRuntimeState {
   final List<CoreListener> listeners;
   final String? dnsListen;
   final String? externalController;
+  final String? failure;
 
   CoreRuntimeState.fromJson(Map<String, dynamic> json)
     : initialized = json['initialized'] as bool,
@@ -70,7 +71,8 @@ class CoreRuntimeState {
         ),
       ),
       dnsListen = json['dnsListen'] as String?,
-      externalController = json['externalController'] as String?;
+      externalController = json['externalController'] as String?,
+      failure = json['failure'] as String?;
 }
 
 class CoreListener {

@@ -66,6 +66,28 @@ void main() {
   });
 
   test(
+    'controller preserves a host cleanup failure for user feedback',
+    () async {
+      final controller = CoreController.scoped(
+        HostContract({
+          'getRuntimeState': {
+            'initialized': true,
+            'configured': true,
+            'running': false,
+            'tunActive': false,
+            'generation': 3,
+            'failure': 'Native DNS restoration could not be confirmed.',
+          },
+        }),
+      );
+
+      final runtime = await controller.getRuntimeState();
+      expect(runtime.failure, 'Native DNS restoration could not be confirmed.');
+      expect(runtime.running, isFalse);
+    },
+  );
+
+  test(
     'controller exposes native recovery warnings without claiming TUN active',
     () async {
       final controller = CoreController.scoped(
