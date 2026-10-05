@@ -1,5 +1,5 @@
 name: fl_clash
-description: A multi-platform proxy client based on mihomo, simple and easy to use, open-source and ad-free.
+description: FlClash-Meow, an open-source desktop proxy client using meow-rs.
 publish_to: 'none'
 version: 0.9.1+2026100422
 environment:
