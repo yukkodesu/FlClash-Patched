@@ -7,7 +7,7 @@ mutation has been performed on the user's workstation by the automated tests.
 
 | Target | Locked host build | CoreController local proxy | Package/install isolation | Native TUN/cleanup |
 |---|---|---|---|---|
-| Windows x64 | development host built; pinned package pending | HTTP, delay, start/stop passed; connection adapter retest pending | pending | pending |
+| Windows x64 | development host built; pinned package pending | HTTP, delay, start/stop, TCP snapshot and real connection close passed | pending | pending |
 | Windows arm64 | pending | pending | pending | pending |
 | macOS x64 | pending | pending | pending | pending |
 | macOS arm64 | pending | pending | pending | pending |

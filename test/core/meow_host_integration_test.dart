@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -62,6 +63,13 @@ void main() {
         request.response.write('meow-through-core');
         await request.response.close();
       });
+      final echo = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final peers = <Socket>[];
+      final echoRequests = echo.listen((socket) {
+        peers.add(socket);
+        socket.listen(socket.add, onError: (_) => socket.destroy());
+      });
+      Socket? tunnel;
       final reservation = await ServerSocket.bind(
         InternetAddress.loopbackIPv4,
         0,
@@ -142,6 +150,49 @@ rules:
         final delay = await controller.getDelay(url, 'DIRECT');
         expect(delay, isNotNull);
         expect(delay!.value, greaterThanOrEqualTo(0));
+
+        tunnel = await Socket.connect('127.0.0.1', proxyPort);
+        final established = Completer<void>();
+        final echoed = Completer<void>();
+        final closed = Completer<void>();
+        var received = '';
+        tunnel.listen(
+          (bytes) {
+            received += utf8.decode(bytes);
+            if (received.contains('\r\n\r\n') && !established.isCompleted) {
+              established.complete();
+            }
+            if (received.contains('held-connection') && !echoed.isCompleted) {
+              echoed.complete();
+            }
+          },
+          onDone: () => closed.complete(),
+          onError: (Object error) {
+            if (!closed.isCompleted) closed.completeError(error);
+          },
+        );
+        tunnel.write(
+          'CONNECT 127.0.0.1:${echo.port} HTTP/1.1\r\n'
+          'Host: 127.0.0.1:${echo.port}\r\n\r\n',
+        );
+        await established.future.timeout(const Duration(seconds: 5));
+        expect(received, startsWith('HTTP/1.1 200'));
+        tunnel.write('held-connection');
+        await echoed.future.timeout(const Duration(seconds: 5));
+        final connections = await controller.getConnections();
+        final held = connections.singleWhere(
+          (connection) =>
+              connection.metadata.destinationPort == echo.port.toString(),
+        );
+        expect(held.metadata.sourcePort, isNotEmpty);
+        await controller.closeConnection(held.id);
+        await closed.future.timeout(const Duration(seconds: 5));
+        expect(
+          (await controller.getConnections()).map(
+            (connection) => connection.id,
+          ),
+          isNot(contains(held.id)),
+        );
         expect(await controller.stopListener(), isTrue);
         final stopped = await controller.getRuntimeState();
         expect(stopped.running, isFalse);
@@ -152,7 +203,13 @@ rules:
         );
       } finally {
         client.close(force: true);
+        tunnel?.destroy();
         await controller.close();
+        for (final peer in peers) {
+          peer.destroy();
+        }
+        await echoRequests.cancel();
+        await echo.close();
         await requests.cancel();
         await origin.close(force: true);
         RustLib.dispose();
