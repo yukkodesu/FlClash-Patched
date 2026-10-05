@@ -12,6 +12,13 @@ completed successfully at `2026-10-05T19:54:18Z`. Its log verifies exact client
 `72a997b1e63363f4886910e59d7bbf18cee5355b` and core
 `3cf7d8da370958c03c87ef4384e9f9b2213014b4`.
 
+The [sixth-run standalone job](https://github.com/yukkodesu/FlClash-Patched/actions/runs/37367220934/job/111955184966)
+also passed at client `d64691e3b2a773d6b01f87ca3d1340e67230aed6` and core
+`aceb484266401e72360347a9b1817f8e62f60543`. Its single curated command again
+reported 2,792 passed / 0 failed / 4 ignored across 36 binaries, plus 3 UDP/53
+and 114 isolated API tests. The same five missing-Country.mmdb early returns
+remain a coverage limit.
+
 Formatting, all three workspace Clippy variants, minimal standalone CLI Clippy,
 and workspace rustdoc passed. UDP/53 passed 3 tests. One complete curated command
 reported **2,792 passed, 0 failed, 4 ignored**, reaching all 21 CONTRIBUTING
