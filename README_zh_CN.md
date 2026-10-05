@@ -1,146 +1,57 @@
-<div>
+[English](README.md)
 
-[**English**](README.md)
+# FlClash-Meow
 
-</div>
+基于 [FlClash-Patched](https://github.com/chenx-dust/FlClash-Patched) 和 [FlClash](https://github.com/chen08209/FlClash) 的桌面代理客户端，通过嵌入式 Rust host 使用自有 [meow-rs fork](https://github.com/yukkodesu/meow-rs)。
 
-# FlClash Patched
+产品只使用 meow-rs 内核。目标矩阵为 Windows、macOS、Linux，各包含 x64 和 ARM64。保留的 Android/iOS 源码不属于构建或发布范围。客户端、数据目录、Helper 和更新源使用独立的 FlClash-Meow 标识。
 
-[![Downloads](https://img.shields.io/github/downloads/chenx-dust/FlClash-Patched/total?style=flat-square&logo=github)](https://github.com/chenx-dust/FlClash-Patched/releases/)[![Last Version](https://img.shields.io/github/release/chenx-dust/FlClash-Patched/all.svg?style=flat-square)](https://github.com/chenx-dust/FlClash-Patched/releases/)[![License](https://img.shields.io/github/license/chenx-dust/FlClash-Patched?style=flat-square)](LICENSE)
+当前为开发中的桌面迁移版本，FlClash-Meow 正式包尚未发布。构建成功和普通代理检查不能证明安装或原生 TUN 清理已通过。请查看[验收矩阵及对应源码、运行记录](docs/specs/meow-desktop-acceptance.md)，区分已完成与待验证的项目；后续发布包使用[本 fork 的 Releases](https://github.com/yukkodesu/FlClash-Patched/releases)。
 
-[FlClash](https://github.com/chen08209/FlClash) 的分支版本，修复数个 bug，提升效能，增加功能。
+## 功能与差异
 
-## 免责声明
+保留配置和订阅管理、Material You 主题、系统代理、托盘、快捷键及开机启动。运行能力以固定版本的 host 为准，不承诺 mihomo 功能兼容。
 
-> [!CAUTION]
-> 如果您是中华人民共和国公民或者长期居住在中华人民共和国境内，请在使用前仔细阅读并理解以下内容。下载、安装或使用本项目即表示您同意以下条款，并承担由此产生的全部责任。
+| 范围 | 产品行为 |
+|---|---|
+| 配置 | 保留导入原文，应用前检查派生配置。不支持的协议或选项、未知字段及不安全的 provider 路径阻止应用，不静默删除节点或规则。自定义 direct 别名会被拒绝，因为现有适配器始终暴露 DIRECT。 |
+| 代理与 provider | 接入当前 meow 构建支持的代理组、节点选择、测速及 provider 查询/刷新。未提供的订阅信息显示为未知。 |
+| 运行修改 | 模式、日志级别动态修改；其他配置变更受控重启。可查询日志和实际绑定的代理、DNS、controller 地址。 |
+| 统计与连接 | 流量统计包括内核全部流量，不提供仅代理统计。连接快照和关闭操作覆盖 TCP；不提供精确 UDP 连接明细、节点累计流量或完整请求历史事件。内存指标取自实际进程，无法取得时明确显示不可用。 |
+| 认证 | meow 始终豁免来源地址 127.0.0.1/32 和 ::1/128，空 skip-auth-prefixes 也不能移除。配置检查会提示此差异；监听 loopback 不等于认证本机程序。 |
+| TUN | Fake-IP 范围捕获与实验性 global 路由捕获不同。IPv6 捕获需要相应 global 配置及平台验证。开关开启或 Helper 就绪均不能证明正在捕获流量。不支持的 mihomo stack、strict-route、route-address、endpoint-independent-nat 开关已移除。 |
 
-本软件是个人维护的、在 FlClash 基础上补充完善相关功能的开源软件，目的在于提供易用且高度自定义的网络七层代理与分流功能。用户在使用本软件时必须遵守中华人民共和国的相关法律法规，不得利用本软件从事任何违法犯罪活动。我们有权拒绝为任何涉及或可能涉及网络犯罪或规避监管制度的用途提供技术支持，不对因使用本软件而导致的任何法律责任、经济损失或其他后果承担任何责任。
+不接入 Tailscale/ZeroTier/EasyTier 控制、AGE 密钥操作、Go GC/goroutine/pprof 诊断、DNS 逐次查询追踪、provider 侧载、手动 geodata 热替换事务及独立内核/外部 UI 更新器。可选 external-controller 默认关闭，与客户端 IPC 独立。完整差异见[能力与配置策略](docs/specs/meow-desktop-client.md#6-功能取舍)。
 
-## 特性
+## 源码构建
 
-> [!WARNING]
-> 本分叉版本的维护有较强个人色彩，您可以提出建议，但不一定被采纳。版本分发节奏较快，且代码强制推送，保持最新可能会遇到问题，不保证与原项目的兼容性，请做好备份措施。
+从所需 FlClash-Meow 客户端版本的 checkout 开始。core/meow-rs 的来源为 yukkodesu/meow-rs，版本由客户端 gitlink 固定；不要直接替换为内核仓库最新分支。
 
-- 支持 iOS 平台（需使用 Apple 开发者账号自行编译安装）
-- 优化 Linux 平台体验（Pacman 包分发、修复 RPM 依赖、WM_CLASS 问题）
-- 修复原项目 Bug（启动时间、窗口定位、程序通知）
-- 能效优化（优化 Android Doze 支持、统一 UI 定时器休眠）
-- UI 优化（代理选择界面、日志与连接筛选排序）
-- 新增功能（Age-Key 加密支持、Windows 高优先级启动、Tailscale 集成等）
+~~~bash
+git submodule update --init --recursive
+git ls-tree HEAD core/meow-rs
+flutter pub get
+~~~
 
-更多信息请查看 [Applied Patches (#1)](https://github.com/chenx-dust/FlClash-Patched/issues/1)
+需要 Flutter **3.47.6**、Git、rustup/Cargo、CMake、原生 C/C++ 编译器、Python 和 libclang。内核固定 Rust **1.98.1**；独立的 plugins/rust_api/rust 工具库固定 **1.99.0**。从相应 crate checkout 运行 Cargo，以使用其工具链固定版本。libclang 自动查找失败时，将 LIBCLANG_PATH 设为其共享库所在目录。
 
-# 原介绍
+| 构建系统 | 额外依赖 |
+|---|---|
+| Windows | Visual Studio 的“使用 C++ 的桌面开发”、对应 MSVC 工具和 Windows SDK、NASM、Inno Setup。host 嵌入对应架构的官方 Wintun DLL；MEOW_WINTUN_DLL 可指定已验证的本地文件。 |
+| Linux | Ninja、Clang、pkg-config、GTK3、libayatana-appindicator、libsecret 开发包，以及所选安装包格式所需工具。 |
+| macOS | Xcode/命令行工具、原生 LLVM/libclang，以及用于 DMG 打包的 Node/npm 和 appdmg。 |
 
-基于 mihomo 的多平台代理客户端，简单易用，开源无广告。
+在目标操作系统上构建。架构参数为 amd64 或 arm64；Windows/Linux 需要架构匹配的原生构建机。按目标选择一条命令：
 
-## 特性
+~~~bash
+dart setup.dart windows --arch amd64
+dart setup.dart linux --arch arm64
+dart setup.dart macos --arch amd64
+dart setup.dart macos --arch arm64
+~~~
 
-✈️ 多平台: Android, iOS, Windows, macOS and Linux
+打包会构建 Rust host 和独立工具库，再将 host 最终哈希嵌入 Windows/Linux Helper 并记录 manifest。打包时保持两个原生 build_assets hook 开启。桌面构建不依赖 Go 或 mihomo。详细依赖、直接构建产物及检查命令见 [.agents/project.md](.agents/project.md) 和 [.agents/commands.md](.agents/commands.md)；[原生 CI](.github/workflows/build.yaml) 覆盖六种目标组合。
 
-💻 自适应多个屏幕尺寸,多种颜色主题可供选择
+## 来源与许可证
 
-💡 基于 Material You 设计，采用类似 [Surfboard](https://github.com/getsurfboard/surfboard) 的用户界面
-
-☁️ 支持通过 WebDAV 同步数据
-
-✨ 支持一键导入订阅、深色模式
-
-## 使用
-
-### Linux
-
-⚠️ 使用前请确保安装以下依赖
-
-   ```bash
-    sudo apt-get install libayatana-appindicator3-dev
-   ```
-
-### Android
-
-支持下列操作
-
-   ```bash
-    cc.chenx.flclash.action.START
-    
-    cc.chenx.flclash.action.STOP
-    
-    cc.chenx.flclash.action.TOGGLE
-   ```
-
-## 下载
-
-<a href="https://github.com/chenx-dust/FlClash-Patched/releases"><img alt="Get it on GitHub" src="snapshots/get-it-on-github.svg" width="200px"/></a>
-
-## 构建
-
-1. 更新 submodules
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-2. 安装 `Flutter` 以及 `Golang` 环境
-
-3. 构建应用
-
-    - android
-
-        1. 安装  `Android SDK` ,  `Android NDK`
-
-        2. 设置 `ANDROID_NDK` 环境变量
-
-        3. 运行构建脚本
-
-           ```bash
-           dart setup.dart android
-           ```
-
-    - windows
-
-        1. 你需要一个windows客户端
-
-        2. 安装 `GCC`，`Inno Setup`
-
-        3. 运行构建脚本
-
-           ```bash
-           dart setup.dart windows
-           ```
-
-    - linux
-
-        1. 你需要一个linux客户端
-
-        2. 依赖会由 setup 脚本自动安装，也可以手动安装：
-           ```bash
-           sudo apt-get install -y libayatana-appindicator3-dev
-           ```
-
-        3. 运行构建脚本
-
-           ```bash
-           dart setup.dart linux
-           ```
-
-    - macOS
-
-        1. 你需要一个macOS客户端
-
-        2. 运行构建脚本
-
-           ```bash
-           dart setup.dart macos
-           ```
-
-    - iOS
-
-        1. 你需要一个macOS客户端
-
-        2. 为 App Bundle 和 Network Extension Bundle 配置 Apple Developer capabilities、App Group 以及描述文件
-
-        3. 运行构建脚本
-
-           ```bash
-           dart setup.dart ios --ios-bundle-id com.example.flclash
-           ```
+客户端源自 FlClash 与 FlClash-Patched，遵循 [GPL-3.0](LICENSE)。嵌入式内核源自 [meow-rs](https://github.com/meow-rs/meow-rs)，遵循其 [MIT 许可证](https://github.com/meow-rs/meow-rs/blob/HEAD/LICENSE)。与客户端耦合的 Rust host 留在自有 meow-rs fork；随附依赖保留各自版权声明和许可证。

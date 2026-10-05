@@ -199,10 +199,11 @@ def main():
             result = reject_foreign_peer()
         elif options.action in ('corrupt-core', 'restore-core'):
             result = integrity_action(options.action)
-        else:
-            if options.action != 'snapshot':
-                service_action(options.action)
+        elif options.action == 'snapshot':
             result = snapshot()
+        else:
+            service_action(options.action)
+            result = {'action': options.action}
         print(json.dumps(result), flush=True)
         return 0
     if options.bundle is None or options.log is None:

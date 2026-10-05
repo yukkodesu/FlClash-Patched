@@ -144,6 +144,7 @@ jobs:
         with:
           workspaces: core/meow-rs
           key: meow-${{ matrix.triple }}
+          cache-on-failure: true
       - uses: ./.github/actions/desktop-native
         with:
           platform: ${{ matrix.platform }}
@@ -152,9 +153,19 @@ jobs:
         working-directory: core/meow-rs
         run: |
           cargo fmt --all -- --check
-          cargo clippy --locked -p flclash-meow-host --all-targets -- -D warnings
-          cargo test --locked -p flclash-meow-host
+          cargo clippy --locked -p flclash-meow-host -p meow-common --all-targets -- -D warnings
+          cargo test --locked -p flclash-meow-host -p meow-common
           cargo build --locked --release -p flclash-meow-host --target ${{ matrix.triple }}
+      - name: Elevated Windows caller storage boundary
+        if: matrix.platform == 'windows'
+        working-directory: core/meow-rs
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Storage ownership acceptance requires a disposable GitHub-hosted runner.' }
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'The runner must already have an elevated token.' }
+          cargo test --locked -p meow-common --test managed_files_windows elevated_exact_owner_is_accepted_but_ordinary_caller_rejects_admin_owned_home -- --ignored --exact --nocapture
       - name: Build native rust_api library
         working-directory: plugins/rust_api/rust
         run: cargo build --locked --release --target ${{ matrix.triple }}
@@ -309,6 +320,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.platform }}-${{ matrix.arch || 'all' }}
+          cache-on-failure: true
           workspaces: |
             services/helper
             core/meow-rs

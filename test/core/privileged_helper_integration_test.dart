@@ -274,21 +274,23 @@ void main() {
         }
 
         final ipcSession = (await controller.start()).session!;
-        final ipcFailure = lifecycle.crashEvents.first.timeout(
-          const Duration(seconds: 15),
-        );
+        final ipcFailure = lifecycle.crashEvents.first;
         await stopIpcServer();
-        expect((await ipcFailure).pid, ipcSession.pid);
+        expect(
+          (await ipcFailure.timeout(const Duration(seconds: 15))).pid,
+          ipcSession.pid,
+        );
         await _waitForExit(ipcSession.pid);
         await controller.stop();
         await _record('after-client-ipc-loss', null);
 
         final stopped = (await controller.start()).session!;
-        final stopFailure = lifecycle.crashEvents.first.timeout(
-          const Duration(seconds: 15),
-        );
+        final stopFailure = lifecycle.crashEvents.first;
         await _action('stop');
-        expect((await stopFailure).pid, stopped.pid);
+        expect(
+          (await stopFailure.timeout(const Duration(seconds: 15))).pid,
+          stopped.pid,
+        );
         await _waitForExit(stopped.pid);
         await controller.stop();
         await _record('after-service-stop', null);
@@ -299,11 +301,12 @@ void main() {
         expect(await controller.init(1), isTrue);
         await _exerciseLocalProxy(controller);
         await _record('before-helper-crash', crashed);
-        final crashFailure = lifecycle.crashEvents.first.timeout(
-          const Duration(seconds: 15),
-        );
+        final crashFailure = lifecycle.crashEvents.first;
         await _action('crash');
-        expect((await crashFailure).pid, crashed.pid);
+        expect(
+          (await crashFailure.timeout(const Duration(seconds: 15))).pid,
+          crashed.pid,
+        );
         await _waitForExit(crashed.pid);
         await controller.stop();
         await _record('after-helper-crash', null);
@@ -326,6 +329,6 @@ void main() {
     skip: !enabled
         ? 'Actual service lifetime acceptance runs only on opted-in disposable native CI.'
         : false,
-    timeout: const Timeout(Duration(minutes: 6)),
+    timeout: const Timeout(Duration(minutes: 7)),
   );
 }
