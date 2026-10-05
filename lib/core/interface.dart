@@ -237,7 +237,10 @@ abstract class CoreHandlerInterface with CoreInterface {
   Future<String> updateConfig(UpdateParams updateParams) async {
     return _invokeMessage(
       method: CoreMethod.updateConfig,
-      arguments: updateParams.toJson(),
+      arguments: {
+        'mode': updateParams.mode.name,
+        'log-level': updateParams.logLevel.name,
+      },
     );
   }
 
