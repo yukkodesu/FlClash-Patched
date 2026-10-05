@@ -73,11 +73,11 @@ IDI_APP_ICON            ICON                    "resources\\app_icon.ico"
 #endif
 
 #ifdef _DEBUG
-#define APP_INTERNAL_NAME "flclash.debug"
-#define APP_PRODUCT_NAME "flclash.debug"
+#define APP_INTERNAL_NAME "flclash-meow.debug"
+#define APP_PRODUCT_NAME "flclash-meow.debug"
 #else
-#define APP_INTERNAL_NAME "flclash"
-#define APP_PRODUCT_NAME "flclash"
+#define APP_INTERNAL_NAME "flclash-meow"
+#define APP_PRODUCT_NAME "flclash-meow"
 #endif
 
 VS_VERSION_INFO VERSIONINFO
@@ -97,12 +97,12 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "cc.chenx" "\0"
-            VALUE "FileDescription", "FlClash" "\0"
+            VALUE "CompanyName", "yukkodesu" "\0"
+            VALUE "FileDescription", "FlClash-Meow" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", APP_INTERNAL_NAME "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 Chenx Dust. All rights reserved." "\0"
-            VALUE "OriginalFilename", "FlClash.exe" "\0"
+            VALUE "OriginalFilename", "FlClashMeow.exe" "\0"
             VALUE "ProductName", APP_PRODUCT_NAME "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
