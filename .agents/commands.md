@@ -280,6 +280,13 @@ elevated through `tool/native_desktop_acceptance.py`. The runner refuses non-dis
 the harness records local TCP/UDP/DNS traffic, owned DNS/routes, stop/exit and crash recovery. Its output is uploaded
 as native acceptance evidence. Global mode requires a separate experimental opt-in and acceptance record.
 
+Windows/Linux also run the installed, hash-coupled Helper fixture through `CoreController`. Its ordinary lifetime case
+and fake-IP TUN case run separately with eight- and eleven-minute outer limits; the TUN test itself is bounded to ten
+minutes for first Wintun installation, a warm restart and native evidence queries. The TUN case verifies local DNS/HTTP,
+stopListener, restart and terminal close with default production lifecycle limits (30-second cleanup, two-second process
+exit), an independent 60-second close observation, exact DNS/routes restoration and empty recovery journals. These
+scenario limits do not extend application shutdown; portable runs skip both real service cases and prove no native result.
+
 The same six native jobs run the system proxy fixture with
 `FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE=1`, `GITHUB_ACTIONS=true` and
 `RUNNER_ENVIRONMENT=github-hosted`. Unix invokes

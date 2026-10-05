@@ -148,6 +148,87 @@ Future<void> _exerciseLocalProxy(CoreController controller) async {
   }
 }
 
+Future<Map<String, dynamic>> _recordNative(String phase) async {
+  final value = await _action('native-snapshot');
+  stdout.writeln(jsonEncode({'phase': phase, ...value}));
+  return value;
+}
+
+void _expectRestored(Map<String, dynamic> before, Map<String, dynamic> after) {
+  expect(after['dns'], before['dns']);
+  expect(after['routes'], before['routes']);
+  expect(after['journals'], isEmpty);
+}
+
+Future<void> _verifyTunTraffic(int originPort) async {
+  final peer = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+  final client = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 10)
+    ..findProxy = (_) => 'DIRECT';
+  try {
+    final received = peer
+        .where((event) => event == RawSocketEvent.read)
+        .map((_) => peer.receive())
+        .where((packet) => packet != null)
+        .first;
+    peer.send(
+      [
+        0x12,
+        0x34,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        6,
+        ...ascii.encode('native'),
+        7,
+        ...ascii.encode('example'),
+        0,
+        0,
+        1,
+        0,
+        1,
+      ],
+      InternetAddress('198.18.0.1'),
+      53,
+    );
+    final answer = (await received.timeout(const Duration(seconds: 10)))!.data;
+    expect(answer.length, greaterThanOrEqualTo(16));
+    expect(answer.take(2), [0x12, 0x34]);
+    expect(answer[3] & 15, 0);
+    expect(answer[7], greaterThan(0));
+    final octets = answer.sublist(answer.length - 4);
+    expect(octets.take(2), [198, 18]);
+    final fakeIp = octets.join('.');
+    final response = await (await client.getUrl(
+      Uri.parse('http://$fakeIp:$originPort/'),
+    )).close().timeout(const Duration(seconds: 10));
+    expect(
+      await utf8.decoder
+          .bind(response)
+          .join()
+          .timeout(const Duration(seconds: 10)),
+      'helper-owned-tun',
+    );
+    stdout.writeln(
+      jsonEncode({
+        'phase': 'controller-tun-traffic',
+        'fakeIp': fakeIp,
+        'http': 'passed',
+      }),
+    );
+  } finally {
+    peer.close();
+    client.close(force: true);
+  }
+}
+
 void main() {
   _HelperBinding();
   final enabled =
@@ -330,5 +411,202 @@ void main() {
         ? 'Actual service lifetime acceptance runs only on opted-in disposable native CI.'
         : false,
     timeout: const Timeout(Duration(minutes: 7)),
+  );
+
+  test(
+    'actual Helper-owned TUN stops, restarts and terminally closes through CoreController',
+    () async {
+      expect(Platform.environment['RUNNER_ENVIRONMENT'], 'github-hosted');
+      expect(Platform.environment['GITHUB_ACTIONS'], 'true');
+      expect(Platform.isWindows || Platform.isLinux, isTrue);
+      final manifest = await CoreManifest.readCoreSha256(
+        path: Platform.environment['FLCLASH_MEOW_HELPER_MANIFEST']!,
+      );
+      expect(manifest, isNotNull);
+      final helper = HelperClient(
+        expectedHelperPath: () => Platform.environment['FLCLASH_MEOW_HELPER']!,
+        readCoreSha256: () async => manifest!,
+      );
+      await _waitForReady(helper);
+      final home = await Directory.systemTemp.createTemp(
+        'flclash-meow-helper-tun-',
+      );
+      final support = AppPath.supportDirectory;
+      final temporary = AppPath.temporaryDirectory;
+      final cache = AppPath.cacheDirectory;
+      AppPath.supportDirectory = () async => home;
+      AppPath.temporaryDirectory = () async => home;
+      AppPath.cacheDirectory = () async => home;
+      await RustLib.init();
+      late final CoreRpcClient rpc;
+      final lifecycle = DesktopCoreLifecycle(
+        transportFactory: () => IPCCoreTransport(
+          address: Platform.isWindows ? windowsPipeName : unixSocketPath,
+        ),
+        launcherResolver: HelperLauncherResolver(
+          hasHelper: true,
+          helperReady: helper.readiness,
+          helperLauncher: HelperLauncher(helper),
+          directLauncher: DirectCoreLauncher(
+            corePath: Platform.environment['FLCLASH_MEOW_ACCEPTANCE_CORE']!,
+          ),
+        ),
+        verifyPeerPid: Platform.isWindows,
+        shutdownSession: (session, timeout) =>
+            rpc.shutdownSession(session, timeout),
+      );
+      rpc = CoreRpcClient(lifecycle.transport);
+      final controller = CoreController.scoped(
+        CoreService.forTesting(lifecycle: lifecycle, rpcClient: rpc),
+      );
+      final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final requests = origin.listen((request) async {
+        request.response.write('helper-owned-tun');
+        await request.response.close();
+      });
+      final dns = await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final queries = dns.listen((event) {
+        if (event != RawSocketEvent.read) return;
+        final query = dns.receive();
+        if (query == null || query.data.length < 16) return;
+        var end = 12;
+        while (end < query.data.length && query.data[end] != 0) {
+          end += 1 + query.data[end];
+        }
+        end += 5;
+        if (end > query.data.length) return;
+        final answer = query.data.sublist(0, end);
+        final isA = answer[end - 4] == 0 && answer[end - 3] == 1;
+        answer[2] = 0x81;
+        answer[3] = 0x80;
+        answer.fillRange(6, 12, 0);
+        answer[7] = isA ? 1 : 0;
+        dns.send(
+          [
+            ...answer,
+            if (isA) ...[0xc0, 12, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 127, 0, 0, 1],
+          ],
+          query.address,
+          query.port,
+        );
+      });
+      try {
+        final session = (await controller.start()).session!;
+        await _record('controller-tun-helper-session', session);
+        expect((await controller.getCoreInfo()).tunModes, contains('fake-ip'));
+        expect(await controller.init(1), isTrue);
+        final initial = await controller.getRuntimeState();
+        expect(initial.recovery.state, 'clean');
+        expect(initial.failure, isNull);
+        final before = await _recordNative('controller-tun-before');
+        expect(before['journals'], isEmpty);
+        final data = Directory(await appPath.homeDirPath);
+        for (final name in [
+          'Country.mmdb',
+          'GeoLite2-ASN.mmdb',
+          'geosite.dat',
+        ]) {
+          await File('${data.path}/$name').writeAsBytes([]);
+        }
+        await File(await appPath.configFilePath).writeAsString('''
+mode: rule
+rules: ['MATCH,DIRECT']
+dns:
+  enable: true
+  listen: 127.0.0.1:0
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  nameserver: ['127.0.0.1:${dns.port}']
+tun:
+  enable: true
+  auto-route: fake-ip
+  dns-hijack: [any:53]
+''');
+        expect(
+          await controller.setupConfig(
+            params: SetupParams(
+              selectedMap: const {},
+              testUrl: 'http://127.0.0.1:${origin.port}/',
+            ),
+          ),
+          isEmpty,
+        );
+        for (var generation = 0; generation < 2; generation++) {
+          expect(await controller.startListener(), isTrue);
+          final running = await controller.getRuntimeState();
+          expect(running.running, isTrue);
+          expect(running.tunActive, isTrue);
+          expect(running.failure, isNull);
+          expect(running.recovery.requiresAttention, isFalse);
+          stdout.writeln(
+            jsonEncode({
+              'phase': 'controller-tun-state-$generation',
+              'generation': running.generation,
+              'running': running.running,
+              'tunActive': running.tunActive,
+              'failure': running.failure,
+              'recovery': running.recovery.state,
+            }),
+          );
+          await _verifyTunTraffic(origin.port);
+          final installed = await _recordNative(
+            'controller-tun-running-$generation',
+          );
+          final journals = installed['journals'] as Map;
+          expect((journals['routes.json'] as Map)['changes'], isNotEmpty);
+          if (generation == 0) {
+            expect(await controller.stopListener(), isTrue);
+            final stopped = await controller.getRuntimeState();
+            expect(stopped.running, isFalse);
+            expect(stopped.tunActive, isFalse);
+            expect(stopped.failure, isNull);
+            expect(stopped.recovery.requiresAttention, isFalse);
+            _expectRestored(
+              before,
+              await _recordNative('controller-tun-stopped'),
+            );
+          }
+        }
+        final elapsed = Stopwatch()..start();
+        final closed = await controller.close().timeout(
+          const Duration(seconds: 60),
+        );
+        elapsed.stop();
+        expect(closed.outcome, CoreLifecycleOutcome.applied);
+        expect(elapsed.elapsed, lessThan(const Duration(seconds: 60)));
+        await _waitForExit(session.pid);
+        _expectRestored(
+          before,
+          await _recordNative('controller-tun-terminal-close'),
+        );
+        await _record('controller-tun-process-gone', null);
+        stdout.writeln(
+          jsonEncode({
+            'phase': 'controller-tun-close-budget',
+            'elapsedMs': elapsed.elapsedMilliseconds,
+          }),
+        );
+      } finally {
+        try {
+          await controller.close();
+        } finally {
+          await _recordNative('controller-tun-finally');
+          await rpc.close();
+          await queries.cancel();
+          dns.close();
+          await requests.cancel();
+          await origin.close(force: true);
+          RustLib.dispose();
+          AppPath.supportDirectory = support;
+          AppPath.temporaryDirectory = temporary;
+          AppPath.cacheDirectory = cache;
+          await home.delete(recursive: true);
+        }
+      }
+    },
+    skip: !enabled
+        ? 'Real CoreController TUN acceptance requires opted-in disposable Windows/Linux CI.'
+        : false,
+    timeout: const Timeout(Duration(minutes: 10)),
   );
 }
