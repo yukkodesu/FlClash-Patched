@@ -775,6 +775,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "meowAllTraffic": MessageLookupByLibrary.simpleMessage("全トラフィック"),
     "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage("設定の互換性"),
     "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage("コアの機能"),
+    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
+      "Linux では他の DNS 管理プログラムが TUN の DNS 設定を上書きする場合があります。Fake-IP にはコアの DNS を使った名前解決が必要です。トラフィックの取得に頼る前に、システムの DNS 設定を確認してください。",
+    ),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage(
       "開始する前にプロファイルを選択してください。",
     ),

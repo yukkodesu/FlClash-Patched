@@ -21,6 +21,8 @@ The client retains configuration/subscription management, Material You themes, s
 | Authentication | meow always exempts source addresses 127.0.0.1/32 and ::1/128, even with an empty skip-auth-prefixes. Configuration checks expose this warning; loopback binding does not authenticate local programs. |
 | TUN | Fake-IP range capture differs from experimental global route capture. IPv6 capture requires the appropriate global configuration and platform verification. Neither an enabled switch nor a ready Helper proves capture. Unsupported mihomo stack, strict-route, route-address and endpoint-independent-nat switches are removed. |
 
+On Linux, other DNS managers may overwrite the TUN resolver change. Fake-IP requires queries through core DNS; verify the system resolver before relying on capture. Automatic OS DNS redirection remains unverified in the native records.
+
 Tailscale/ZeroTier/EasyTier control, AGE key operations, Go GC/goroutine/pprof diagnostics, DNS query tracing, provider sideloading, manual geodata hot-replacement transactions and separate core/external-UI updaters are outside this product. The optional external-controller is independent of client IPC and defaults to disabled. See the [full capability and configuration policy](docs/specs/meow-desktop-client.md#6-功能取舍).
 
 ## Build from source

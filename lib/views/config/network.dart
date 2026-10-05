@@ -594,7 +594,9 @@ class TunRouteModeItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return ConfigOptionsItem<TunRouteMode>(
       title: (l) => l.routeMode,
-      subtitle: (l) => l.meowTunScope,
+      subtitle: (l) => system.isLinux
+          ? '${l.meowTunScope}\n${l.meowLinuxTunDnsWarning}'
+          : l.meowTunScope,
       options: TunRouteMode.values,
       textBuilder: (mode) => switch (mode) {
         TunRouteMode.fakeIp => context.appLocalizations.meowTunFakeIp,

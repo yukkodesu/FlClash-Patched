@@ -681,6 +681,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "meowAllTraffic": MessageLookupByLibrary.simpleMessage("全部流量"),
     "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage("配置兼容性"),
     "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage("内核能力"),
+    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
+      "Linux 的其他 DNS 管理程序可能覆盖 TUN 的 DNS 设置。Fake-IP 需要使用内核 DNS 解析，请确认系统解析器实际指向内核后再依赖流量捕获。",
+    ),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage("请先选择配置再启动。"),
     "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
       "需要检查或恢复上次运行的 TUN 状态。请通过特权 Helper 重启，检查 DNS 和路由后再开启 TUN。普通代理模式仍可使用。",
