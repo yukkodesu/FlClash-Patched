@@ -89,7 +89,7 @@ final class TrayStateProvider
   }
 }
 
-String _$trayStateHash() => r'682abf50a936770d44be8fb6a282f3ea616c92ba';
+String _$trayStateHash() => r'3d8651fa86e2f06e1d79d75bc68eb45a68f6b546';
 
 @ProviderFor(vpnState)
 final vpnStateProvider = VpnStateProvider._();
@@ -1353,7 +1353,7 @@ final class ProxyStateProvider
   }
 }
 
-String _$proxyStateHash() => r'9583a658039310a3190d820d6e2069614e09a74b';
+String _$proxyStateHash() => r'4a9cf824cf8df222fe60be0d4f8fd4520033aa0b';
 
 @ProviderFor(proxiesActionsState)
 final proxiesActionsStateProvider = ProxiesActionsStateProvider._();
@@ -1606,7 +1606,7 @@ final class IsStartProvider extends $FunctionalProvider<bool, bool, bool>
   }
 }
 
-String _$isStartHash() => r'f8bcefa8515c44fbe14876a5fc6676110508e9b2';
+String _$isStartHash() => r'7feb2e37e64dc1693917c5862ac3bedad1253e2d';
 
 @ProviderFor(proxiesTabControllerState)
 final proxiesTabControllerStateProvider = ProxiesTabControllerStateProvider._();

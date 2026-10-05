@@ -379,6 +379,30 @@ void main() {
     expect(container.read(proxyStateProvider).isStart, isFalse);
   });
 
+  test(
+    'stopped host listeners override cached uptime without changing requested intent',
+    () {
+      container.read(requestedRunningProvider.notifier).value = true;
+      container.read(runTimeProvider.notifier).value = DateTime(
+        2026,
+      ).millisecondsSinceEpoch;
+      container
+          .read(runtimeStatusProvider.notifier)
+          .value = CoreRuntimeState.fromJson({
+        'initialized': true,
+        'configured': true,
+        'running': false,
+        'tunActive': false,
+        'generation': 2,
+      });
+
+      expect(container.read(isStartProvider), isFalse);
+      expect(container.read(proxyStateProvider).isStart, isFalse);
+      expect(container.read(trayStateProvider).isStart, isFalse);
+      expect(container.read(requestedRunningProvider), isTrue);
+    },
+  );
+
   test('selection and delay providers resolve groups and profile state', () {
     final profile = Profile.normal().copyWith(
       selectedMap: {'Selector': 'Leaf'},
