@@ -303,13 +303,18 @@ abstract class CoreHandlerInterface with CoreInterface {
     ChangeProxyParams changeProxyParams, {
     bool closeConnections = false,
   }) async {
-    return _invokeMessage(
-      method: CoreMethod.changeProxy,
+    final unfix = changeProxyParams.proxyName.isEmpty;
+    final result = await _invokeMessage(
+      method: unfix ? CoreMethod.unfixProxy : CoreMethod.changeProxy,
       arguments: {
         ...changeProxyParams.toJson(),
         'close-connections': closeConnections,
       },
     );
+    if (unfix && closeConnections && result.isEmpty) {
+      await this.closeConnections();
+    }
+    return result;
   }
 
   @override

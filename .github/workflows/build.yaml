@@ -42,6 +42,9 @@ jobs:
       - name: Test comment density hook
         run: bash tool/check_comment_density_test.sh
 
+      - name: Test product uninstall commands
+        run: python3 tool/product_uninstall_test.py
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -125,6 +128,89 @@ jobs:
           dart pub get
           dart analyze
           dart test
+
+  standalone-regression:
+    if: inputs.acceptance_build_run == ''
+    name: Standalone meow regression
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: core/meow-rs
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/meow-rs
+          key: standalone-linux-amd64
+          cache-on-failure: true
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: linux
+          triple: x86_64-unknown-linux-gnu
+      - name: Verify pinned source
+        run: |
+          CORE_SHA="$(git rev-parse HEAD)"
+          CLIENT_SHA="$(git -C ../.. rev-parse HEAD)"
+          PIN="$(git -C ../.. rev-parse HEAD:core/meow-rs)"
+          test "$CORE_SHA" = "$PIN"
+          printf 'client=%s\ncore=%s\n' "$CLIENT_SHA" "$CORE_SHA"
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy (default features)
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Clippy (no default features)
+        run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
+      - name: Clippy (all features)
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Minimal standalone CLI features
+        run: cargo clippy --locked -p meow-app --all-targets --no-default-features -- -D warnings
+      - name: Workspace documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --workspace --no-deps
+      - name: UDP port 53 listener regression
+        run: cargo test --locked -p meow-listener --all-features --lib udp_port_53
+      - name: Cache local Shadowsocks test peer
+        id: standalone-ssserver
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/meow-test-peers/bin/ssserver
+          key: standalone-ssserver-linux-amd64-1.24.0-stream-aead2022-rust1.98.1
+      - name: Build pinned local Shadowsocks test peer
+        if: steps.standalone-ssserver.outputs.cache-hit != 'true'
+        run: >-
+          cargo install shadowsocks-rust --version 1.24.0 --locked --force
+          --bin ssserver --features "stream-cipher aead-cipher-2022"
+          --root "$RUNNER_TEMP/meow-test-peers"
+      - name: Prepare verified local plugin peer
+        run: |
+          sudo apt-get install -y --no-install-recommends shadowsocks-v2ray-plugin=1.3.1-4
+          dpkg-query -W -f='${Version}\n' shadowsocks-v2ray-plugin | grep -Fx '1.3.1-4'
+          PEER_BIN="$RUNNER_TEMP/meow-test-peers/bin"
+          mkdir -p "$PEER_BIN"
+          ln -s /usr/bin/ss-v2ray-plugin "$PEER_BIN/v2ray-plugin"
+          "$PEER_BIN/ssserver" --version | grep -F '1.24.0'
+          "$PEER_BIN/v2ray-plugin" -version
+          echo "$PEER_BIN" >> "$GITHUB_PATH"
+      - name: Curated standalone unit and integration tests
+        run: |
+          cargo test --locked --lib --bin meow \
+            --test socks5_udp_user \
+            --test common_test --test dns_cache_test --test config_test \
+            --test statistics_test --test rules_test --test api_test \
+            --test raii_guard_test --test http_connection_close \
+            --test config_persistence_test --test systemd_config_test \
+            --test trojan_integration --test vless_config_test --test vless_integration \
+            --test v2ray_plugin_integration --test pre_resolve_test \
+            --test tls_test --test boring_tls_test --test ws_test --test crate_invariants_test \
+            --test crate_publish_metadata_test -- --nocapture
+      - name: Standalone API without TUN feature unification
+        run: cargo test --locked -p meow-api --test api_test -- --nocapture
 
   meow-host:
     if: inputs.acceptance_build_run == ''
@@ -290,7 +376,7 @@ jobs:
 
   build:
     if: inputs.acceptance_build_run == '' && ((github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
-    needs: [ dart-checks, dart-tests, plugins, meow-host, rust, windows-helper-test ]
+    needs: [ dart-checks, dart-tests, plugins, standalone-regression, meow-host, rust, windows-helper-test ]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -450,7 +536,7 @@ jobs:
           python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
       - name: Prepare disposable Linux desktop
         if: matrix.platform == 'linux'
-        run: sudo apt-get install -y xvfb openbox xdotool scrot dbus-x11 python3-gi libgtk-3-0 libayatana-appindicator3-1
+        run: sudo apt-get install -y xvfb openbox xfce4-panel xfconf xdotool scrot dbus-x11 python3-gi libgtk-3-0 libayatana-appindicator3-1
       - name: Install and accept actual artifact
         shell: bash
         env:
@@ -458,7 +544,24 @@ jobs:
           PACKAGE_ARCH: ${{ matrix.arch }}
         run: |
           if [[ "$PACKAGE_PLATFORM" == linux ]]; then
-            dbus-run-session -- xvfb-run -a bash -c 'openbox > /tmp/meow-package-openbox.log 2>&1 & exec /usr/bin/python3 tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl'
+            dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" bash -c '
+              set -euo pipefail
+              mkdir -p build/package-acceptance
+              trap "jobs -pr | xargs -r kill" EXIT
+              openbox > build/package-acceptance/openbox.log 2>&1 &
+              xfconf-query -c xfce4-panel -p /panels -n -a -t int -s 1
+              xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids -n -a -t int -s 1
+              xfconf-query -c xfce4-panel -p /panels/panel-1/position -n -t string -s "p=10;x=640;y=16"
+              xfconf-query -c xfce4-panel -p /panels/panel-1/position-locked -n -t bool -s true
+              xfconf-query -c xfce4-panel -p /panels/panel-1/size -n -t int -s 32
+              xfconf-query -c xfce4-panel -p /panels/panel-1/length -n -t int -s 100
+              xfconf-query -c xfce4-panel -p /panels/panel-1/length-adjust -n -t bool -s false
+              xfconf-query -c xfce4-panel -p /panels/panel-1/autohide-behavior -n -t int -s 0
+              xfconf-query -c xfce4-panel -p /plugins/plugin-1 -n -t string -s systray
+              xfce4-panel --disable-wm-check > build/package-acceptance/xfce-panel.log 2>&1 &
+              export MEOW_PACKAGE_PANEL_PID=$!
+              /usr/bin/python3 tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl
+            '
           else
             python tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl
           fi

@@ -103,12 +103,16 @@ hooks:
     expect(setup.packagesNotBuildingAssets('name: x\n'), isEmpty);
   });
 
-  test('packages all Linux formats and accepts a narrowed package target', () {
+  test('packages supported Linux formats and rejects broken RPM output', () {
     expect(
       setup.createPackageTargets('linux', null),
-      'deb,rpm,pacman,appimage,zip',
+      'deb,pacman,appimage,zip',
     );
     expect(setup.createPackageTargets('linux', 'deb'), 'deb');
+    expect(
+      () => setup.createPackageTargets('linux', 'deb,rpm'),
+      throwsArgumentError,
+    );
     expect(setup.createPackageTargets('macos', null), 'dmg');
   });
 }

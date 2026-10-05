@@ -245,7 +245,7 @@ while `v<pubspec version>` is still tagged it refuses to collect anything and th
 ## Verify
 
 Every branch push runs formatting/analysis, eight root Flutter test shards, plugin gates, Helper/Rust API checks,
-and six native host jobs. Reproduce root checks with:
+six native host jobs, and a Linux standalone meow regression gate. Reproduce root checks with:
 
 ```bash
 bash tool/check_commit_msg_test.sh
@@ -259,6 +259,20 @@ flutter test --reporter expanded
 The pure Dart setup harness uses `dart analyze` and `dart test` from its package directory. Its build-boundary tests
 compile real Cargo fixtures and verify caching, Core/Helper hash coupling, and failure preservation.
 `bash tool/check_plugins.sh` discovers local Flutter packages and runs their analysis/tests.
+
+The `standalone-regression` job verifies the exact `core/meow-rs` gitlink and runs
+the core's CONTRIBUTING regression bar: formatting, default/no-default/all-feature
+Clippy, warning-free workspace rustdoc, the curated standalone unit/integration
+targets and the all-feature UDP port 53 listener tests. Run those same commands
+from `core/meow-rs` as listed in its `CONTRIBUTING.md`. Protocol-specific Docker
+or local-peer suites remain required when their protocol code changes, as that
+document specifies. Normal package builds depend on this gate; artifact-only
+acceptance of an existing build does not recompile its core.
+The plugin integration target uses local peers: shadowsocks-rust 1.24.0 is built
+with the upstream locked stream-cipher/aead-cipher-2022 features, and Ubuntu's
+verified shadowsocks-v2ray-plugin 1.3.1-4 package supplies the plugin binary.
+Their presence is checked before tests; neither a Go build nor remote proxy nodes
+are needed. Test output remains visible so ignored or skipped cases are auditable.
 
 The `meow-host` matrix executes CoreController E2E with native host and Rust API artifacts on Windows/Linux/macOS x64
 and ARM64. Each native job then compiles the ignored native TUN executable as its normal build user and invokes it
