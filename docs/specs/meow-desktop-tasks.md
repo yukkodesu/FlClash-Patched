@@ -35,4 +35,8 @@ User-approved primary seam: existing CoreController, including calls, configurat
 
 ## Evidence
 
-No implementation or platform acceptance is claimed yet. Update this section and task state with concrete commits, commands and results as work lands. Missing native platform evidence keeps V1 open.
+- Client commit `7411736b`: desktop-only CoreController selection, validated host identity/protocol, structured compatibility diagnostics and runtime state, ordered configuration-before-listener setup. Raw profile queries preserve an existing `rules` field. Method logging omits arguments to avoid logging profile credentials.
+- Flutter 3.47.6 / Dart 3.13.5: 32 controller and metadata tests passed; 118 existing desktop IPC/lifecycle/Helper/service/protocol tests passed. Native build hooks were disabled only during these Dart checks and restored afterward. These checks do not prove that the Rust host is connected yet.
+- Existing shared Flutter 3.47.1 cannot resolve this baseline's Dart ^3.13.2 dependencies. A separate SDK checkout at tag 3.47.6 supplies the CI-pinned toolchain without changing the shared checkout.
+- Rust host and build/UI implementation are in independent worktrees. Windows libclang tooling was supplied from a PyPI wheel with its published SHA256 verified. Native proxy, TUN and package acceptance remains pending.
+- Missing native platform evidence keeps V1 open. No macOS/Linux or ARM64 runtime acceptance is claimed.
