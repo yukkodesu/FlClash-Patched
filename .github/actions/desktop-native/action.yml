@@ -28,21 +28,18 @@ runs:
       with:
         version: '21.1.8'
         env: false
-    - name: macOS LLVM
+    - name: macOS libclang
       if: inputs.platform == 'macos'
-      uses: KyleMayes/install-llvm-action@v2
-      with:
-        version: '20.1.7'
-        env: false
-    - name: Configure libclang
-      if: inputs.platform != 'linux'
       shell: bash
       run: |
-        if [[ '${{ inputs.platform }}' == 'windows' ]]; then
-          echo "LIBCLANG_PATH=$LLVM_PATH/bin" >> "$GITHUB_ENV"
-        else
-          echo "LIBCLANG_PATH=$LLVM_PATH/lib" >> "$GITHUB_ENV"
-        fi
+        clang_library="$(dirname "$(xcrun --find clang)")/../lib"
+        test -f "$clang_library/libclang.dylib"
+        echo "LIBCLANG_PATH=$clang_library" >> "$GITHUB_ENV"
+    - name: Configure libclang
+      if: inputs.platform == 'windows'
+      shell: bash
+      run: |
+        echo "LIBCLANG_PATH=$LLVM_PATH/bin" >> "$GITHUB_ENV"
     - name: Windows assembler
       if: inputs.platform == 'windows'
       shell: pwsh
