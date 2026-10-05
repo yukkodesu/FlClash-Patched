@@ -46,18 +46,8 @@ jobs:
           path: dist
           run-id: ${{ inputs.acceptance_build_run }}
           github-token: ${{ github.token }}
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: master
-          flutter-version: '3.47.6'
-          cache: true
-      - name: Prepare matching old three CoreController tests
-        shell: bash
-        run: |
-          flutter pub get
-          python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
-      - name: Repeat installed ARM64 GUI cold start and exact IPC symptom
-        run: python tool/diagnose_arm64_cold_start.py --dist dist --log build/arm64-ipc-diagnosis/diagnosis.jsonl --iterations 12 --seconds 8 --skip-controller-prelude --skip-helper-prelude --skip-original-fixture
+      - name: Compare valid interrupted and uninterrupted IPC frames through frozen native Core
+        run: python tool/diagnose_arm64_fragmentation.py --dist dist --log build/arm64-ipc-diagnosis/fragmentation.jsonl --iterations 20
       - uses: actions/upload-artifact@v7
         if: always()
         with:
