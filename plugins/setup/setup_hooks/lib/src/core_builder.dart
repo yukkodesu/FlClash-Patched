@@ -111,6 +111,10 @@ final class CoreBuilder implements Builder {
       rootDir: rootDir,
       harnessDir: p.join(p.fromUri(input.packageRoot), 'setup_hooks'),
       target: target,
+      macOSDeploymentTarget: platform == 'macos'
+          ? '${code.macOS.targetVersion}.0'
+          : null,
+      macOSCompiler: platform == 'macos' ? code.cCompiler?.compiler : null,
     );
   }
 

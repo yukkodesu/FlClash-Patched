@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
+import 'package:setup_hooks/setup_hooks.dart';
 
 void main(List<String> args) async {
   await build(args, (input, output) async {
@@ -9,9 +10,29 @@ void main(List<String> args) async {
       stdout.writeln('Skipping the Rust build: user-define build_assets=false');
       return;
     }
+    final code = input.config.buildCodeAssets ? input.config.code : null;
+    final apple = code?.targetOS == OS.macOS
+        ? MacOSCargoToolchain.resolve(
+            rustTriple: switch (code!.targetArchitecture) {
+              Architecture.arm64 => 'aarch64-apple-darwin',
+              Architecture.x64 => 'x86_64-apple-darwin',
+              final other => throw StateError(
+                'No macOS Rust target for $other',
+              ),
+            },
+            compiler: code.cCompiler?.compiler,
+            deploymentTarget: '${code.macOS.targetVersion}.0',
+          )
+        : null;
+    output.dependencies.addAll([
+      for (final path in apple?.inputs ?? const <String>[]) Uri.file(path),
+    ]);
     await FlutterRustBridgeNativeAssetsBuilder(
       cratePath: 'rust',
-      extraCargoEnvironmentVariables: _cargoEnvironment(input),
+      extraCargoEnvironmentVariables: {
+        ..._cargoEnvironment(input),
+        ...?apple?.environment,
+      },
     ).run(input: input, output: output);
   });
 }

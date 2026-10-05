@@ -16,12 +16,16 @@ class BuildRequest {
     required this.rootDir,
     required this.target,
     this.harnessDir,
+    this.macOSDeploymentTarget,
+    this.macOSCompiler,
   });
 
   final String rootDir;
   final Target target;
 
   final String? harnessDir;
+  final String? macOSDeploymentTarget;
+  final Uri? macOSCompiler;
 }
 
 class BuildReport {
@@ -60,6 +64,8 @@ Future<BuildReport> buildPlatform(BuildRequest request) async {
     cache: cache,
     notice: notice,
     harnessInputs: harnessInputs,
+    macOSDeploymentTarget: request.macOSDeploymentTarget,
+    macOSCompiler: request.macOSCompiler,
   ).build(target);
   if (!target.hasHelper) {
     _log.info('Done in ${stopwatch.elapsed}: ${core.primaryOutput}');
