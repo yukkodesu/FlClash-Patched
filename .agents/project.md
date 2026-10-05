@@ -1,6 +1,8 @@
 # Project Context
 
-FlClash is a multi-platform proxy client based on mihomo, built with Flutter. It supports Android, Windows, macOS, and Linux, using a Material You design with Surfboard-like UI.
+FlClash-Meow is a Flutter desktop proxy client using meow-rs through an embedded Rust host. This fork ships Windows,
+macOS, and Linux on x64 and ARM64. Mobile sources are retained from FlClash-Patched but are outside this product's build
+and release scope. The implementation and capability differences are specified in `docs/specs/meow-desktop-client.md`.
 
 ## Version Notes
 
@@ -8,6 +10,10 @@ FlClash is a multi-platform proxy client based on mihomo, built with Flutter. It
   version as the source of truth for release builds.
 - Root Dart SDK constraint: `>=3.10.0 <4.0.0`. Keep dependency upgrades separate
   from language-version changes; local packages may impose a higher SDK minimum.
+- The pinned `core/meow-rs` submodule comes from `yukkodesu/meow-rs`. The host crate lives in
+  `core/meow-rs/crates/flclash-meow-host`; update the gitlink only after verifying that exact fork commit.
+- The engine/host uses its own pinned Rust 1.98.1 toolchain. `plugins/rust_api/rust` uses Rust 1.99.0 and remains a
+  separate Flutter runtime library for IPC, scripting, and hotkeys.
 
 ## Forked Dependencies
 
@@ -95,25 +101,32 @@ The Rust API pins `libc` to 0.2.189 for iOS: 0.2.190 restricts dyld declarations
 to macOS, breaking the iOS build of `backtrace` 0.3.76. Keep this pin until
 backtrace supports the changed declarations.
 
-Android builds use AGP 9.4.1, Gradle 9.6.0, Kotlin 2.4.20, NDK r30, and compile SDK 37.2
-(API 37 with `compileSdkMinor = 2`), satisfying AndroidX Core 1.19.1's API 37 minimum.
-Keep target SDK changes separate: they alter runtime compatibility behavior.
-Flutter still needs the legacy Kotlin/DSL opt-outs in `android/gradle.properties`.
-
 ## Build Dependencies
 
-Linux:
+Every desktop target needs the pinned Flutter SDK, Git, rustup/Cargo, CMake, a native C/C++ compiler, Python, and libclang
+for meow's TUN bindings. The build hook fingerprints native toolchain inputs and reports missing tools as build failures.
+Set `LIBCLANG_PATH` to the directory containing the native libclang shared library when automatic discovery fails.
+
+Linux (plus the format-specific packaging tools installed by `setup.dart`):
 
 ```bash
-sudo apt-get install libayatana-appindicator3-dev
+sudo apt-get install cmake ninja-build clang libclang-dev pkg-config libgtk-3-dev libayatana-appindicator3-dev libsecret-1-dev
 ```
 
 Windows:
 
-- GCC and Inno Setup.
+- Visual Studio with Desktop development with C++, the target's MSVC tools and Windows SDK, LLVM/libclang, NASM,
+  and Inno Setup. GCC is not the Windows MSVC host compiler.
+- The meow build embeds the official Wintun DLL for the target architecture. `MEOW_WINTUN_DLL` may select a previously
+  verified DLL; its contents participate in the build fingerprint. No DLL sidecar is required for the packaged host.
 
 macOS:
+
+- Xcode and command-line tools, CMake, native LLVM/libclang, and Node/npm for DMG packaging.
 
 ```bash
 npm install -g appdmg
 ```
+
+CI executes each target on a native runner and rejects a Rust host triple that differs from the matrix target.
+macOS x64 uses `macos-26-intel`; ARM64 uses `macos-26`.

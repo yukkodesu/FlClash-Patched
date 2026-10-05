@@ -1,0 +1,60 @@
+name: Desktop native dependencies
+description: Prepare native Rust host and Flutter desktop toolchains
+inputs:
+  platform:
+    required: true
+    description: Desktop platform
+  triple:
+    required: true
+    description: Native Rust target triple
+runs:
+  using: composite
+  steps:
+    - name: Verify native runner architecture
+      shell: bash
+      working-directory: core/meow-rs
+      run: |
+        rustc -vV | grep -Fx 'host: ${{ inputs.triple }}'
+    - name: Linux dependencies
+      if: inputs.platform == 'linux'
+      shell: bash
+      run: >-
+        sudo apt-get update && sudo apt-get install -y
+        cmake ninja-build clang libclang-dev pkg-config libgtk-3-dev
+        libayatana-appindicator3-dev libsecret-1-dev
+    - name: Windows LLVM
+      if: inputs.platform == 'windows'
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: '21.1.8'
+        env: false
+    - name: macOS LLVM
+      if: inputs.platform == 'macos'
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: '20.1.7'
+        env: false
+    - name: Configure libclang
+      if: inputs.platform != 'linux'
+      shell: bash
+      run: |
+        if [[ '${{ inputs.platform }}' == 'windows' ]]; then
+          echo "LIBCLANG_PATH=$LLVM_PATH/bin" >> "$GITHUB_ENV"
+        else
+          echo "LIBCLANG_PATH=$LLVM_PATH/lib" >> "$GITHUB_ENV"
+        fi
+    - name: Windows assembler
+      if: inputs.platform == 'windows'
+      shell: pwsh
+      run: |
+        choco install nasm --yes --no-progress
+        @("$env:ProgramFiles\NASM", "${env:ProgramFiles(x86)}\NASM") | Where-Object { Test-Path $_ } | Add-Content $env:GITHUB_PATH
+    - name: Fetch target Wintun
+      if: inputs.platform == 'windows'
+      shell: bash
+      run: |
+        bash core/meow-rs/scripts/fetch-wintun.sh --target '${{ inputs.triple }}' --outdir "$RUNNER_TEMP/wintun"
+        echo "MEOW_WINTUN_DLL=$RUNNER_TEMP/wintun/wintun.dll" >> "$GITHUB_ENV"
+    - name: Pin host build identity
+      shell: bash
+      run: echo "MEOW_HOST_COMMIT=$(git -C core/meow-rs rev-parse HEAD)" >> "$GITHUB_ENV"
