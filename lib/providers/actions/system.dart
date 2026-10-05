@@ -62,7 +62,16 @@ class SystemAction extends _$SystemAction {
     await Future.wait([
       ?saveOperation,
       if (systemDnsCoordinator != null) systemDnsCoordinator!.shutdown(),
-      if (proxy != null) proxy!.stopProxy(onlyIfNeeded: true),
+      if (proxy != null)
+        proxy!.close().then((confirmed) {
+          if (!confirmed) {
+            commonPrint.log(
+              'System proxy restoration is unconfirmed',
+              logLevel: LogLevel.error,
+            );
+            throw StateError('System proxy restoration is unconfirmed');
+          }
+        }),
     ]);
   }
 

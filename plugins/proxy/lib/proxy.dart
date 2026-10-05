@@ -11,6 +11,8 @@ class Proxy {
   static const int _minPort = 1;
   static const int _maxPort = 65535;
 
+  Future<void> _pending = Future.value();
+  bool _closed = false;
   late final LinuxProxy _linuxProxy;
   late final MacosProxy _macosProxy;
 
@@ -18,7 +20,7 @@ class Proxy {
     ProxyProcessRunner? processRunner,
     ProxyExecutableChecker? executableChecker,
   }) {
-    final commandRunner = ProxyCommandRunner(processRunner ?? Process.run);
+    final commandRunner = ProxyCommandRunner(processRunner);
     _linuxProxy = LinuxProxy(
       commandRunner: commandRunner,
       executableChecker: executableChecker,
@@ -33,31 +35,50 @@ class Proxy {
     if (port < _minPort || port > _maxPort) {
       return false;
     }
-    return switch (Platform.operatingSystem) {
-      'macos' => await _macosProxy.start(port, bypassDomain),
-      'linux' => await _linuxProxy.start(
-        port,
-        bypassDomain,
-        desktop: Platform.environment['XDG_CURRENT_DESKTOP'],
-        homeDir: Platform.environment['HOME'],
-      ),
-      'windows' => await ProxyPlatform.instance.startProxy(port, bypassDomain),
-      String() => false,
-    };
+    return _serialize(() async {
+      if (_closed) return false;
+      return switch (Platform.operatingSystem) {
+        'macos' => await _macosProxy.start(port, bypassDomain),
+        'linux' => await _linuxProxy.start(
+          port,
+          bypassDomain,
+          desktop: Platform.environment['XDG_CURRENT_DESKTOP'],
+          homeDir: Platform.environment['HOME'],
+        ),
+        'windows' => await ProxyPlatform.instance.startProxy(
+          port,
+          bypassDomain,
+        ),
+        String() => false,
+      };
+    });
+  }
+
+  Future<bool> close() {
+    _closed = true;
+    return stopProxy(onlyIfNeeded: true);
+  }
+
+  Future<bool> _serialize(Future<bool> Function() operation) {
+    final result = _pending.then((_) => operation());
+    _pending = result.then<void>((_) {}).catchError((Object _) {});
+    return result;
   }
 
   Future<bool> stopProxy({bool onlyIfNeeded = false}) async {
-    return switch (Platform.operatingSystem) {
-      'macos' => await _macosProxy.stop(onlyIfNeeded: onlyIfNeeded),
-      'linux' => await _linuxProxy.stop(
-        onlyIfNeeded: onlyIfNeeded,
-        desktop: Platform.environment['XDG_CURRENT_DESKTOP'],
-        homeDir: Platform.environment['HOME'],
-      ),
-      'windows' => await ProxyPlatform.instance.stopProxy(
-        onlyIfNeeded: onlyIfNeeded,
-      ),
-      String() => false,
-    };
+    return _serialize(() async {
+      return switch (Platform.operatingSystem) {
+        'macos' => await _macosProxy.stop(onlyIfNeeded: onlyIfNeeded),
+        'linux' => await _linuxProxy.stop(
+          onlyIfNeeded: onlyIfNeeded,
+          desktop: Platform.environment['XDG_CURRENT_DESKTOP'],
+          homeDir: Platform.environment['HOME'],
+        ),
+        'windows' => await ProxyPlatform.instance.stopProxy(
+          onlyIfNeeded: onlyIfNeeded,
+        ),
+        String() => false,
+      };
+    });
   }
 }

@@ -7,15 +7,38 @@ import 'package:fl_clash/state.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:proxy/proxy.dart' as system_proxy;
 
 import '../helpers/test_app.dart';
+
+class _SystemProxy extends system_proxy.Proxy {
+  final calls = <Object>[];
+  bool failStart = false;
+  @override
+  Future<bool> startProxy(
+    int port, [
+    List<String> bypassDomain = const [],
+  ]) async {
+    calls.add(port);
+    if (failStart) throw StateError('platform failure');
+    return true;
+  }
+
+  @override
+  Future<bool> stopProxy({bool onlyIfNeeded = false}) async {
+    calls.add(onlyIfNeeded);
+    return true;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late ProviderContainer container;
+  late _SystemProxy systemProxy;
 
   setUp(() {
+    systemProxy = _SystemProxy();
     container = ProviderContainer();
     globalState.container = container;
   });
@@ -26,8 +49,11 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const TestApp(
-          child: ProxyManager(child: SizedBox(key: Key('child'))),
+        child: TestApp(
+          child: ProxyManager(
+            proxyAdapter: systemProxy,
+            child: const SizedBox(key: Key('child')),
+          ),
         ),
       ),
     );
@@ -41,6 +67,19 @@ void main() {
         const PatchClashConfig().copyWith(mixedPort: mixedPort);
     container.read(runTimeProvider.notifier).value = running ? 1 : null;
   }
+
+  testWidgets('initial inactive update never requests unowned cleanup', (
+    tester,
+  ) async {
+    await pumpProxyManager(tester);
+    expect(systemProxy.calls, [true]);
+    enableSystemProxy(running: true);
+    await tester.pumpAndSettle();
+    container.read(runTimeProvider.notifier).value = null;
+    await tester.pumpAndSettle();
+    expect(systemProxy.calls, [true, 7890, true]);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('renders its child unchanged', (tester) async {
     await pumpProxyManager(tester);
@@ -56,6 +95,7 @@ void main() {
   ) async {
     await pumpProxyManager(tester);
 
+    systemProxy.failStart = true;
     enableSystemProxy(running: true);
     await tester.pumpAndSettle();
 
@@ -69,8 +109,10 @@ void main() {
   ) async {
     await pumpProxyManager(tester);
 
+    systemProxy.failStart = true;
     enableSystemProxy(running: true);
     await tester.pump();
+    systemProxy.failStart = false;
     enableSystemProxy(running: true, mixedPort: 7891);
     await tester.pump();
     container.read(runTimeProvider.notifier).value = null;

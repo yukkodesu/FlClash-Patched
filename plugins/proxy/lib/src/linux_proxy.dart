@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 
 import 'proxy_command.dart';
+import 'owned_proxy_settings.dart';
 
 enum LinuxProxyBackend { gnome, mate, kde }
 
@@ -13,13 +14,15 @@ const _fallbackBackends = [LinuxProxyBackend.gnome, LinuxProxyBackend.kde];
 class LinuxProxy {
   final ProxyCommandRunner _commandRunner;
   final ProxyExecutableChecker _executableChecker;
-  bool _needsCleanup = false;
+  final _settings = OwnedProxySettings();
 
   LinuxProxy({
     required ProxyCommandRunner commandRunner,
     ProxyExecutableChecker? executableChecker,
   }) : _commandRunner = commandRunner,
-       _executableChecker = executableChecker ?? _hasExecutable;
+       _executableChecker =
+           executableChecker ??
+           ((executable) => _hasExecutable(commandRunner, executable));
 
   Future<bool> start(
     int port,
@@ -27,6 +30,7 @@ class LinuxProxy {
     required String? desktop,
     required String? homeDir,
   }) async {
+    if (!await _commandRunner.releaseProcesses()) return false;
     if (homeDir == null || homeDir.isEmpty) {
       return false;
     }
@@ -34,15 +38,65 @@ class LinuxProxy {
     if (selection == null) {
       return false;
     }
-    _needsCleanup = true;
-    return _commandRunner.run(
-      LinuxProxyCommands.buildStartForBackend(
-        port: port,
-        bypassDomain: bypassDomain,
-        homeDir: homeDir,
-        backend: selection.backend,
-        kdeConfigWriter: selection.executable,
-      ),
+    final commands = LinuxProxyCommands.buildStartForBackend(
+      port: port,
+      bypassDomain: bypassDomain,
+      homeDir: homeDir,
+      backend: selection.backend,
+      kdeConfigWriter: selection.executable,
+    );
+    final missing =
+        '__flclash_meow_absent_${pid}_${DateTime.now().microsecondsSinceEpoch}__';
+    return _settings.install(
+      commands.map((command) {
+        final gsettings = selection.backend != LinuxProxyBackend.kde;
+        final key = gsettings ? command.args[2] : command.args[5];
+        final expected = gsettings
+            ? _variant(command.args.last, key)!
+            : command.args.last;
+        return ProxySetting(
+          installed: expected,
+          endpoint:
+              key == 'host' ||
+              key == 'port' ||
+              key.endsWith('Proxy') && key != 'NoProxyFor',
+          activation: key == 'mode' || key == 'ProxyType',
+          read: () async {
+            final read = gsettings
+                ? ProxyCommand('gsettings', ['get', command.args[1], key])
+                : ProxyCommand(
+                    selection.executable.replaceFirst('kwrite', 'kread'),
+                    [...command.args.take(6), '--default', missing],
+                  );
+            try {
+              final result = await _commandRunner.process(
+                read.executable,
+                read.args,
+              );
+              if (result.exitCode != 0) return null;
+              final output = result.stdout.toString();
+              final value = gsettings
+                  ? output.trim()
+                  : output.replaceFirst(RegExp(r'\r?\n$'), '');
+              if (gsettings && value.isEmpty) return null;
+              return gsettings ? _variant(value, key) : value;
+            } on ProcessException {
+              return null;
+            }
+          },
+          write: (value) => _commandRunner.run([
+            ProxyCommand(
+              command.executable,
+              gsettings
+                  ? ['set', command.args[1], key, value]
+                  : [
+                      ...command.args.take(6),
+                      if (value == missing) '--delete' else value,
+                    ],
+            ),
+          ]),
+        );
+      }).toList(),
     );
   }
 
@@ -50,25 +104,78 @@ class LinuxProxy {
     bool onlyIfNeeded = false,
     required String? desktop,
     required String? homeDir,
-  }) async {
-    if (onlyIfNeeded && !_needsCleanup) return true;
-    _needsCleanup = true;
-    if (homeDir == null || homeDir.isEmpty) {
-      return false;
+  }) async =>
+      await _commandRunner.releaseProcesses() && await _settings.restore();
+
+  static String? _variant(String value, String key) {
+    if (key == 'port') {
+      final number = int.tryParse(
+        value.replaceFirst(RegExp(r'^(?:u?int(?:16|32|64))\s+'), ''),
+      );
+      return number?.toString();
     }
-    final selection = await _resolveBackend(desktop);
-    if (selection == null) {
-      return false;
+    if (key == 'ignore-hosts') {
+      value = value.replaceFirst(RegExp(r'^@as\s+'), '');
+      if (!value.startsWith('[') || !value.endsWith(']')) return null;
+      final strings = <String>[];
+      var index = 1;
+      while (index < value.length - 1) {
+        if (value[index].trim().isEmpty || value[index] == ',') {
+          index++;
+          continue;
+        }
+        final decoded = _quoted(value, index);
+        if (decoded == null) return null;
+        strings.add(decoded.$1);
+        index = decoded.$2;
+      }
+      return LinuxProxyCommands._formatGSettingsStringList(strings);
     }
-    final stopped = await _commandRunner.run(
-      LinuxProxyCommands.buildStopForBackend(
-        homeDir: homeDir,
-        backend: selection.backend,
-        kdeConfigWriter: selection.executable,
-      ),
-    );
-    if (stopped) _needsCleanup = false;
-    return stopped;
+    if (value.startsWith("'") || value.startsWith('"')) {
+      final decoded = _quoted(value, 0);
+      return decoded == null || decoded.$2 != value.length
+          ? null
+          : _quote(decoded.$1);
+    }
+    return _quote(value);
+  }
+
+  static String _quote(String value) =>
+      "'${value.replaceAll(r'\', r'\\').replaceAll("'", r"\'").replaceAll('\n', r'\n').replaceAll('\r', r'\r').replaceAll('\t', r'\t')}'";
+
+  static (String, int)? _quoted(String value, int offset) {
+    final quote = value[offset];
+    if (quote != "'" && quote != '"') return null;
+    final decoded = StringBuffer();
+    for (var index = offset + 1; index < value.length; index++) {
+      final char = value[index];
+      if (char == quote) return (decoded.toString(), index + 1);
+      if (char != r'\') {
+        decoded.write(char);
+        continue;
+      }
+      if (++index >= value.length) return null;
+      final escaped = value[index];
+      if (escaped == 'u' || escaped == 'U') {
+        final count = escaped == 'u' ? 4 : 8;
+        if (index + count >= value.length) return null;
+        final code = int.tryParse(
+          value.substring(index + 1, index + count + 1),
+          radix: 16,
+        );
+        if (code == null || code > 0x10ffff) return null;
+        decoded.writeCharCode(code);
+        index += count;
+      } else {
+        decoded.write(switch (escaped) {
+          'n' => '\n',
+          'r' => '\r',
+          't' => '\t',
+          _ => escaped,
+        });
+      }
+    }
+    return null;
   }
 
   Future<_LinuxBackendSelection?> _resolveBackend(String? desktop) async {
@@ -97,7 +204,10 @@ class LinuxProxy {
         return null;
       case LinuxProxyBackend.kde:
         for (final executable in const ['kwriteconfig6', 'kwriteconfig5']) {
-          if (await _executableChecker(executable)) {
+          if (await _executableChecker(executable) &&
+              await _executableChecker(
+                executable.replaceFirst('kwrite', 'kread'),
+              )) {
             return _LinuxBackendSelection(backend, executable);
           }
         }
@@ -105,9 +215,12 @@ class LinuxProxy {
     return null;
   }
 
-  static Future<bool> _hasExecutable(String executable) async {
+  static Future<bool> _hasExecutable(
+    ProxyCommandRunner runner,
+    String executable,
+  ) async {
     try {
-      final result = await Process.run('which', [executable]);
+      final result = await runner.process('which', [executable]);
       return result.exitCode == 0;
     } on ProcessException {
       return false;
@@ -156,25 +269,6 @@ class LinuxProxyCommands {
     );
   }
 
-  static List<ProxyCommand> buildStop({
-    required String? desktop,
-    required String homeDir,
-    Set<String>? availableExecutables,
-  }) {
-    final backend = _resolveBackend(
-      desktop: desktop,
-      availableExecutables: availableExecutables,
-    );
-    if (backend == null) {
-      return [];
-    }
-    return buildStopForBackend(
-      homeDir: homeDir,
-      backend: backend,
-      kdeConfigWriter: _resolveKdeConfigWriter(availableExecutables),
-    );
-  }
-
   static List<ProxyCommand> buildStartForBackend({
     required int port,
     required List<String> bypassDomain,
@@ -196,25 +290,6 @@ class LinuxProxyCommands {
       LinuxProxyBackend.kde => _buildKdeStart(
         port: port,
         bypassDomain: bypassDomain,
-        homeDir: homeDir,
-        executable: kdeConfigWriter,
-      ),
-    };
-  }
-
-  static List<ProxyCommand> buildStopForBackend({
-    required String homeDir,
-    required LinuxProxyBackend backend,
-    required String kdeConfigWriter,
-  }) {
-    return switch (backend) {
-      LinuxProxyBackend.gnome => _buildGSettingsStop(
-        schemaPrefix: 'org.gnome.system.proxy',
-      ),
-      LinuxProxyBackend.mate => _buildGSettingsStop(
-        schemaPrefix: 'org.mate.system.proxy',
-      ),
-      LinuxProxyBackend.kde => _buildKdeStop(
         homeDir: homeDir,
         executable: kdeConfigWriter,
       ),
@@ -299,14 +374,6 @@ class LinuxProxyCommands {
     return commands;
   }
 
-  static List<ProxyCommand> _buildGSettingsStop({
-    required String schemaPrefix,
-  }) {
-    return [
-      ProxyCommand('gsettings', ['set', schemaPrefix, 'mode', 'none']),
-    ];
-  }
-
   static List<ProxyCommand> _buildKdeStart({
     required int port,
     required List<String> bypassDomain,
@@ -364,28 +431,8 @@ class LinuxProxyCommands {
     return '$scheme://$proxyHost:$port';
   }
 
-  static List<ProxyCommand> _buildKdeStop({
-    required String homeDir,
-    required String executable,
-  }) {
-    return [
-      ProxyCommand(executable, [
-        '--file',
-        path.join(homeDir, '.config', 'kioslaverc'),
-        '--group',
-        'Proxy Settings',
-        '--key',
-        'ProxyType',
-        '0',
-      ]),
-    ];
-  }
-
   static String _formatGSettingsStringList(List<String> values) {
-    final escaped = values.map((value) {
-      return value.replaceAll(r'\', r'\\').replaceAll("'", r"\'");
-    });
-    return "[${escaped.map((value) => "'$value'").join(', ')}]";
+    return "[${values.map(LinuxProxy._quote).join(', ')}]";
   }
 
   static Set<String> _desktops(String? desktop) {
