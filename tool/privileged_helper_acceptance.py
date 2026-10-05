@@ -33,14 +33,14 @@ def require_runner():
         raise RuntimeError('Windows service acceptance requires the runner administrator token.')
 
 
-def run(command, *, privileged=False, check=True):
+def run(command, *, privileged=False, check=True, timeout=40):
     if privileged and os.name != 'nt':
         command = ['sudo', '--non-interactive', *command]
-    return subprocess.run(command, check=check, text=True, capture_output=True, timeout=40)
+    return subprocess.run(command, check=check, text=True, capture_output=True, timeout=timeout)
 
 
-def powershell(script):
-    return run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script]).stdout.strip()
+def powershell(script, *, timeout=40):
+    return run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script], timeout=timeout).stdout.strip()
 
 
 def snapshot():
@@ -77,6 +77,40 @@ $cores = @(Get-CimInstance Win32_Process -Filter "Name='FlClashMeowCore.exe'" |
             'CommandLine': parts[5], 'cgroup': cgroup,
         })
     return {'service': values, 'cores': cores}
+
+
+def native_snapshot():
+    if os.name == 'nt':
+        observer = (Path('core/meow-rs/crates/flclash-meow-host/tests/fixtures') /
+                    'windows_dns_snapshot.ps1').read_text()
+        return json.loads(powershell('''
+$ErrorActionPreference = 'Stop'
+$dns = & {
+''' + observer + '''
+} | ConvertFrom-Json
+$routes = @(Get-NetRoute | Select-Object DestinationPrefix,NextHop,InterfaceIndex,RouteMetric |
+    Sort-Object DestinationPrefix,NextHop,InterfaceIndex,RouteMetric)
+$directory = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'FlClash-Meow/tun'
+$journals = @{}
+foreach ($name in 'dns.json','routes.json') {
+    $path = Join-Path $directory $name
+    if (Test-Path -LiteralPath $path) { $journals[$name] = Get-Content -Raw -LiteralPath $path | ConvertFrom-Json }
+}
+@{ dns = $dns; routes = $routes; journals = $journals } | ConvertTo-Json -Depth 12 -Compress
+''', timeout=60))
+    script = '''
+import json, pathlib, subprocess
+routes = json.loads(subprocess.check_output(['ip', '-json', 'route', 'show', 'table', 'all']))
+for route in routes:
+    route.pop('expires', None)
+    route.pop('cache', None)
+routes.sort(key=lambda route: json.dumps(route, sort_keys=True))
+directory = pathlib.Path('/var/lib/flclash-meow/tun')
+journals = {name: json.loads((directory / name).read_text())
+            for name in ['dns.json', 'routes.json'] if (directory / name).exists()}
+print(json.dumps({'dns': pathlib.Path('/etc/resolv.conf').read_text(), 'routes': routes, 'journals': journals}))
+'''
+    return json.loads(run([sys.executable, '-c', script], privileged=True).stdout)
 
 
 def service_action(action):
@@ -188,7 +222,7 @@ def main():
     parser = argparse.ArgumentParser(description='Exercise the actual privileged Helper on disposable native CI.')
     parser.add_argument('--bundle', type=Path)
     parser.add_argument('--log', type=Path)
-    parser.add_argument('--action', choices=['snapshot', 'stop', 'start', 'crash', 'foreign-peer', 'corrupt-core', 'restore-core'])
+    parser.add_argument('--action', choices=['snapshot', 'native-snapshot', 'stop', 'start', 'crash', 'foreign-peer', 'corrupt-core', 'restore-core'])
     options = parser.parse_args()
     require_runner()
     os.environ['FLCLASH_MEOW_ACCEPTANCE_CORE'] = str(CORE)
@@ -201,6 +235,8 @@ def main():
             result = integrity_action(options.action)
         elif options.action == 'snapshot':
             result = snapshot()
+        elif options.action == 'native-snapshot':
+            result = native_snapshot()
         else:
             service_action(options.action)
             result = {'action': options.action}
@@ -243,23 +279,28 @@ def main():
             flutter = shutil.which('flutter')
             if flutter is None:
                 raise RuntimeError('Flutter is unavailable.')
-            command = [flutter, 'test', 'test/core/privileged_helper_integration_test.dart', '--reporter', 'expanded']
-            try:
-                result = subprocess.run(
-                    command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, encoding='utf-8', errors='replace', timeout=480,
-                )
-                output = result.stdout
-                exit_code = result.returncode
-            except subprocess.TimeoutExpired as error:
-                output = error.stdout or b''
-                if isinstance(output, bytes):
-                    output = output.decode('utf-8', errors='replace')
+            exit_code = 0
+            for case, deadline in [('actual Helper owns one Core', 480), ('actual Helper-owned TUN', 660)]:
+                command = [flutter, 'test', 'test/core/privileged_helper_integration_test.dart',
+                           '--plain-name', case, '--reporter', 'expanded']
+                try:
+                    result = subprocess.run(
+                        command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, encoding='utf-8', errors='replace', timeout=deadline,
+                    )
+                    output = result.stdout
+                    exit_code = result.returncode
+                except subprocess.TimeoutExpired as error:
+                    output = error.stdout or b''
+                    if isinstance(output, bytes):
+                        output = output.decode('utf-8', errors='replace')
+                    evidence.write(output)
+                    raise RuntimeError(f'Helper case {case!r} exceeded its {deadline}-second deadline.') from error
                 evidence.write(output)
-                raise RuntimeError('Helper acceptance exceeded its eight-minute deadline.') from error
-            evidence.write(output)
-            evidence.flush()
-            print(output, end='', flush=True)
+                evidence.flush()
+                print(output, end='', flush=True)
+                if exit_code:
+                    break
             record('before-uninstall')
         finally:
             service_action('uninstall')
