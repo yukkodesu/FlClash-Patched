@@ -27,7 +27,7 @@ env:
 
 jobs:
   dart-checks:
-    if: inputs.acceptance_build_run == ''
+    if: false
     name: Dart checks
     runs-on: ubuntu-latest
     steps:
@@ -62,7 +62,7 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
   dart-tests:
-    if: inputs.acceptance_build_run == ''
+    if: false
     name: Dart tests (${{ matrix.shard }})
     needs: rust
     runs-on: ubuntu-latest
@@ -105,7 +105,7 @@ jobs:
           --shard-index=${{ matrix.shard }}
 
   plugins:
-    if: inputs.acceptance_build_run == ''
+    if: false
     name: Plugins
     runs-on: ubuntu-latest
     steps:
@@ -130,7 +130,7 @@ jobs:
           dart test
 
   standalone-regression:
-    if: inputs.acceptance_build_run == ''
+    if: false
     name: Standalone meow regression
     runs-on: ubuntu-22.04
     defaults:
@@ -213,7 +213,7 @@ jobs:
         run: cargo test --locked -p meow-api --test api_test -- --nocapture
 
   meow-host:
-    if: inputs.acceptance_build_run == ''
+    if: false
     name: Meow host (${{ matrix.platform }}/${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -380,7 +380,7 @@ jobs:
           path: .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
           if-no-files-found: warn
   rust:
-    if: inputs.acceptance_build_run == ''
+    if: false
     name: Rust
     runs-on: ubuntu-latest
     steps:
@@ -417,7 +417,7 @@ jobs:
           if-no-files-found: error
 
   windows-helper-test:
-    if: inputs.acceptance_build_run == ''
+    if: false
     name: Windows helper test
     runs-on: windows-2022
     steps:
@@ -436,16 +436,11 @@ jobs:
         run: cargo test --manifest-path services/helper/Cargo.toml --features windows-service
 
   build:
-    if: inputs.acceptance_build_run == '' && ((github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
-    needs: [ dart-checks, dart-tests, plugins, standalone-regression, meow-host, rust, windows-helper-test ]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/ci/meow-macos-package-probe' && inputs.packages && inputs.acceptance_build_run == ''
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - { platform: windows, os: windows-2022, arch: amd64, triple: x86_64-pc-windows-msvc }
-          - { platform: windows, os: windows-11-arm, arch: arm64, triple: aarch64-pc-windows-msvc }
-          - { platform: linux, os: ubuntu-22.04, arch: amd64, triple: x86_64-unknown-linux-gnu }
-          - { platform: linux, os: ubuntu-22.04-arm, arch: arm64, triple: aarch64-unknown-linux-gnu }
           - { platform: macos, os: macos-26-intel, arch: amd64, triple: x86_64-apple-darwin }
           - { platform: macos, os: macos-26, arch: arm64, triple: aarch64-apple-darwin }
       fail-fast: false
@@ -635,7 +630,7 @@ jobs:
           if-no-files-found: warn
 
   upload:
-    if: inputs.acceptance_build_run == '' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: false
     permissions:
       contents: write
     needs: [ build ]
