@@ -23,12 +23,12 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::time::Sleep;
 use tokio_stream::{Stream, StreamExt};
 
-const SERVICE_NAME: &str = "flclash-helper";
-const UNIT_PATH: &str = "/etc/systemd/system/flclash-helper.service";
-const RUNTIME_DIR_NAME: &str = "flclash";
-const SOCKET_PATH: &str = "/run/flclash/helper.sock";
-const OWNER_UID_ENV: &str = "FLCLASH_HELPER_OWNER_UID";
-const OWNER_GID_ENV: &str = "FLCLASH_HELPER_OWNER_GID";
+const SERVICE_NAME: &str = "flclash-meow-helper";
+const UNIT_PATH: &str = "/etc/systemd/system/flclash-meow-helper.service";
+const RUNTIME_DIR_NAME: &str = "flclash-meow";
+const SOCKET_PATH: &str = "/run/flclash-meow/helper.sock";
+const OWNER_UID_ENV: &str = "FLCLASH_MEOW_HELPER_OWNER_UID";
+const OWNER_GID_ENV: &str = "FLCLASH_MEOW_HELPER_OWNER_GID";
 const SOCKET_MODE: u32 = 0o660;
 const ACCEPT_RETRY_DELAY: Duration = Duration::from_secs(1);
 
@@ -156,7 +156,7 @@ fn quoted_unit_argument(path: &Path) -> String {
 fn unit_contents(executable: &Path, owner: Owner) -> String {
     format!(
         "[Unit]\n\
-         Description=FlClash Helper starts the FlClash Core with the privileges TUN mode needs.\n\
+         Description=FlClash-Meow Helper starts the FlClash-Meow Core with the privileges TUN mode needs.\n\
          After=network-online.target nftables.service iptables.service\n\
          StartLimitIntervalSec=60\n\
          StartLimitBurst=5\n\
@@ -196,7 +196,7 @@ fn ensure_unit_is_free_for(owner: Owner) -> Result<()> {
     match installed_owner_uid(&existing) {
         Some(uid) if uid != owner.uid => bail!(
             "the Helper is already installed for UID {uid}; \
-             run `FlClashHelperService uninstall` as that user first"
+             run `FlClashMeowHelperService uninstall` as that user first"
         ),
         _ => Ok(()),
     }
@@ -384,18 +384,18 @@ mod tests {
     #[test]
     fn unit_names_the_owner_and_the_helper_it_starts() {
         let unit = unit_contents(
-            Path::new("/opt/FlClash/FlClashHelperService"),
+            Path::new("/opt/FlClash-Meow/FlClashMeowHelperService"),
             Owner {
                 uid: 1000,
                 gid: 1001,
             },
         );
 
-        assert!(unit.contains("ExecStart=\"/opt/FlClash/FlClashHelperService\"\n"));
+        assert!(unit.contains("ExecStart=\"/opt/FlClash-Meow/FlClashMeowHelperService\"\n"));
         assert!(unit.contains("Group=1001\n"));
-        assert!(unit.contains("Environment=FLCLASH_HELPER_OWNER_UID=1000\n"));
-        assert!(unit.contains("Environment=FLCLASH_HELPER_OWNER_GID=1001\n"));
-        assert!(unit.contains("RuntimeDirectory=flclash\n"));
+        assert!(unit.contains("Environment=FLCLASH_MEOW_HELPER_OWNER_UID=1000\n"));
+        assert!(unit.contains("Environment=FLCLASH_MEOW_HELPER_OWNER_GID=1001\n"));
+        assert!(unit.contains("RuntimeDirectory=flclash-meow\n"));
         assert!(unit.contains("Restart=on-failure\n"));
         assert!(unit.contains("StartLimitBurst=5\n"));
     }
@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn reads_the_owner_back_out_of_an_installed_unit() {
         let unit = unit_contents(
-            Path::new("/opt/FlClash/FlClashHelperService"),
+            Path::new("/opt/FlClash-Meow/FlClashMeowHelperService"),
             Owner {
                 uid: 1000,
                 gid: 1001,
