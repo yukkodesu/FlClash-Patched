@@ -49,14 +49,14 @@ callers must not try to reuse a closed platform implementation.
 
 Application exit is centralized in `SystemAction` and `SystemExitCoordinator`:
 
-1. Optionally save config and clean up DNS, system proxy, and tray resources in parallel.
+1. Start optional preference saving, shut down the tray, then await preference saving, system DNS and proxy cleanup.
 2. Close the desktop window.
 3. Call terminal `CoreController.close()`.
 4. Exit the application exactly once.
 
 The coordinator is idempotent, continues later cleanup steps after an earlier error, preserves the first error for the
-caller, and uses a three-second watchdog as an emergency application-exit path. `Application.dispose()` and
-`CoreManager.onCrash()` do not independently destroy Core; this avoids competing shutdown owners.
+caller, and uses the 60-second `SystemAction.exitWatchdogDuration` as an emergency application-exit path.
+`Application.dispose()` and `CoreManager.onCrash()` do not independently destroy Core; this avoids competing shutdown owners.
 
 ### Desktop Lifecycle
 
@@ -69,9 +69,12 @@ caller, and uses a three-second watchdog as an emergency application-exit path. 
 - Startup opens or replaces the IPC transport, resolves a launcher, generates a 128-bit lowercase hexadecimal session ID,
   launches Core, and waits for the matching connection. Windows additionally verifies that the named-pipe peer PID equals
   the process PID returned by the Helper lease.
-- Each running session retains its process owner, lease, PID, session ID, and transport connection generation. Stop waits
-  for both process-exit confirmation and the matching disconnect generation; a missing disconnect replaces the transport
-  before later starts.
+- Each running session retains its process owner, lease, PID, session ID, and transport connection generation. Stop first
+  uses `CoreRpcClient.shutdownSession` on that generation, with the default 30-second graceful shutdown budget, then waits
+  up to two seconds for process exit before lease teardown. A missing disconnect replaces the transport before later starts.
+- A shutdown acknowledgement confirms runtime cleanup; process exit alone does not. An unconfirmed cleanup is retained
+  as `resources_release_unconfirmed` and blocks reusable start/restart, even if the process has exited. The host also
+  retains its staged/retired Runtime resources until restoration succeeds; forced termination can require journal recovery.
 - An unconfirmed process exit is retained as an unconfirmed lease. New start/restart intents fail until ownership can be
   cleaned up, preventing two Core instances from being treated as the active session. Terminal close may continue on a
   best-effort basis because the application is exiting.
@@ -454,11 +457,13 @@ targets on first use.
   to Dart. Linux is X11 only; a Wayland session without XWayland gets an error rather than a silent no-op.
 
 What a platform does not use, it does not compile. `interprocess` and `global-hotkey` are declared under
-`cfg(not(target_os = "android"))`, and `ipc/mod.rs` and `hotkey/mod.rs` swap in their `unsupported.rs` there, because
-Those Android gates are retained source and are outside the desktop release scope. Adding a capability follows the same
+`cfg(not(any(target_os = "android", target_os = "ios")))`, and `ipc/mod.rs` and `hotkey/mod.rs` use their
+`unsupported.rs` implementations on those mobile targets.
+Those gates are retained source and are outside the desktop release scope. Adding a desktop capability follows the same
 shape: implement it in its own module, gate the dependency by target, and keep the `api/` entry point unconditional.
 
-`RustLib.init()` runs on every platform now, not only desktop — the script engine is shared.
+`RustLib.init()` initializes the runtime library for this desktop product. Legacy mobile initialization is retained source,
+not evidence of mobile product support.
 
 ## Profile Script Engine
 
@@ -467,8 +472,8 @@ returns the JSON the script produced. Nothing about the script runs in Dart.
 
 - QuickJS is compiled from source for the target being built, which is what removed the prebuilt `quickjs-c-bridge`
   binaries: `flutter_js` shipped x64 Windows and desktop-only libraries, so Windows ARM64 could not start (#2361).
-- `rquickjs` carries pre-generated bindings for every target this project builds except the Android and iOS ones, so those
-  builds enable its `bindgen` feature. That needs the NDK's own libclang and sysroot: `native_toolchain_rust` exports
+- The retained mobile hook enables `rquickjs`'s `bindgen` feature for Android/iOS. Its Android path needs the NDK's own
+  libclang and sysroot: `native_toolchain_rust` exports
   the sysroot through `BINDGEN_EXTRA_CLANG_ARGS_<target>`, and `hook/build.dart` adds `LIBCLANG_PATH` from the NDK
   toolchain Flutter hands the hook, because bindgen otherwise loads whatever libclang the host has, or none.
 - Evaluation is bounded: a 10-second interrupt deadline and a memory ceiling, because a script that never returns would
@@ -537,14 +542,17 @@ it never hashes the Core. Protocol version 6 uses 32-character lowercase-hex ses
 - `GET /ping?coreSha256=...` returns the current Helper executable path with `x-flclash-helper-protocol` when the
   requested SHA matches.
 - `POST /start` rejects unknown JSON fields, validates `{address, sessionId}`, then releases any previously managed Core
-  before verifying the Core — so every outcome, including a rejected one, leaves the Helper owning no Core — and returns
-  `{sessionId, pid}`.
+  before verifying the new Core. It returns `{sessionId, pid}` after successful launch. If release cannot be confirmed,
+  it retains the previous child and returns `coreStopFailed`; after confirmed release, failed verification leaves no child.
 - `POST /stop` validates `{sessionId}` and only stops the matching managed Core. A session mismatch is HTTP 409.
+  Success confirms child exit; failed termination retains ownership and returns `coreStopFailed` rather than permitting
+  a competing direct-launch fallback.
 - `GET /logs` exposes the bounded recent Helper/Core stderr buffer with `no-store` caching.
 
 Endpoints bind only to `127.0.0.1:47891` on Windows and to `/run/flclash-meow/helper.sock` on Linux, and do not use
 request-token authentication. Lifecycle safety comes from the fixed executable/hash, the strict address namespace
 (`\\.\pipe\FlClashMeowCore_<32 hex>` on Windows, `/tmp/FlClashMeowSocket_<digits>.sock` on Linux), the session-scoped stop
 contract, Dart-side peer-PID verification on Windows and, on Unix, the Core socket that `plugins/rust_api` sets to
-mode `0600` so only the owning user (and the root-effective Core) can connect. When the Helper service itself shuts
-down, it unconditionally stops the Core process it owns; under systemd the unit's control group does the same.
+mode `0600` so only the owning user (and the root-effective Core) can connect. Helper service shutdown attempts owned Core
+teardown and reports failure when termination cannot be confirmed. Windows Job Object and systemd control-group ownership
+also bind the child's lifetime to its Helper service.

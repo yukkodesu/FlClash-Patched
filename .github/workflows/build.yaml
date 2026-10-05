@@ -7,6 +7,10 @@ on:
         description: Build desktop installation packages after validation
         type: boolean
         default: true
+      acceptance_build_run:
+        description: Accept existing desktop package artifacts from this build run ID; empty runs normal validation/build
+        type: string
+        default: ''
   push:
     branches:
       - '**'
@@ -23,6 +27,7 @@ env:
 
 jobs:
   dart-checks:
+    if: inputs.acceptance_build_run == ''
     name: Dart checks
     runs-on: ubuntu-latest
     steps:
@@ -57,6 +62,7 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
   dart-tests:
+    if: inputs.acceptance_build_run == ''
     name: Dart tests (${{ matrix.shard }})
     needs: rust
     runs-on: ubuntu-latest
@@ -99,6 +105,7 @@ jobs:
           --shard-index=${{ matrix.shard }}
 
   plugins:
+    if: inputs.acceptance_build_run == ''
     name: Plugins
     runs-on: ubuntu-latest
     steps:
@@ -123,6 +130,7 @@ jobs:
           dart test
 
   meow-host:
+    if: inputs.acceptance_build_run == ''
     name: Meow host (${{ matrix.platform }}/${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -228,6 +236,7 @@ jobs:
           path: .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
           if-no-files-found: warn
   rust:
+    if: inputs.acceptance_build_run == ''
     name: Rust
     runs-on: ubuntu-latest
     steps:
@@ -264,6 +273,7 @@ jobs:
           if-no-files-found: error
 
   windows-helper-test:
+    if: inputs.acceptance_build_run == ''
     name: Windows helper test
     runs-on: windows-2022
     steps:
@@ -282,7 +292,7 @@ jobs:
         run: cargo test --manifest-path services/helper/Cargo.toml --features windows-service
 
   build:
-    if: (github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    if: inputs.acceptance_build_run == '' && ((github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
     needs: [ dart-checks, dart-tests, plugins, meow-host, rust, windows-helper-test ]
     runs-on: ${{ matrix.os }}
     strategy:
@@ -368,8 +378,103 @@ jobs:
           path: ./dist
           overwrite: true
 
+  package-acceptance:
+    name: Installed package (${{ matrix.platform }}/${{ matrix.arch }})
+    if: github.event_name == 'workflow_dispatch' && inputs.acceptance_build_run != ''
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows, os: windows-2022, arch: amd64 }
+          - { platform: windows, os: windows-11-arm, arch: arm64 }
+          - { platform: linux, os: ubuntu-22.04, arch: amd64 }
+          - { platform: linux, os: ubuntu-22.04-arm, arch: arm64 }
+          - { platform: macos, os: macos-26-intel, arch: amd64 }
+          - { platform: macos, os: macos-26, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify artifact build provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.acceptance_build_run }}
+        run: |
+          [[ "$RUNNER_ENVIRONMENT" == github-hosted ]]
+          [[ "$BUILD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          mkdir -p build/package-acceptance
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > build/package-acceptance/build-run.json
+          BUILD_CLIENT_SHA="$(python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          metadata = json.loads(Path('build/package-acceptance/build-run.json').read_text())
+          repository = os.environ['GITHUB_REPOSITORY']
+          if (str(metadata['id']) != os.environ['BUILD_RUN_ID']
+              or metadata['repository']['full_name'] != repository
+              or metadata['head_repository']['full_name'] != repository
+              or metadata['path'] != '.github/workflows/build.yaml'
+              or metadata['event'] not in ('push', 'workflow_dispatch')
+              or metadata['status'] != 'completed'
+              or not re.fullmatch('[0-9a-f]{40}', metadata['head_sha'])):
+              raise SystemExit('Rejecting an incomplete, foreign or unexpected artifact build source')
+          print(metadata['head_sha'])
+          PY
+          )"
+          git fetch --no-tags origin "$BUILD_CLIENT_SHA"
+          test "$(git rev-parse --verify "$BUILD_CLIENT_SHA^{commit}")" = "$BUILD_CLIENT_SHA"
+          BUILD_CORE_SHA="$(git rev-parse "$BUILD_CLIENT_SHA:core/meow-rs")"
+          [[ "$BUILD_CORE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git ls-tree "$BUILD_CLIENT_SHA" core/meow-rs | cut -d ' ' -f 1)" = 160000
+          echo "BUILD_CLIENT_SHA=$BUILD_CLIENT_SHA" >> "$GITHUB_ENV"
+          echo "BUILD_CORE_SHA=$BUILD_CORE_SHA" >> "$GITHUB_ENV"
+          echo "BUILD_RUN_ID=$BUILD_RUN_ID" >> "$GITHUB_ENV"
+      - name: Download the verified build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: artifact-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist
+          run-id: ${{ inputs.acceptance_build_run }}
+          github-token: ${{ github.token }}
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Prepare installed-library CoreController test
+        shell: bash
+        run: |
+          flutter pub get
+          python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
+      - name: Prepare disposable Linux desktop
+        if: matrix.platform == 'linux'
+        run: sudo apt-get install -y xvfb openbox xdotool scrot dbus-x11 python3-gi libgtk-3-0 libayatana-appindicator3-1
+      - name: Install and accept actual artifact
+        shell: bash
+        env:
+          PACKAGE_PLATFORM: ${{ matrix.platform }}
+          PACKAGE_ARCH: ${{ matrix.arch }}
+        run: |
+          if [[ "$PACKAGE_PLATFORM" == linux ]]; then
+            dbus-run-session -- xvfb-run -a bash -c 'openbox > /tmp/meow-package-openbox.log 2>&1 & exec /usr/bin/python3 tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl'
+          else
+            python tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl
+          fi
+      - name: Upload native package evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/package-acceptance
+          if-no-files-found: warn
+
   upload:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: inputs.acceptance_build_run == '' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     needs: [ build ]
