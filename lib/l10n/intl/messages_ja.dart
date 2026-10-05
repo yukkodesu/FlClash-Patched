@@ -769,6 +769,24 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "memoryStacks": MessageLookupByLibrary.simpleMessage("スタック"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage("Go メモリ使用量"),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "meow-rs は AGE 暗号化設定に対応していません。復号した YAML 設定をインポートしてください。",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("全トラフィック"),
+    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage("設定の互換性"),
+    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage("コアの機能"),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "開始する前にプロファイルを選択してください。",
+    ),
+    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
+      "全トラフィックを集計。接続スナップショットは TCP のみ",
+    ),
+    "meowTcpConnections": MessageLookupByLibrary.simpleMessage("TCP 接続"),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP のみ"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage("全体 IPv4（実験的）"),
+    "meowTunScope": MessageLookupByLibrary.simpleMessage(
+      "Fake-IP は DNS 合成アドレスのみを対象にします。全体モードは IPv4 を対象とする実験機能です。IPv6 の取得には設定で明示的に指定してください。",
+    ),
     "messageTest": MessageLookupByLibrary.simpleMessage("メッセージテスト"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("これはメッセージです。"),
     "min": MessageLookupByLibrary.simpleMessage("最小"),

@@ -16,7 +16,10 @@ class CoreAction extends _$CoreAction {
     final version = ref.read(versionProvider);
     if (!isInit) {
       final res = await _core.init(version);
-      commonPrint.log('init result: $res');
+      if (!res) throw StateError('Core initialization failed.');
+      ref.read(coreIdentityProvider.notifier).value = await _core.getCoreInfo();
+      ref.read(runtimeStatusProvider.notifier).value = await _core
+          .getRuntimeState();
     } else {
       await ref.read(proxiesActionProvider.notifier).updateGroups();
     }
@@ -47,23 +50,10 @@ class CoreAction extends _$CoreAction {
     return _core.restart();
   }
 
-  // Nothing in lib/ calls CoreController.stop(); only close() (app exit)
-  // supersedes a start/restart. statusFirst lets onCrash catch a crash
-  // during initCore itself (it early-returns unless status is connected).
-  Future<bool> _applyLifecycleResult(
-    CoreLifecycleResult result, {
-    bool statusFirst = false,
-  }) async {
-    if (result.outcome == CoreLifecycleOutcome.superseded) {
-      return false;
-    }
-    if (statusFirst) {
-      ref.read(coreStatusProvider.notifier).value = CoreStatus.connected;
-      await initCore();
-    } else {
-      await initCore();
-      ref.read(coreStatusProvider.notifier).value = CoreStatus.connected;
-    }
+  Future<bool> _applyLifecycleResult(CoreLifecycleResult result) async {
+    if (result.outcome == CoreLifecycleOutcome.superseded) return false;
+    await initCore();
+    ref.read(coreStatusProvider.notifier).value = CoreStatus.connected;
     return true;
   }
 
@@ -99,7 +89,7 @@ class CoreAction extends _$CoreAction {
     try {
       ref.read(coreStatusProvider.notifier).value = CoreStatus.connecting;
       final result = await restartLifecycle();
-      if (!await _applyLifecycleResult(result, statusFirst: true)) {
+      if (!await _applyLifecycleResult(result)) {
         return false;
       }
 
@@ -107,7 +97,7 @@ class CoreAction extends _$CoreAction {
       var applied = true;
       while (appliedRevision < _requestedRestartRevision) {
         final revision = _requestedRestartRevision;
-        if (ref.read(isStartProvider)) {
+        if (ref.read(requestedRunningProvider) || ref.read(isStartProvider)) {
           applied = await ref
               .read(setupActionProvider.notifier)
               .setRunning(true, initialize: true);

@@ -24,6 +24,9 @@ class SetupAction extends _$SetupAction {
   final _listenerScheduler = SerialTaskScheduler();
   _RunRequest? _latestRunRequest;
   DateTime? _startTime;
+  int _profileRevision = 0;
+  ({String yaml, String md5, SetupParams params})? _lastGoodConfig;
+  PatchClashConfig? _appliedPatch;
 
   bool get _isRunning => _startTime != null && _startTime!.isBeforeNow;
 
@@ -59,6 +62,7 @@ class SetupAction extends _$SetupAction {
   }
 
   void syncRunningState(bool running, {DateTime? startTime}) {
+    ref.read(requestedRunningProvider.notifier).value = running;
     final changed = ref.read(isStartProvider) != running;
     if (running && startTime != null) {
       _startTime = startTime;
@@ -134,7 +138,8 @@ class SetupAction extends _$SetupAction {
       previousStartTime: _startTime,
     );
     _latestRunRequest = request;
-    _setLocalRunning(running);
+    ref.read(requestedRunningProvider.notifier).value = running;
+    if (!running) _setLocalRunning(false);
     if (request.initialize) {
       globalState.needInitStatus = false;
     }
@@ -195,7 +200,22 @@ class SetupAction extends _$SetupAction {
       if (request.running && ref.read(suspendProvider)) {
         return;
       }
-      await setCoreRunning(request.running);
+      final applied = await setCoreRunning(request.running);
+      if (!applied) throw StateError('Listener transition was rejected.');
+      if (_isCurrent(request)) _setLocalRunning(request.running);
+    });
+  }
+
+  Future<void> reconcileSuspension() {
+    final request = _latestRunRequest;
+    if (request == null) return Future.value();
+    return _listenerScheduler.run(() async {
+      if (!_isCurrent(request)) return;
+      final running = request.running && !ref.read(suspendProvider);
+      if (!await setCoreRunning(running)) {
+        throw StateError('Suspension transition was rejected.');
+      }
+      if (_isCurrent(request)) _setLocalRunning(running);
     });
   }
 
@@ -204,6 +224,7 @@ class SetupAction extends _$SetupAction {
       return;
     }
     _startTime = request.previousStartTime;
+    ref.read(requestedRunningProvider.notifier).value = !request.running;
     _setLocalRunning(!request.running);
   }
 
@@ -214,8 +235,14 @@ class SetupAction extends _$SetupAction {
   }
 
   @protected
-  Future<bool> setCoreRunning(bool running) {
-    return running ? _core.startListener() : _core.stopListener();
+  Future<bool> setCoreRunning(bool running) async {
+    final applied = await (running
+        ? _core.startListener()
+        : _core.stopListener());
+    if (!applied) return false;
+    final runtime = await _core.getRuntimeState();
+    ref.read(runtimeStatusProvider.notifier).value = runtime;
+    return runtime.running == running;
   }
 
   @protected
@@ -226,19 +253,40 @@ class SetupAction extends _$SetupAction {
   @visibleForTesting
   Future<void> updateConfig() async {
     await globalState.safeRun(() async {
-      final updateParams = ref.read(updateParamsProvider);
-      final shouldContinueSetup = await requestAdmin(updateParams.tun.enable);
-      if (!shouldContinueSetup) {
+      final patch = ref.read(patchClashConfigProvider);
+      if (!await requestAdmin(patch.tun.enable)) {
         await _restartCoreAfterAuthorization();
         return;
       }
-      final message = await _core.updateConfig(
-        updateParams.copyWith.tun(
-          enable: _getEffectiveTunEnable(updateParams.tun.enable),
-        ),
-      );
-      ref.read(checkIpNumProvider.notifier).add();
-      if (message.isNotEmpty) throw MessageException(message);
+      final updated = await _setupScheduler.run(() async {
+        final applied = _appliedPatch;
+        if (applied == null ||
+            applied.copyWith(mode: patch.mode, logLevel: patch.logLevel) !=
+                patch) {
+          return false;
+        }
+        final message = await _core.updateConfig(
+          ref.read(updateParamsProvider),
+        );
+        if (message.isNotEmpty) throw MessageException(message);
+        final previous = _lastGoodConfig;
+        if (previous != null) {
+          final config = Map<String, dynamic>.from(
+            yaml_parser.loadYaml(previous.yaml) as Map,
+          );
+          config['mode'] = patch.mode.name;
+          config['log-level'] = patch.logLevel.name;
+          final yaml = await encodeYamlTask(config);
+          final md5 = yaml.toMd5();
+          await File(await appPath.configFilePath).safeWriteAsString(yaml);
+          _lastGoodConfig = (yaml: yaml, md5: md5, params: previous.params);
+          globalState.lastConfigMd5 = md5;
+        }
+        _appliedPatch = patch;
+        ref.read(checkIpNumProvider.notifier).add();
+        return true;
+      });
+      if (!updated) await applyProfile(force: true);
     });
   }
 
@@ -275,16 +323,14 @@ class SetupAction extends _$SetupAction {
     });
   }
 
-  // False means building the profile, the config write, or the Core setup
-  // step failed; a profile that fails to build is still pushed to the Core
-  // as the empty config so it never keeps serving the previous one.
-  // authorizeCore failures still throw.
   Future<bool> applyProfile({
     bool silence = false,
     bool force = false,
     Future<void> Function()? preloadInvoke,
   }) async {
+    final revision = ++_profileRevision;
     final result = await _runSetup(
+      revision: revision,
       force: force,
       silence: silence,
       preloadInvoke: preloadInvoke,
@@ -293,12 +339,14 @@ class SetupAction extends _$SetupAction {
   }
 
   Future<_SetupTaskResult> _runSetup({
+    required int revision,
     bool silence = false,
     bool force = false,
     Future<void> Function()? preloadInvoke,
   }) async {
     final result = await _setupScheduler.run(() {
       return _setupConfig(
+        revision: revision,
         force: force,
         silence: silence,
         preloadInvoke: preloadInvoke,
@@ -459,6 +507,7 @@ class SetupAction extends _$SetupAction {
   }
 
   Future<_SetupTaskResult> _setupConfig({
+    required int revision,
     bool force = false,
     bool silence = false,
     Future<void> Function()? preloadInvoke,
@@ -489,16 +538,33 @@ class SetupAction extends _$SetupAction {
       final setupState = await ref.read(setupStateProvider(profile?.id).future);
       return getProfile(setupState: setupState, patchConfig: realPatchConfig);
     }, title: 'build profile');
-    final profileFailed = realProfile == null;
-    final yamlString = realProfile?.yaml ?? '';
-    final yamlMd5 = realProfile?.md5 ?? '';
-    if (!profileFailed && yamlMd5 == globalState.lastConfigMd5 && !force) {
-      return _SetupTaskResult.completed;
+    if (realProfile == null) return _SetupTaskResult.failed;
+    if (revision != _profileRevision) return _SetupTaskResult.completed;
+    final yamlString = realProfile.yaml;
+    final yamlMd5 = realProfile.md5;
+    if (yamlString.isEmpty && preloadInvoke != null) {
+      dialogs.showNotifier(
+        currentAppLocalizations.meowNoProfile,
+        level: MessageLevel.error,
+      );
+      return _SetupTaskResult.failed;
     }
-    if (system.isAndroid) {
-      globalState.lastVpnOptions = ref.read(vpnOptionsProvider);
-      final sharedState = ref.read(sharedStateProvider);
-      await preferences.saveShareState(sharedState);
+    final checked = await _core.checkConfig(yamlString);
+    if (revision != _profileRevision) return _SetupTaskResult.completed;
+    ref.read(configurationDiagnosticsProvider.notifier).value =
+        checked.diagnostics;
+    if (!checked.valid) {
+      dialogs.showNotifier(
+        checked.diagnostics
+            .map((item) => '${item.path}: ${item.reason} ${item.suggestion}')
+            .join('\n'),
+        level: MessageLevel.error,
+        allowCopy: true,
+      );
+      return _SetupTaskResult.failed;
+    }
+    if (yamlMd5 == globalState.lastConfigMd5 && !force) {
+      return _SetupTaskResult.completed;
     }
     // Recaptured so _start's catch can roll back after safeRun swallows it.
     (Object, StackTrace)? handoffFailure;
@@ -507,17 +573,66 @@ class SetupAction extends _$SetupAction {
       () async {
         try {
           final configFilePath = await appPath.configFilePath;
-          await File(configFilePath).safeWriteAsString(yamlString);
-          final profileId = profile?.id;
-          if (profileId != null) {
-            await appPath.ensureProviderDirs(profileId);
-          }
-          final message = await _core.setupConfig(
-            params: _setupParams,
-            preloadInvoke: preloadInvoke,
-          );
-          if (message.isNotEmpty) {
-            throw MessageException(message);
+          final previous = _lastGoodConfig;
+          final runtime = await _core.getRuntimeState();
+          final shouldRestart =
+              runtime.configured && yamlMd5 != globalState.lastConfigMd5;
+          if (revision != _profileRevision) return;
+          try {
+            await File(configFilePath).safeWriteAsString(yamlString);
+            final profileId = profile?.id;
+            if (profileId != null) await appPath.ensureProviderDirs(profileId);
+            if (shouldRestart) {
+              final result = await _listenerScheduler.run(_core.restart);
+              if (result.outcome == CoreLifecycleOutcome.superseded ||
+                  revision != _profileRevision) {
+                return;
+              }
+              if (!await _core.init(ref.read(versionProvider))) {
+                throw StateError('Core initialization failed.');
+              }
+            }
+            final message = await _core.setupConfig(
+              params: _setupParams,
+              preloadInvoke: preloadInvoke,
+            );
+            if (message.isNotEmpty) throw MessageException(message);
+            if (revision != _profileRevision) return;
+            if (shouldRestart && preloadInvoke == null) {
+              final request = _latestRunRequest;
+              if (request?.running == true) await _setCoreRunning(request!);
+            }
+            ref.read(runtimeStatusProvider.notifier).value = await _core
+                .getRuntimeState();
+            _lastGoodConfig = (
+              yaml: yamlString,
+              md5: yamlMd5,
+              params: _setupParams,
+            );
+            _appliedPatch = patchConfig;
+          } catch (_) {
+            if (previous != null && revision == _profileRevision) {
+              await File(configFilePath).safeWriteAsString(previous.yaml);
+              if (_latestRunRequest?.running == false) rethrow;
+              final restored = await _listenerScheduler.run(_core.restart);
+              if (restored.outcome != CoreLifecycleOutcome.superseded &&
+                  revision == _profileRevision) {
+                if (!await _core.init(ref.read(versionProvider))) {
+                  throw StateError('Previous core initialization failed.');
+                }
+                final restoreMessage = await _core.setupConfig(
+                  params: previous.params,
+                );
+                if (restoreMessage.isNotEmpty) {
+                  throw MessageException(restoreMessage);
+                }
+                final request = _latestRunRequest;
+                if (request?.running == true) await _setCoreRunning(request!);
+                ref.read(runtimeStatusProvider.notifier).value = await _core
+                    .getRuntimeState();
+              }
+            }
+            rethrow;
           }
         } catch (e, s) {
           setupFailed = true;
@@ -526,6 +641,7 @@ class SetupAction extends _$SetupAction {
           }
           rethrow;
         }
+        if (revision != _profileRevision) return;
         globalState.lastConfigMd5 = yamlMd5;
         ref.read(checkIpNumProvider.notifier).add();
         await onUpdated?.call();
@@ -536,7 +652,7 @@ class SetupAction extends _$SetupAction {
     if (handoffFailure != null) {
       Error.throwWithStackTrace(handoffFailure!.$1, handoffFailure!.$2);
     }
-    if (setupFailed || profileFailed) {
+    if (setupFailed) {
       return _SetupTaskResult.failed;
     }
     return _SetupTaskResult.completed;

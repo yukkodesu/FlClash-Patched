@@ -232,6 +232,8 @@ enum TrackerInfoSortType {
   proxyChains,
 }
 
+enum TunRouteMode { fakeIp, globalExperimental }
+
 enum TunStack { mips, gvisor, system, mixed }
 
 enum TunCongestionController { cubic, reno, bbr, bbr3 }

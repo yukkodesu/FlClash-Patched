@@ -89,7 +89,7 @@ final class TrayStateProvider
   }
 }
 
-String _$trayStateHash() => r'efabd100f77744ce58b6167096b5a24e605f2708';
+String _$trayStateHash() => r'682abf50a936770d44be8fb6a282f3ea616c92ba';
 
 @ProviderFor(vpnState)
 final vpnStateProvider = VpnStateProvider._();
@@ -348,7 +348,7 @@ final class ShouldPatchSystemDnsProvider
 }
 
 String _$shouldPatchSystemDnsHash() =>
-    r'73e86e60067acc55dd1cce0ea7f2d09899bbf119';
+    r'f992c3fcd6f24b0bf807d92bf0353a0464b77051';
 
 @ProviderFor(sharedState)
 final sharedStateProvider = SharedStateProvider._();
@@ -389,7 +389,7 @@ final class SharedStateProvider
   }
 }
 
-String _$sharedStateHash() => r'23eea64489ef6b8d99897050a0f9d71f54a2700c';
+String _$sharedStateHash() => r'adea416ae158faefe40696447e2f6d034c408333';
 
 @ProviderFor(AccessControlState)
 final accessControlStateProvider = AccessControlStateProvider._();
@@ -2487,7 +2487,7 @@ final class NavigationItemsStateProvider
 }
 
 String _$navigationItemsStateHash() =>
-    r'e9cb5ec32dc64c3627b935addfc038530e4e43b5';
+    r'9c49e33801f38de35ffef5fa8cf1aabc636939da';
 
 @ProviderFor(currentNavigationItemsState)
 final currentNavigationItemsStateProvider =
@@ -2619,7 +2619,7 @@ final class DashboardStateProvider
   }
 }
 
-String _$dashboardStateHash() => r'33838f85f2b6a0ab601891aa2f26adc8870302b6';
+String _$dashboardStateHash() => r'3eb3dd7e917c3c96d3321f0dca6f88ac0d2a843a';
 
 @ProviderFor(moreToolsSelectorState)
 final moreToolsSelectorStateProvider = MoreToolsSelectorStateProvider._();

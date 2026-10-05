@@ -17,6 +17,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:yaml/yaml.dart' as yaml_parser;
 
 part 'actions/common.dart';
 part 'actions/setup.dart';

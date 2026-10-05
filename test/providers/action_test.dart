@@ -459,7 +459,7 @@ void main() {
 
   group('SetupAction', () {
     group('rapid status changes', () {
-      test('updates runtime and traffic while core start is pending', () async {
+      test('reports a run only after the listener is ready', () async {
         final startCompleter = Completer<bool>();
         final container = ProviderContainer(
           overrides: [
@@ -476,11 +476,11 @@ void main() {
         action.startCompleter = startCompleter;
 
         final startFuture = action.setRunning(true);
-        final initialRunTime = container.read(runTimeProvider)!;
-        await Future<void>.delayed(const Duration(milliseconds: 1100));
+        await Future<void>.delayed(Duration.zero);
 
-        expect(container.read(runTimeProvider), greaterThan(initialRunTime));
-        expect(commonAction.updateTrafficCount, greaterThanOrEqualTo(2));
+        expect(container.read(runTimeProvider), isNull);
+        expect(container.read(requestedRunningProvider), isTrue);
+        expect(commonAction.updateTrafficCount, 0);
 
         startCompleter.complete(true);
         await startFuture;
@@ -512,7 +512,8 @@ void main() {
 
         final startFuture = action.setRunning(true);
 
-        expect(container.read(runTimeProvider), isNotNull);
+        expect(container.read(runTimeProvider), isNull);
+        expect(container.read(requestedRunningProvider), isTrue);
 
         stopCompleter.complete(true);
         await Future.wait([stopFuture, startFuture]);
@@ -632,7 +633,8 @@ void main() {
           await action.setRunning(true);
 
           expect(action.transitions, isEmpty);
-          expect(container.read(isStartProvider), isTrue);
+          expect(container.read(isStartProvider), isFalse);
+          expect(container.read(requestedRunningProvider), isTrue);
           expect(action.applyProfileDebounceCount, 1);
 
           await action.setRunning(false);

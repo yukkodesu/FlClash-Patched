@@ -844,9 +844,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Введите содержимое правила",
     ),
-    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
-      "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
-    ),
+    "installedAppsPermissionDeniedMessage":
+        MessageLookupByLibrary.simpleMessage(
+          "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
+        ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "Эта система не выдаёт список установленных приложений без разрешения. Предоставьте его, чтобы настроить прокси для отдельных приложений.",
     ),
@@ -977,6 +978,32 @@ class MessageLookup extends MessageLookupByLibrary {
     "memoryStacks": MessageLookupByLibrary.simpleMessage("Стеки"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage(
       "Использование памяти Go",
+    ),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "meow-rs не поддерживает профили с шифрованием AGE. Импортируйте расшифрованный профиль YAML.",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("Весь трафик"),
+    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage(
+      "Совместимость конфигурации",
+    ),
+    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage(
+      "Возможности ядра",
+    ),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "Выберите профиль перед запуском.",
+    ),
+    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
+      "Весь трафик; снимки соединений содержат только TCP",
+    ),
+    "meowTcpConnections": MessageLookupByLibrary.simpleMessage(
+      "TCP-соединения",
+    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Только Fake-IP"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage(
+      "Глобальный IPv4 (экспериментальный)",
+    ),
+    "meowTunScope": MessageLookupByLibrary.simpleMessage(
+      "Fake-IP перехватывает только синтетические адреса DNS. Глобальный режим перехватывает IPv4 и является экспериментальным. Для IPv6 требуется явная настройка профиля.",
     ),
     "messageTest": MessageLookupByLibrary.simpleMessage("Тест сообщения"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("Это сообщение."),

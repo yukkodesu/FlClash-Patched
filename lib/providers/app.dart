@@ -4,6 +4,7 @@ import 'dart:ui' show Locale;
 
 import 'package:dio/dio.dart';
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/core/info.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/plugins/service.dart';
@@ -15,6 +16,32 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:wifi_ssid/wifi_ssid.dart';
 
 part 'generated/app.g.dart';
+
+@Riverpod(keepAlive: true)
+class RequestedRunning extends _$RequestedRunning
+    with AutoDisposeNotifierMixin {
+  @override
+  bool build() => false;
+}
+
+@Riverpod(keepAlive: true)
+class RuntimeStatus extends _$RuntimeStatus with AutoDisposeNotifierMixin {
+  @override
+  CoreRuntimeState? build() => null;
+}
+
+@Riverpod(keepAlive: true)
+class CoreIdentity extends _$CoreIdentity with AutoDisposeNotifierMixin {
+  @override
+  CoreInfo? build() => null;
+}
+
+@Riverpod(keepAlive: true)
+class ConfigurationDiagnostics extends _$ConfigurationDiagnostics
+    with AutoDisposeNotifierMixin {
+  @override
+  List<ConfigDiagnostic> build() => const [];
+}
 
 @Riverpod(keepAlive: true)
 class AuthorizedTunEnable extends _$AuthorizedTunEnable
