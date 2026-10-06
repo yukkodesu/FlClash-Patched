@@ -195,6 +195,12 @@ jobs:
         shell: bash
         run: |
           cargo test --locked -p flclash-meow-host -p meow-common
+            case '${{ matrix.platform }}' in
+              linux) export MEOW_TEST_OUTBOUND_INTERFACE="$(ip -4 route get 1.1.1.1 | awk '{for (i=1;i<NF;i++) if ($i=="dev") {print $(i+1); exit}}')" ;;
+              macos) export MEOW_TEST_OUTBOUND_INTERFACE="$(route -n get default | awk '/interface:/ {print $2}')" ;;
+              windows) export MEOW_TEST_OUTBOUND_INTERFACE="$(powershell.exe -NoProfile -Command '(Find-NetRoute -RemoteIPAddress 1.1.1.1 | Select-Object -First 1).InterfaceAlias' | tr -d '\r')" ;;
+            esac
+            test -n "$MEOW_TEST_OUTBOUND_INTERFACE"
           cargo test --locked -p meow-proxy --test direct_udp_binding
           cargo build --locked --release -p flclash-meow-host --target ${{ matrix.triple }}
       - name: Windows Helper and uninstall contracts

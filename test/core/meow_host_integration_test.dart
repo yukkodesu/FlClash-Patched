@@ -361,7 +361,7 @@ rules: ['GEOSITE,local,DIRECT', 'MATCH,DIRECT']
               (log) =>
                   log.logLevel == LogLevel.warning &&
                   log.payload.contains('dns.default-nameserver') &&
-                  log.payload.contains('system'),
+                  log.payload.toLowerCase().contains('system'),
             ),
             hasLength(1),
           );
