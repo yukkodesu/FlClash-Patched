@@ -75,11 +75,17 @@ void main() {
 
     expect(
       config['proxy-providers']['a']['path'],
-      join(proxiesDir, 'a@$proxiesUrl'.toMd5()),
+      relative(
+        join(proxiesDir, 'a@$proxiesUrl'.toMd5()),
+        from: dirname(await appPath.profilesPath),
+      ),
     );
     expect(
       config['rule-providers']['b']['path'],
-      join(rulesDir, 'b@$rulesUrl'.toMd5()),
+      relative(
+        join(rulesDir, 'b@$rulesUrl'.toMd5()),
+        from: dirname(await appPath.profilesPath),
+      ),
     );
   });
 
@@ -124,7 +130,10 @@ void main() {
       );
       expect(
         config['proxy-providers']['urlless']['path'],
-        join(proxiesDir, 'proxy-providers/urlless'.toMd5()),
+        relative(
+          join(proxiesDir, 'proxy-providers/urlless'.toMd5()),
+          from: dirname(await appPath.profilesPath),
+        ),
       );
       expect(config['proxy-providers']['literal']['path'], isNull);
       expect(config['rule-providers']['sneak']['path'], '/etc/hosts');
