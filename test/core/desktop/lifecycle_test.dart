@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fl_clash/core/desktop/lifecycle.dart';
 import 'package:fl_clash/core/desktop/model.dart';
 import 'package:fl_clash/core/desktop/transport.dart';
+import 'package:fl_clash/core/method.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes.dart';
@@ -10,6 +11,217 @@ import 'fakes.dart';
 const _sessionId = '0123456789abcdef0123456789abcdef';
 
 void main() {
+  test(
+    'an explicit restart can recover after a timed-out host has exited',
+    () async {
+      final transport = FakeDesktopCoreTransport();
+      final first = FakeLauncher(owner: CoreProcessOwner.direct, pid: 42);
+      final replacement = FakeLauncher(owner: CoreProcessOwner.direct, pid: 84);
+      final resolver = MutableLauncherResolver(first);
+      final lifecycle = DesktopCoreLifecycle(
+        transportFactory: () => transport,
+        launcherResolver: resolver,
+        sessionIdFactory: () => _sessionId,
+        timeouts: const DesktopCoreTimeouts(
+          gracefulShutdown: Duration(milliseconds: 10),
+        ),
+        shutdownSession: (session, _) =>
+            session.pid == 42 ? Completer<void>().future : Future<void>.value(),
+      );
+      await _startConnected(lifecycle, transport, first, pid: 42);
+      final stopping = lifecycle.stop();
+      final failure = expectLater(
+        stopping,
+        throwsA(_hasCode('resources_release_unconfirmed')),
+      );
+      await first.lease.stopStarted;
+      transport.disconnect(1);
+      await failure;
+      resolver.launcher = replacement;
+      final restarting = lifecycle.restart();
+      await replacement.started.timeout(const Duration(seconds: 1));
+      transport.connect(pid: 84, generation: 2);
+      expect((await restarting).session?.pid, 84);
+      await _closeRunning(lifecycle, transport, replacement.lease, 2);
+    },
+  );
+
+  test(
+    'a cleanup timeout forces exit but cannot authorize a replacement',
+    () async {
+      final transport = FakeDesktopCoreTransport();
+      final launcher = FakeLauncher(owner: CoreProcessOwner.direct, pid: 42);
+      final lifecycle = DesktopCoreLifecycle(
+        transportFactory: () => transport,
+        launcherResolver: MutableLauncherResolver(launcher),
+        sessionIdFactory: () => _sessionId,
+        timeouts: const DesktopCoreTimeouts(
+          gracefulShutdown: Duration(milliseconds: 10),
+        ),
+        shutdownSession: (_, _) => Completer<void>().future,
+      );
+      await _startConnected(lifecycle, transport, launcher, pid: 42);
+      final stopping = lifecycle.stop();
+      final stopFailure = expectLater(
+        stopping,
+        throwsA(_hasCode('resources_release_unconfirmed')),
+      );
+      await launcher.lease.stopStarted;
+      transport.disconnect(1);
+      await stopFailure;
+
+      await expectLater(
+        lifecycle.start(),
+        throwsA(_hasCode('resources_release_unconfirmed')),
+      );
+      expect(launcher.startCount, 1);
+      final closing = lifecycle.close();
+      await expectLater(
+        closing,
+        throwsA(_hasCode('resources_release_unconfirmed')),
+      );
+      expect(lifecycle.close(), same(closing));
+      expect(transport.state, DesktopTransportState.closed);
+    },
+  );
+
+  test(
+    'unexpected IPC loss gives the owned host time to release its resources',
+    () async {
+      final transport = FakeDesktopCoreTransport();
+      final launcher = FakeLauncher(owner: CoreProcessOwner.direct, pid: 42);
+      final lifecycle = _createLifecycle(
+        transport: transport,
+        resolver: MutableLauncherResolver(launcher),
+      );
+      await _startConnected(lifecycle, transport, launcher, pid: 42);
+      launcher.lease.exitGate = Completer<bool>();
+      final crash = lifecycle.crashEvents.first;
+      transport.disconnect(1);
+      expect((await crash).code, 'unexpected_disconnect');
+      await pumpEventQueue();
+      expect(launcher.lease.stopCount, 0);
+
+      launcher.lease.exitGate!.complete(true);
+      await launcher.lease.stopStarted;
+      await lifecycle.close();
+    },
+  );
+
+  test(
+    'close reports an unconfirmed obsolete process instead of discarding its lease',
+    () async {
+      final transport = FakeDesktopCoreTransport();
+      final launcher = FakeLauncher(owner: CoreProcessOwner.direct, pid: 42);
+      final lifecycle = _createLifecycle(
+        transport: transport,
+        resolver: MutableLauncherResolver(launcher),
+      );
+      await _startConnected(lifecycle, transport, launcher, pid: 42);
+      launcher.lease.stopResult = const CoreProcessStopResult(
+        stopped: true,
+        exitConfirmed: false,
+      );
+      final crash = lifecycle.crashEvents.first;
+      transport.disconnect(1);
+      await crash;
+      await pumpEventQueue();
+
+      final closing = lifecycle.close();
+      await expectLater(closing, throwsA(_hasCode('process_exit_unconfirmed')));
+      expect(transport.state, DesktopTransportState.closed);
+      expect(lifecycle.close(), same(closing));
+      await expectLater(
+        lifecycle.start(),
+        throwsA(_hasCode('lifecycle_closed')),
+      );
+    },
+  );
+
+  test(
+    'failed resource cleanup retains the session and blocks its replacement',
+    () async {
+      final transport = FakeDesktopCoreTransport();
+      final first = FakeLauncher(owner: CoreProcessOwner.direct, pid: 42);
+      final replacement = FakeLauncher(owner: CoreProcessOwner.helper, pid: 84);
+      final resolver = MutableLauncherResolver(first);
+      var cleanupFailed = true;
+      final lifecycle = DesktopCoreLifecycle(
+        transportFactory: () => transport,
+        launcherResolver: resolver,
+        sessionIdFactory: () => _sessionId,
+        shutdownSession: (session, timeout) async {
+          if (cleanupFailed) {
+            throw const CoreMethodException(
+              code: 'resources_release_unconfirmed',
+              message: 'DNS restoration failed',
+            );
+          }
+        },
+      );
+      await _startConnected(lifecycle, transport, first, pid: 42);
+      resolver.launcher = replacement;
+
+      await expectLater(
+        lifecycle.restart(),
+        throwsA(_hasCode('resources_release_unconfirmed')),
+      );
+      expect(lifecycle.state, isA<DesktopCoreFailed>());
+      expect(replacement.startCount, 0);
+      expect(first.lease.stopCount, 0);
+
+      cleanupFailed = false;
+      final retry = lifecycle.start();
+      await first.lease.stopStarted;
+      transport.disconnect(1);
+      await replacement.started;
+      transport.connect(pid: 84, generation: 2);
+      expect((await retry).session?.pid, 84);
+      await _closeRunning(lifecycle, transport, replacement.lease, 2);
+    },
+  );
+
+  test(
+    'restart waits for cleanup and native exit before replacing the session',
+    () async {
+      final transport = FakeDesktopCoreTransport();
+      final first = FakeLauncher(owner: CoreProcessOwner.direct, pid: 42);
+      final replacement = FakeLauncher(owner: CoreProcessOwner.helper, pid: 84);
+      final resolver = MutableLauncherResolver(first);
+      final cleanup = Completer<void>();
+      final cleanupRequested = Completer<void>();
+      final lifecycle = DesktopCoreLifecycle(
+        transportFactory: () => transport,
+        launcherResolver: resolver,
+        sessionIdFactory: () => _sessionId,
+        shutdownSession: (session, timeout) async {
+          if (session.pid == 42) {
+            cleanupRequested.complete();
+            await cleanup.future;
+          }
+        },
+      );
+      await _startConnected(lifecycle, transport, first, pid: 42);
+      resolver.launcher = replacement;
+      final restarting = lifecycle.restart();
+      await cleanupRequested.future;
+      expect(lifecycle.state, isA<DesktopCoreStopping>());
+      expect(replacement.startCount, 0);
+      expect(first.lease.stopCount, 0);
+
+      first.lease.exitGate = Completer<bool>();
+      cleanup.complete();
+      transport.disconnect(1);
+      await pumpEventQueue();
+      expect(replacement.startCount, 0);
+      first.lease.exitGate!.complete(true);
+      await replacement.started;
+      transport.connect(pid: 84, generation: 2);
+      expect((await restarting).session?.pid, 84);
+      await _closeRunning(lifecycle, transport, replacement.lease, 2);
+    },
+  );
+
   test(
     'publishes running only after ready, launch, connection, and PID match',
     () async {
@@ -223,7 +435,10 @@ void main() {
     expect(helper.startCount, 0);
     expect(direct.lease.stopCount, 2);
     expect(lifecycle.state, isA<DesktopCoreFailed>());
-    await lifecycle.close();
+    await expectLater(
+      lifecycle.close(),
+      throwsA(_hasCode('process_exit_unconfirmed')),
+    );
   });
 
   test('start after a failed stop keeps one Core', () async {
@@ -253,7 +468,10 @@ void main() {
 
     expect(helper.startCount, 0);
     expect(direct.lease.stopCount, 2);
-    await lifecycle.close();
+    await expectLater(
+      lifecycle.close(),
+      throwsA(_hasCode('process_exit_unconfirmed')),
+    );
   });
 
   test(
@@ -542,7 +760,10 @@ void main() {
 
     expect(helper.startCount, 0);
     expect(lifecycle.state, isA<DesktopCoreFailed>());
-    await lifecycle.close();
+    await expectLater(
+      lifecycle.close(),
+      throwsA(_hasCode('process_exit_unconfirmed')),
+    );
   });
 
   test(

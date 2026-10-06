@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
+import '../helpers/test_app.dart';
 import 'package:fl_clash/common/request.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/core/interface.dart';
@@ -16,7 +18,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:riverpod/riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class MockCoreHandlerInterface extends Mock implements CoreHandlerInterface {}
 
@@ -98,10 +100,10 @@ void main() {
           .read(appSettingProvider.notifier)
           .update((state) => state.copyWith(onlyStatisticsProxy: true));
       when(
-        () => core.getTraffic(true),
+        () => core.getTraffic(false),
       ).thenAnswer((_) async => const Traffic(up: 10, down: 20));
       when(
-        () => core.getTotalTraffic(true),
+        () => core.getTotalTraffic(false),
       ).thenAnswer((_) async => const Traffic(up: 100, down: 200));
 
       await container.read(commonActionProvider.notifier).updateTraffic();
@@ -112,8 +114,8 @@ void main() {
         container.read(totalTrafficProvider),
         const Traffic(up: 100, down: 200),
       );
-      verify(() => core.getTraffic(true)).called(1);
-      verify(() => core.getTotalTraffic(true)).called(1);
+      verify(() => core.getTraffic(false)).called(1);
+      verify(() => core.getTotalTraffic(false)).called(1);
     });
 
     test('swallows a core failure and leaves the total untouched', () async {
@@ -202,5 +204,45 @@ void main() {
         completion(isFalse),
       );
     });
+  });
+  testWidgets('download confirmation opens the selected release URL', (
+    tester,
+  ) async {
+    final container = buildContainer();
+    container.read(viewSizeProvider.notifier).value = const Size(1200, 1000);
+    final launched = <String>[];
+    const channel = MethodChannel('plugins.flutter.io/url_launcher');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      if (call.method == 'launch') {
+        launched.add((call.arguments as Map)['url'] as String);
+      }
+      return true;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const TestApp(child: Scaffold()),
+      ),
+    );
+    const url =
+        'https://github.com/yukkodesu/FlClash-Patched/releases/tag/v0.9.2+2';
+    final pending = container
+        .read(commonActionProvider.notifier)
+        .checkUpdateResultHandle(
+          data: {'tag_name': 'v0.9.2+2', 'body': '', 'html_url': url},
+        );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppLocalizations.current.goDownload));
+    await tester.pumpAndSettle();
+    await pending;
+    expect(launched, [url]);
   });
 }

@@ -74,7 +74,7 @@ class _ConnectionInfoState extends ConsumerState<ConnectionInfo>
           onPressed: () {},
           info: Info(
             iconData: Symbols.link,
-            label: appLocalizations.connectionInfo,
+            label: appLocalizations.connections,
           ),
           child: Container(
             padding: baseInfoEdgeInsets.copyWith(top: 0),

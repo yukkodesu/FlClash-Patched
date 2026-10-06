@@ -1,11 +1,12 @@
-#include "proxy_plugin.h"
-
-// This must be included before many other Windows headers.
+// WinInet and RAS require Windows types to be declared first.
 #include <windows.h>
 
-#include <WinInet.h>
+#include "proxy_plugin.h"
+
 #include <Ras.h>
 #include <RasError.h>
+#include <WinInet.h>
+
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -38,9 +39,8 @@ std::wstring Utf8ToWide(const std::string& value)
     return std::wstring(value.begin(), value.end());
   }
   std::wstring result(size, L'\0');
-  MultiByteToWideChar(
-      CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
-      result.data(), size);
+  MultiByteToWideChar(CP_UTF8, 0, value.c_str(), static_cast<int>(value.size()),
+                      result.data(), size);
   return result;
 }
 
@@ -61,248 +61,380 @@ std::wstring BuildBypassList(const flutter::EncodableList& bypassDomain)
 
 bool IsStringList(const flutter::EncodableList& values)
 {
-  return std::all_of(
-      values.begin(), values.end(), [](const auto& value)
-      {
-        return std::holds_alternative<std::string>(value);
-      });
+  return std::all_of(values.begin(), values.end(), [](const auto& value)
+                     { return std::holds_alternative<std::string>(value); });
 }
 
-bool SetOptionsForConnection(
-    INTERNET_PER_CONN_OPTION_LIST& list,
-    LPTSTR connection)
+class WinInetBackend : public proxy::ProxySettingsBackend
 {
-  list.pszConnection = connection;
-  return InternetSetOption(
-      nullptr,
-      INTERNET_OPTION_PER_CONNECTION_OPTION,
-      &list,
-      sizeof(list)) != FALSE;
-}
-
-bool ApplyOptionsToConnections(INTERNET_PER_CONN_OPTION_LIST& list)
-{
-  bool success = SetOptionsForConnection(list, nullptr);
-
-  DWORD size = 0;
-  DWORD count = 0;
-  auto ret = RasEnumEntries(nullptr, nullptr, nullptr, &size, &count);
-  if (ret == ERROR_BUFFER_TOO_SMALL && count > 0)
+ public:
+  bool Connections(std::vector<std::wstring>& connections) override
   {
-    std::vector<RASENTRYNAME> entries(count);
-    for (auto& entry : entries)
-    {
-      entry.dwSize = sizeof(RASENTRYNAME);
-    }
-    ret = RasEnumEntries(nullptr, nullptr, entries.data(), &size, &count);
-    if (ret == ERROR_SUCCESS)
-    {
-      for (DWORD i = 0; i < count; i++)
-      {
-        success = SetOptionsForConnection(list, entries[i].szEntryName) && success;
-      }
-    }
-    else
-    {
-      success = false;
-    }
-  }
-  else if (ret != ERROR_SUCCESS)
-  {
-    success = false;
+    connections = {L""};
+    DWORD size = 0;
+    DWORD count = 0;
+    auto status = RasEnumEntriesW(nullptr, nullptr, nullptr, &size, &count);
+    if (status == ERROR_SUCCESS) return true;
+    if (status != ERROR_BUFFER_TOO_SMALL || count == 0) return false;
+    std::vector<RASENTRYNAMEW> entries(count);
+    for (auto& entry : entries) entry.dwSize = sizeof(RASENTRYNAMEW);
+    status = RasEnumEntriesW(nullptr, nullptr, entries.data(), &size, &count);
+    if (status != ERROR_SUCCESS) return false;
+    for (DWORD index = 0; index < count; ++index)
+      connections.emplace_back(entries[index].szEntryName);
+    return true;
   }
 
-  return success;
-}
+  bool Read(const std::wstring& connection,
+            proxy::ProxySettings& settings) override
+  {
+    INTERNET_PER_CONN_OPTIONW options[3] = {};
+    options[0].dwOption = INTERNET_PER_CONN_FLAGS;
+    options[1].dwOption = INTERNET_PER_CONN_PROXY_SERVER;
+    options[2].dwOption = INTERNET_PER_CONN_PROXY_BYPASS;
+    INTERNET_PER_CONN_OPTION_LISTW list = {};
+    list.dwSize = sizeof(list);
+    list.pszConnection =
+        connection.empty() ? nullptr : const_cast<wchar_t*>(connection.c_str());
+    list.dwOptionCount = 3;
+    list.pOptions = options;
+    DWORD size = sizeof(list);
+    const bool success =
+        InternetQueryOptionW(nullptr, INTERNET_OPTION_PER_CONNECTION_OPTION,
+                             &list, &size) != FALSE;
+    if (success)
+    {
+      settings.flags = options[0].Value.dwValue;
+      settings.server = options[1].Value.pszValue == nullptr
+                            ? L""
+                            : options[1].Value.pszValue;
+      settings.bypass = options[2].Value.pszValue == nullptr
+                            ? L""
+                            : options[2].Value.pszValue;
+    }
+    if (options[1].Value.pszValue != nullptr)
+      GlobalFree(options[1].Value.pszValue);
+    if (options[2].Value.pszValue != nullptr)
+      GlobalFree(options[2].Value.pszValue);
+    return success;
+  }
 
-bool NotifySettingsChanged()
-{
-  const bool changed = InternetSetOption(
-      nullptr, INTERNET_OPTION_SETTINGS_CHANGED, nullptr, 0) != FALSE;
-  const bool refreshed = InternetSetOption(
-      nullptr, INTERNET_OPTION_REFRESH, nullptr, 0) != FALSE;
-  return changed && refreshed;
-}
+  bool Write(const std::wstring& connection,
+             const proxy::ProxySettings& settings, unsigned fields) override
+  {
+    std::vector<INTERNET_PER_CONN_OPTIONW> options;
+    INTERNET_PER_CONN_OPTIONW option = {};
+    if (fields & proxy::kFlags)
+    {
+      option.dwOption = INTERNET_PER_CONN_FLAGS;
+      option.Value.dwValue = settings.flags;
+      options.push_back(option);
+    }
+    if (fields & proxy::kServer)
+    {
+      option.dwOption = INTERNET_PER_CONN_PROXY_SERVER;
+      option.Value.pszValue = const_cast<wchar_t*>(settings.server.c_str());
+      options.push_back(option);
+    }
+    if (fields & proxy::kBypass)
+    {
+      option.dwOption = INTERNET_PER_CONN_PROXY_BYPASS;
+      option.Value.pszValue = const_cast<wchar_t*>(settings.bypass.c_str());
+      options.push_back(option);
+    }
+    INTERNET_PER_CONN_OPTION_LISTW list = {};
+    list.dwSize = sizeof(list);
+    list.pszConnection =
+        connection.empty() ? nullptr : const_cast<wchar_t*>(connection.c_str());
+    list.dwOptionCount = static_cast<DWORD>(options.size());
+    list.pOptions = options.data();
+    return InternetSetOptionW(nullptr, INTERNET_OPTION_PER_CONNECTION_OPTION,
+                              &list, sizeof(list)) != FALSE;
+  }
 
-bool startProxy(const int port, const flutter::EncodableList& bypassDomain)
-{
-  auto url = Utf8ToWide("127.0.0.1:" + std::to_string(port));
-  auto bypassList = BuildBypassList(bypassDomain);
-  std::vector<INTERNET_PER_CONN_OPTION> options(3);
-
-  INTERNET_PER_CONN_OPTION_LIST list = {};
-  list.dwSize = sizeof(list);
-  list.dwOptionCount = static_cast<DWORD>(options.size());
-  list.pOptions = options.data();
-
-  options[0].dwOption = INTERNET_PER_CONN_FLAGS;
-  options[0].Value.dwValue = PROXY_TYPE_DIRECT | PROXY_TYPE_PROXY;
-
-  options[1].dwOption = INTERNET_PER_CONN_PROXY_SERVER;
-  options[1].Value.pszValue = url.data();
-
-  options[2].dwOption = INTERNET_PER_CONN_PROXY_BYPASS;
-  options[2].Value.pszValue = bypassList.data();
-
-  const bool optionsApplied = ApplyOptionsToConnections(list);
-  const bool settingsNotified = NotifySettingsChanged();
-  return optionsApplied && settingsNotified;
-}
-
-bool stopProxy()
-{
-  std::vector<INTERNET_PER_CONN_OPTION> options(1);
-
-  INTERNET_PER_CONN_OPTION_LIST list = {};
-  list.dwSize = sizeof(list);
-  list.dwOptionCount = 1;
-  list.pOptions = options.data();
-
-  options[0].dwOption = INTERNET_PER_CONN_FLAGS;
-  options[0].Value.dwValue = PROXY_TYPE_DIRECT;
-
-  const bool optionsApplied = ApplyOptionsToConnections(list);
-  const bool settingsNotified = NotifySettingsChanged();
-  return optionsApplied && settingsNotified;
-}
+  bool Notify() override
+  {
+    const bool changed =
+        InternetSetOptionW(nullptr, INTERNET_OPTION_SETTINGS_CHANGED, nullptr,
+                           0) != FALSE;
+    const bool refreshed = InternetSetOptionW(nullptr, INTERNET_OPTION_REFRESH,
+                                              nullptr, 0) != FALSE;
+    return changed && refreshed;
+  }
+};
 
 }  // namespace
 
 namespace proxy
 {
 
-  // static
-  void ProxyPlugin::RegisterWithRegistrar(
-      flutter::PluginRegistrarWindows *registrar)
+// static
+void ProxyPlugin::RegisterWithRegistrar(
+    flutter::PluginRegistrarWindows* registrar)
+{
+  auto channel =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          registrar->messenger(), "proxy",
+          &flutter::StandardMethodCodec::GetInstance());
+
+  auto plugin = std::make_unique<ProxyPlugin>(registrar);
+
+  channel->SetMethodCallHandler(
+      [plugin_pointer = plugin.get()](const auto& call, auto result)
+      { plugin_pointer->HandleMethodCall(call, std::move(result)); });
+
+  registrar->AddPlugin(std::move(plugin));
+}
+
+std::unique_ptr<ProxySettingsBackend> CreateProxySettingsBackend()
+{
+  return std::make_unique<WinInetBackend>();
+}
+
+ProxyPlugin::ProxyPlugin() : backend_(CreateProxySettingsBackend()) {}
+
+ProxyPlugin::ProxyPlugin(std::unique_ptr<ProxySettingsBackend> backend)
+    : backend_(std::move(backend))
+{
+}
+
+ProxyPlugin::ProxyPlugin(flutter::PluginRegistrarWindows* registrar)
+    : registrar_(registrar), backend_(CreateProxySettingsBackend())
+{
+  window_proc_id_ = registrar_->RegisterTopLevelWindowProcDelegate(
+      [this](HWND window, UINT message, WPARAM wparam, LPARAM lparam)
+      { return HandleWindowProc(window, message, wparam, lparam); });
+}
+
+ProxyPlugin::~ProxyPlugin()
+{
+  if (registrar_ != nullptr)
   {
-    auto channel =
-        std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-            registrar->messenger(), "proxy",
-            &flutter::StandardMethodCodec::GetInstance());
-
-    auto plugin = std::make_unique<ProxyPlugin>(registrar);
-
-    channel->SetMethodCallHandler(
-        [plugin_pointer = plugin.get()](const auto &call, auto result)
-        {
-          plugin_pointer->HandleMethodCall(call, std::move(result));
-        });
-
-    registrar->AddPlugin(std::move(plugin));
+    registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_id_);
   }
+}
 
-  ProxyPlugin::ProxyPlugin(flutter::PluginRegistrarWindows* registrar)
-      : registrar_(registrar)
+bool ProxyPlugin::IsSessionEnding(UINT message, WPARAM wparam)
+{
+  return message == WM_ENDSESSION && wparam != FALSE;
+}
+
+// Shutting Windows down kills the process without running the Dart exit path,
+// so the setting survives into a boot with nothing listening behind it.
+std::optional<LRESULT> ProxyPlugin::HandleWindowProc(HWND window, UINT message,
+                                                     WPARAM wparam,
+                                                     LPARAM lparam)
+{
+  if (IsSessionEnding(message, wparam))
   {
-    window_proc_id_ = registrar_->RegisterTopLevelWindowProcDelegate(
-        [this](HWND window, UINT message, WPARAM wparam, LPARAM lparam)
-        {
-          return HandleWindowProc(window, message, wparam, lparam);
-        });
+    session_ending_ = true;
+    Stop();
   }
+  return std::nullopt;
+}
 
-  ProxyPlugin::~ProxyPlugin()
+bool ProxyPlugin::Start(int port, const flutter::EncodableList& bypass)
+{
+  if (session_ending_ || !Stop()) return false;
+  std::vector<std::wstring> connections;
+  if (!backend_->Connections(connections)) return false;
+  const ProxySettings installed{PROXY_TYPE_DIRECT | PROXY_TYPE_PROXY,
+                                L"127.0.0.1:" + std::to_wstring(port),
+                                BuildBypassList(bypass)};
+  std::vector<OwnedConnection> snapshots;
+  for (const auto& connection : connections)
   {
-    if (registrar_ != nullptr)
+    ProxySettings before;
+    if (!backend_->Read(connection, before)) return false;
+    unsigned fields = 0;
+    if (before.flags != installed.flags) fields |= kFlags;
+    if (before.server != installed.server) fields |= kServer;
+    if (before.bypass != installed.bypass) fields |= kBypass;
+    snapshots.push_back({connection, before, installed, fields});
+  }
+  for (auto& snapshot : snapshots)
+  {
+    if (snapshot.pending == 0) continue;
+    owned_.push_back(std::move(snapshot));
+    auto& owned = owned_.back();
+    notification_pending_ = true;
+    const bool written = backend_->Write(owned.name, installed, owned.pending);
+    ProxySettings current;
+    if (!written || !backend_->Read(owned.name, current) ||
+        current.flags != installed.flags ||
+        current.server != installed.server ||
+        current.bypass != installed.bypass)
+      return false;
+  }
+  if (notification_pending_)
+  {
+    if (!backend_->Notify()) return false;
+    notification_pending_ = false;
+  }
+  return true;
+}
+
+bool ProxyPlugin::Stop()
+{
+  bool success = true;
+  for (auto& owned : owned_)
+  {
+    if (owned.pending == 0) continue;
+    ProxySettings current;
+    if (!backend_->Read(owned.name, current))
     {
-      registrar_->UnregisterTopLevelWindowProcDelegate(window_proc_id_);
+      success = false;
+      continue;
     }
-  }
-
-  bool ProxyPlugin::IsSessionEnding(UINT message, WPARAM wparam)
-  {
-    return message == WM_ENDSESSION && wparam != FALSE;
-  }
-
-  // Shutting Windows down kills the process without running the Dart exit path,
-  // so the setting survives into a boot with nothing listening behind it.
-  std::optional<LRESULT> ProxyPlugin::HandleWindowProc(
-      HWND window, UINT message, WPARAM wparam, LPARAM lparam)
-  {
-    if (proxy_applied_ && IsSessionEnding(message, wparam))
+    ProxySettings restore = current;
+    unsigned fields = 0;
+    if (owned.pending & kFlags)
     {
-      proxy_applied_ = !stopProxy();
-    }
-    return std::nullopt;
-  }
-
-  void ProxyPlugin::HandleMethodCall(
-      const flutter::MethodCall<flutter::EncodableValue> &method_call,
-      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
-  {
-    if (method_call.method_name() == "StopProxy")
-    {
-      bool only_if_needed = false;
-      const auto* value = method_call.arguments();
-      if (value != nullptr && !std::holds_alternative<std::monostate>(*value))
+      const bool server_owned =
+          current.server == owned.installed.server ||
+          (owned.server_restored && current.server == owned.before.server);
+      if (current.flags == owned.installed.flags && server_owned)
       {
-        const auto* arguments = std::get_if<flutter::EncodableMap>(value);
-        if (arguments == nullptr)
-        {
-          result->Error("bad_args", "StopProxy requires an argument map");
-          return;
-        }
-        const auto flag = arguments->find(flutter::EncodableValue("onlyIfNeeded"));
-        if (flag != arguments->end())
-        {
-          const auto* enabled = std::get_if<bool>(&flag->second);
-          if (enabled == nullptr)
-          {
-            result->Error("bad_args", "StopProxy onlyIfNeeded must be a bool");
-            return;
-          }
-          only_if_needed = *enabled;
-        }
+        restore.flags = owned.before.flags;
+        fields |= kFlags;
       }
-      if (only_if_needed && !proxy_applied_)
+      else
       {
-        result->Success(true);
-        return;
+        owned.pending &= ~kFlags;
       }
-      const bool stopped = stopProxy();
-      proxy_applied_ = !stopped;
-      result->Success(stopped);
     }
-    else if (method_call.method_name() == "StartProxy")
+    if (owned.pending & kServer)
     {
-      auto *arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
+      if (current.server == owned.installed.server)
+      {
+        restore.server = owned.before.server;
+        fields |= kServer;
+      }
+      else
+      {
+        owned.pending &= ~kServer;
+      }
+    }
+    if (owned.pending & kBypass)
+    {
+      if (current.bypass == owned.installed.bypass)
+      {
+        restore.bypass = owned.before.bypass;
+        fields |= kBypass;
+      }
+      else
+      {
+        owned.pending &= ~kBypass;
+      }
+    }
+    if (fields == 0) continue;
+    notification_pending_ = true;
+    const bool written = backend_->Write(owned.name, restore, fields);
+    ProxySettings after;
+    if (!backend_->Read(owned.name, after))
+    {
+      success = false;
+      continue;
+    }
+    if ((fields & kFlags) && after.flags == owned.before.flags)
+      owned.pending &= ~kFlags;
+    if ((fields & kServer) && after.server == owned.before.server)
+    {
+      owned.pending &= ~kServer;
+      owned.server_restored = true;
+    }
+    if ((fields & kBypass) && after.bypass == owned.before.bypass)
+      owned.pending &= ~kBypass;
+    if (!written || owned.pending != 0) success = false;
+  }
+  if (notification_pending_)
+  {
+    if (backend_->Notify())
+      notification_pending_ = false;
+    else
+      success = false;
+  }
+  if (success) owned_.clear();
+  return success;
+}
+
+void ProxyPlugin::HandleMethodCall(
+    const flutter::MethodCall<flutter::EncodableValue>& method_call,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
+{
+  if (method_call.method_name() == "StopProxy")
+  {
+    bool only_if_needed = false;
+    const auto* value = method_call.arguments();
+    if (value != nullptr && !std::holds_alternative<std::monostate>(*value))
+    {
+      const auto* arguments = std::get_if<flutter::EncodableMap>(value);
       if (arguments == nullptr)
       {
-        result->Error("bad_args", "StartProxy requires argument map");
+        result->Error("bad_args", "StopProxy requires an argument map");
         return;
       }
-      auto portIt = arguments->find(flutter::EncodableValue("port"));
-      auto bypassDomainIt = arguments->find(flutter::EncodableValue("bypassDomain"));
-      if (portIt == arguments->end() || bypassDomainIt == arguments->end())
+      const auto flag =
+          arguments->find(flutter::EncodableValue("onlyIfNeeded"));
+      if (flag != arguments->end())
       {
-        result->Error("bad_args", "StartProxy requires port and bypassDomain");
-        return;
+        const auto* enabled = std::get_if<bool>(&flag->second);
+        if (enabled == nullptr)
+        {
+          result->Error("bad_args", "StopProxy onlyIfNeeded must be a bool");
+          return;
+        }
+        only_if_needed = *enabled;
       }
-      auto *port = std::get_if<int>(&portIt->second);
-      auto *bypassDomain = std::get_if<flutter::EncodableList>(&bypassDomainIt->second);
-      if (port == nullptr || bypassDomain == nullptr)
-      {
-        result->Error("bad_args", "StartProxy argument types are invalid");
-        return;
-      }
-      if (*port < kMinProxyPort || *port > kMaxProxyPort)
-      {
-        result->Error("bad_args", "StartProxy port must be between 1 and 65535");
-        return;
-      }
-      if (!IsStringList(*bypassDomain))
-      {
-        result->Error(
-            "bad_args", "StartProxy bypassDomain must contain only strings");
-        return;
-      }
-      // A start that reports failure can still have written the setting.
-      proxy_applied_ = true;
-      result->Success(startProxy(*port, *bypassDomain));
     }
-    else
+    if (only_if_needed && owned_.empty() && !notification_pending_)
     {
-      result->NotImplemented();
+      result->Success(true);
+      return;
     }
+    result->Success(Stop());
   }
-} // namespace proxy
+  else if (method_call.method_name() == "StartProxy")
+  {
+    auto* arguments =
+        std::get_if<flutter::EncodableMap>(method_call.arguments());
+    if (arguments == nullptr)
+    {
+      result->Error("bad_args", "StartProxy requires argument map");
+      return;
+    }
+    auto portIt = arguments->find(flutter::EncodableValue("port"));
+    auto bypassDomainIt =
+        arguments->find(flutter::EncodableValue("bypassDomain"));
+    if (portIt == arguments->end() || bypassDomainIt == arguments->end())
+    {
+      result->Error("bad_args", "StartProxy requires port and bypassDomain");
+      return;
+    }
+    auto* port = std::get_if<int>(&portIt->second);
+    auto* bypassDomain =
+        std::get_if<flutter::EncodableList>(&bypassDomainIt->second);
+    if (port == nullptr || bypassDomain == nullptr)
+    {
+      result->Error("bad_args", "StartProxy argument types are invalid");
+      return;
+    }
+    if (*port < kMinProxyPort || *port > kMaxProxyPort)
+    {
+      result->Error("bad_args", "StartProxy port must be between 1 and 65535");
+      return;
+    }
+    if (!IsStringList(*bypassDomain))
+    {
+      result->Error("bad_args",
+                    "StartProxy bypassDomain must contain only strings");
+      return;
+    }
+    result->Success(Start(*port, *bypassDomain));
+  }
+  else
+  {
+    result->NotImplemented();
+  }
+}
+}  // namespace proxy

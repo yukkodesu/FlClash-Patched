@@ -91,7 +91,7 @@ judgment, and it lives in the rules below and in review. Whether comments are to
 diffs under 20 added lines so small edits are never caught. The number is calibrated on this repository's own history:
 healthy changes sit at or under 3.6%, while the core fix that prompted the gate ran 22.4%.
 
-It is a ceiling on frequency, not a target to fill. Do not read `core/`'s inherited mihomo density as a quota either —
+It is a ceiling on frequency, not a target to fill. Do not read `core/meow-rs/`'s inherited upstream density as a quota either —
 it is forked upstream code, not a house style.
 
 Three gates run the same script, and they do not have equal force. The `PostToolUse` hooks in `.claude/settings.json`
@@ -114,34 +114,51 @@ how important it feels.
   that.
 - **A fact that is true only at one call site, and is not visible from that call site, is the one thing a comment does
   better than a test or a document.** Its value is being in the reader's line of sight at the moment of the edit.
-  `lib/common/constant.dart` carries one: the delay-test concurrency cap is bound to `delayTestConcurrency` in
-  `core/common.go`, and whoever changes that number must see the constraint on the same screen. This is the case a
-  comment is for; the bar is that no test and no `.agents/` entry could hold the fact instead.
+  Keep a call-site platform workaround next to the operation that depends on it, with its constraint and reason.
 
 Both failure directions are real. Moving a local constraint into `.agents/` hides it from the person editing the line;
 leaving a repo-wide policy as a comment reaches only the reader of that one file.
 
 ## Core API Safety
 
-- `core/Clash.Meta` is a fork of mihomo, and changes to it are budgeted for features, not repairs. Fixing a bug there is
-  low priority even when the bug is real and the fix is small: every patch is one more thing to carry across an upstream
-  rebase. Solve it on the FlClash side of the boundary and note the mihomo behaviour you are working around. Reach into
-  the submodule only for a feature that has nowhere else to live, or when the problem is one the FlClash patches
-  themselves introduced — and say which of the two it is in the commit message.
-- Do not expose direct filesystem deletion APIs through Core or helper IPC; use
-  a scope-specific cleanup API instead.
-- The desktop IPC socket in `plugins/rust_api` admits a Unix peer only when its effective uid is the app's own or root:
-  the socket lives in `/tmp`, and the Core connects as root whenever it runs setuid for TUN or under the Linux Helper.
-  A launch mode that runs the Core as any other user has to widen `authorize_peer` in `ipc/platform.rs`, and Windows
-  keeps its identity check on the Dart side, which compares the named-pipe peer PID with the Core it launched.
-- Keep the shared `CoreMethodCall`/`CoreMethodResponse` JSON envelope structurally identical across Dart, Go, JNI, and
-  desktop IPC. Do not double-encode `arguments`, `result`, or event batches.
-- `core/message.go` carries three event queues, and the split is load-bearing: state (loaded, geo-update), delay, and
-  bulk (log, request). Delay and bulk evict their own oldest entry under backpressure; state uses `enqueueState`, which
-  never evicts, because a dropped `geoUpdate{updating:false}` leaves `isUpdatingProvider` stuck at true in the UI until
-  `UpdatingAction` sweeps it as stale minutes later. Do not merge the tiers or give state eviction semantics. `enqueueState` drops silently on a full
-  queue and must stay that way: reaching it means the host stopped reading, which `logDeliveryError` already reports,
-  and reporting it from the message layer feeds the same batcher.
+FlClash-Meow ships one desktop engine: the pinned `core/meow-rs` fork. These rules apply to its embedded
+`crates/flclash-meow-host` and the Flutter desktop integration. Retained mobile sources are outside build/release scope.
+
+- Keep host-specific RPC, configuration translation and product identity in `flclash-meow-host`; separate engine fixes
+  suitable for upstream from changes coupled to this client. Do not expand meow capabilities to match mihomo.
+- Use `CoreController`/`CoreHandlerInterface` for application behavior. Negotiate `getCoreInfo` identity/protocol and
+  capabilities before engine initialization. Keep host protocol 1 distinct from Helper HTTP protocol 6.
+- Delegate configuration compatibility to meow-rs, including its native warning/error policy and the profile's `strict`
+  setting. Preserve imported YAML, log ignored fields at warning level, and retain host file/executable authority checks.
+- Keep `CoreMethodCall`/`CoreMethodResponse` arguments, results and event batches as structured JSON across Dart and the
+  Rust host. `protocol.rs` and `plugins/rust_api/rust/src/ipc/` own the four-byte little-endian framing; do not double-encode.
+- Host `ipc.rs` bounds concurrent requests and retained payload bytes and separates response, state and bulk delivery.
+  Logs/request floods must not evict state events. Keep cancellation effective under response backpressure, and retain
+  ownership of reader, writer, log and RPC tasks until they finish.
+- Host `lib.rs` retains staged, active and retired Runtime instances while applying a profile. Configuration preparation
+  and startup observe newer intents; resource cleanup remains owned until confirmed. A failed replacement may restore
+  the previous Runtime only after candidate cleanup succeeds. Do not substitute the removed Go wrapper's default rollback.
+- `runtime.rs` owns listeners, DNS, TUN and background work. Successful `shutdown` means cleanup succeeded; `ipc.rs` flushes
+  its correlated acknowledgement before EOF. `resources_release_unconfirmed` stays visible and blocks successors.
+- TUN recovery in host `native.rs` uses protected product journals separate from user caches. Restore only resources still
+  equal to the recorded installed value, preserve later writers, and do not treat process exit as restoration evidence.
+  A `needsPrivilege`/`failed` recovery warning permits ordinary proxy initialization; new TUN requires confirmed recovery.
+- Derive file authority from the connected peer: host `main.rs`/`peer.rs` authenticate Windows pipe-server identity and Unix
+  UID/GID. `meow-common/src/managed_files.rs` confines product-home I/O to that authority. Do not bypass retained handles,
+  impersonate across an await, recursively change ownership, or expose arbitrary filesystem deletion through Core/Helper IPC.
+- Preserve the desktop transport's own peer checks: `plugins/rust_api` admits only the app UID or root on Unix, and Dart
+  compares the Windows pipe peer PID to its process lease. Host caller authentication does not replace these checks.
+- `ProxiesAction` owns bounded delay work, generation cancellation and `pendingDelayTestsProvider` progress. Core/channel
+  availability errors cancel the run; transport failure must not become a successful proxy measurement. Read the current
+  Rust delay adapter and provider logic before changing budgets; removed Go semaphore constants are not an authority.
+- Verify application behavior through the real-host CoreController seam and retain independent IPC, Helper and native
+  contracts. Record actual platform evidence in `https://github.com/yukkodesu/FlClash-Patched/issues/8`; skipped native tests are not proof.
+
+### Retained Mobile API Rules
+
+Apply these only when a separate task explicitly changes legacy mobile code. The retained JNI source still describes its
+old Go ABI; the removed desktop Go wrapper and mihomo submodule are not desktop extension points or build dependencies.
+
 - `jni_get_string` in `android/core/src/main/cpp/jni_helper.cpp` `malloc`s and hands ownership to Go, which frees through
   `free_string_func`. `quickSetup` relies on that: it reads its `*C.char` arguments inside a goroutine, after the JNI
   wrapper has already returned. Switching the wrapper to `GetStringUTFChars`/`ReleaseStringUTFChars`, or freeing on the
@@ -157,76 +174,13 @@ leaving a repo-wide policy as a comment reaches only the reader of that one file
 - The Android bridge resolves an owner in two steps — `resolve_uid` then `resolve_package` — because mihomo fills
   `metadata.Uid` from a procfs lookup that Android Q closed off. Collapsing them back into one call that returns only a
   package name is what left every connection reporting uid 0, so `UID` rules matched nothing.
-- The desktop delivery path in `core/server.go` must not report failures through `logError`. A log event is published to
-  the log subscriber, batched, and handed back to `send`, so a send failure reported that way feeds itself; use
-  `logDeliveryError`, which writes to stderr and latches until a frame gets through or the next connection is installed.
-  A write that fails without putting a byte on the wire — host backpressure hitting `ipcWriteTimeout`, or a payload above
-  `maxIPCFrameSize` — drops that one frame and keeps the connection: the stream is still framed correctly, and tearing it
-  down here ends the read loop, and with it the Core process. A half-written frame whose write merely timed out is
-  resumed for as long as the stall lasts: Windows Modern Standby suspends the app while the Helper's Core keeps running,
-  so the host can stop draining for hours and still come back, and go-winio reports the expiry as its own `ErrTimeout`
-  rather than `os.ErrDeadlineExceeded`, which is why `send` checks `Timeout()`. The wait has no cap on purpose, and
-  `send` holds `writeMu` throughout, so every other frame — method responses and the single batcher goroutine behind
-  the event queues — waits behind the stalled one. Memory is bounded by the queues; what gives is delivery: the state
-  queue fills and `enqueueState` starts dropping, which is the case the `UpdatingAction` sweep above exists for. Nothing
-  on the Dart side restarts the Core over a stall: `CoreRpcClient` times each pending request out on its own and hands
-  the caller `null` (a `no_response` exception for message methods), and the sweep clears core-scope updating state
-  minutes later. Only a half-written frame that fails outright desynchronizes the stream, and that is the one case
-  `send` closes on.
-- Core method handlers in `core/hub.go` are synchronous. Anything that must not block the dispatcher is spawned by
-  `safeGo`/`safeGoDetached` in `core/method.go`, which recover; a bare `go` in a handler puts a panic outside every
-  recovery and kills the process, which on Android is the whole application. The `//export` entry points in
-  `core/lib.go` do not reach `handleMethodCall`, so each one carries its own recovery.
-- `dialer.DefaultSocketHook` and `process.DefaultPackageNameResolver` are installed exactly once, by `installHooks` in
-  `core/lib.go`, and never cleared. mihomo checks `DefaultSocketHook` for nil once and dereferences it again when the
-  socket is created (`component/dialer/socket_hook.go`), so clearing it while a dial is in flight calls a nil func
-  value. Stopping the TUN swaps `activeTunHandler` instead.
-- `tunnel.AllProxies()` returns a shared, cached map — never modify it. The cache is invalidated by
-  `invalidateAllProxies` on `tunnel.UpdateProxies` and validated against each provider's `Version()`, so a rebuild
-  costs one read per provider rather than one per proxy. Anything else added to `tunnel/patch.go` that derives from the
-  proxy set needs both signals: the external controller can reload the config through `hub/route/configs.go` without
-  going through FlClash's `applyConfig`, so a hook on the FlClash side alone would miss a profile switch.
-- Core state that mirrors mihomo state goes stale at the next `applyConfig`, which replaces every proxy, provider and
-  rule. Read the tunnel instead of caching a snapshot of it: `lookupExternalProvider` kept one that was rebuilt only
-  when the host asked for the provider list, and the host asks after a successful setup and not after a failed one, so
-  an update ran against a provider the tunnel no longer held — downloading, writing to disk and reporting success
-  against nothing.
-- Selection writes take `selectMu`, not `configMu`. mihomo's `Selector.Set` has no lock of its own, so the writes need
-  mutual exclusion against each other and against `patchSelectGroup` — but not against a whole config apply, which is
-  what `configMu` made a proxy switch wait for, provider downloads included. `patchSelectGroup` takes `selectMu` under
-  `configMu`, fixing the order as `configMu` → `selectMu`.
-- The delay-test semaphore is acquired with a slice of the caller's budget (`budget/delayTestQueueShare`), not
-  unconditionally and not with the whole deadline. Queueing and probing come out of one budget, so a test handed all of
-  it can spend it waiting and reach `URLTest` with nothing left, reporting a proxy it never contacted as unreachable.
-  The probe keeps the caller's original deadline, so whatever the queue did not use is still its own.
-- A delay test that the Core does not answer is a fault of the Core or the channel, never a verdict on the proxy:
-  `handleTestDelay` returns inside its own budget on every path. `asyncTestDelay` therefore returns null instead of a
-  `-1` delay, and `ProxiesAction` leaves the last measurement in place and abandons the rest of the run. Writing a
-  timeout there is what made a reachable node read as unreachable whenever the host deadline beat the Core's.
-- Delay-test progress lives in `pendingDelayTestsProvider`, not as a sentinel value in `DelayDataSource`. A delay of 0
-  used to mean "testing", which let a result and the state of a test overwrite each other and left cards spinning
-  forever when the Core restarted. The run owns its keys and releases them in a `finally`, so nothing depends on a
-  reply arriving; core status leaving `connected` cancels every run in flight.
-- Anything on the mihomo side that is reached from both a user-triggered core method and mihomo's own background
-  scheduler needs its in-flight guard on the FlClash side. `updater.UpdateMMDB` and its siblings have none — only the
-  batch `UpdateGeoDatabases` does — and two concurrent runs close the mmap'd database twice, so `handleUpdateGeoData`
-  claims per resource and `updater.GeoUpdateHook` releases.
-- A failed `applyConfig` rolls the tunnel back to the default config, and that rollback is the whole recovery:
-  `handleSetupConfig` returns the error and stops there. Do not add a teardown on top of it — stopping the listeners
-  takes the app offline over a profile the user can still switch away from, and the error already reaches the host,
-  which is what surfaces the failure (`MessageException` on the Flutter side, the config-error toast on Android). Keep
-  an empty `config.yaml` out of the failure path — it is how the app says "no profile selected", and `loadConfig`
-  resolves it to the defaults.
-- Package `init` in the Android library runs while the `.so` is being loaded, so a panic there takes the application
-  down before it can report anything. `platform/limit.go` arms an fd-pressure probe and degrades to never blocking when
-  it cannot; keep that shape for anything else `init` sets up that correctness does not depend on.
-- Every `android && cgo` file in `core/` is compiled only by the NDK-backed CI step in the `go` job. Keep the build
-  constraints as `android && cgo` / `!(android && cgo)`: a bare `cgo` constraint makes `go build ./...` fail in `core/`
-  on any developer machine, because the files it pulls in need the NDK.
 
 ## Lifecycle Rules
 
-- Desktop process ownership belongs to `DesktopCoreLifecycle`; do not start/kill `FlClashCore` from providers, widgets,
+Desktop ownership rules govern this product. Android/JNI/service notes apply only to separately requested work on retained
+mobile sources and do not add mobile build or release support.
+
+- Desktop process ownership belongs to `DesktopCoreLifecycle`; do not start/kill `FlClashMeowCore` from providers, widgets,
   managers, or ad hoc exit callbacks. Acquire and release it through a `CoreProcessLease`.
 - `CoreController.close()` and platform `close()` implementations are terminal and idempotent. Application shutdown must
   stay centralized in `SystemAction`/`SystemExitCoordinator`.
@@ -270,16 +224,10 @@ leaving a repo-wide policy as a comment reaches only the reader of that one file
 ## Testing Rules
 
 The `core/` directory is excluded from automated coverage accounting. Do not add coverage instrumentation or coverage
-collection for code under `core/`. CI still runs `CGO_ENABLED=0 go test .` and `go vet .` to compile/check the Go wrapper,
-plus an NDK-backed `GOOS=android` vet that covers the `android && cgo` files the first two exclude; verify cross-language
-protocol behavior through shared Dart contract tests under `test/core/` and native platform build checks.
-
-A Go test in `core/` that reaches `sendMessage` — directly, or through `handleStartLog` or `updater.GeoUpdateHook` —
-leaves events in the process-wide batcher, which flushes them up to `messageBatchInterval` later into whichever
-connection `captureFrames` has installed by then. Either keep the event out of the batcher or end the test with
-`settleMessageBatcher`. That batcher runs for the whole test binary and reads `conn` under `connMu`, so install a test
-connection with `swapConn`; a bare assignment races every event it happens to be delivering, and `go test -race` catches
-it in an unrelated test.
+collection for code under `core/`. Desktop CI checks the pinned Rust host with locked Cargo tests, fmt and Clippy on
+each native target. Verify application behavior through CoreController in `test/core/`; retain independent IPC,
+lifecycle and privileged Helper contract tests. Native TUN/DNS/route tests require a disposable elevated machine and
+recorded cleanup evidence. See `.agents/commands.md` and `https://github.com/yukkodesu/FlClash-Patched/issues/8`.
 
 Use `CoreController.test(mock)` to inject a mocked `CoreHandlerInterface`. Call `CoreController.resetInstance()` in `tearDown` to clean up the singleton between tests.
 
@@ -466,7 +414,9 @@ l10n paths for that reason. It is harmless because the file only needs `Locale`,
 human writes takes Material from `material_ui`; `cupertino_ui` is banned outright and
 survives only as a transitive dependency of `material_ui`.
 
-Strings live in `arb/intl_{en,zh_CN,ja,ru}.arb` — flat JSON, no `@` metadata. Add a key to all four, then regenerate with
+Strings live in `arb/intl_*.arb` — currently `en`, `zh_CN`, `zh_TW`, `ja`, and `ru`; flat JSON, no `@` metadata.
+Enumerate the ARB files when changing UI text so newly added locales are included. Add keys to every locale and review
+existing translations when their meaning changes, including Traditional Chinese (`zh_TW`). Regenerate with
 `dart run intl_utils:generate`, which rewrites `lib/l10n/`. A key present in only some locales silently falls back to
 English at runtime, so add the translation rather than leaving it out.
 

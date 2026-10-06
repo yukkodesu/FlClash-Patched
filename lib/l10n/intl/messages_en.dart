@@ -89,22 +89,24 @@ class MessageLookup extends MessageLookupByLibrary {
   static String m27(count) =>
       "${Intl.plural(count, one: '1 proxy', other: '${count} proxies')}";
 
-  static String m28(count) =>
-      "${Intl.plural(count, one: '1 rule', other: '${count} rules')}";
+  static String m28(maximum) => "Enter an integer between 0 and ${maximum}.";
 
   static String m29(count) =>
+      "${Intl.plural(count, one: '1 rule', other: '${count} rules')}";
+
+  static String m30(count) =>
       "${Intl.plural(count, one: '1 second', other: '${count} seconds')}";
 
-  static String m30(count) => "${count} selected";
+  static String m31(count) => "${count} selected";
 
-  static String m31(interval, idleInterval) =>
+  static String m32(interval, idleInterval) =>
       "${interval} · Idle ${idleInterval}";
 
-  static String m32(interval) => "${interval} · Idle disabled";
+  static String m33(interval) => "${interval} · Idle disabled";
 
-  static String m33(label) => "${label} must be a URL";
+  static String m34(label) => "${label} must be a URL";
 
-  static String m34(count) =>
+  static String m35(count) =>
       "${Intl.plural(count, one: '1 year ago', other: '${count} years ago')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -252,6 +254,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "autoRun": MessageLookupByLibrary.simpleMessage("Auto run"),
     "autoRunDesc": MessageLookupByLibrary.simpleMessage(
       "Run automatically when the app opens",
+    ),
+    "autoSetSystemDns": MessageLookupByLibrary.simpleMessage(
+      "Auto-set system DNS",
+    ),
+    "autoSetSystemDnsDesc": MessageLookupByLibrary.simpleMessage(
+      "Add a fallback DNS server to the system",
     ),
     "autoUpdate": MessageLookupByLibrary.simpleMessage("Auto update"),
     "autoUpdateInterval": MessageLookupByLibrary.simpleMessage(
@@ -450,7 +458,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "deleteMultipTip": m3,
     "deleteTip": m4,
     "desc": MessageLookupByLibrary.simpleMessage(
-      "A multi-platform proxy client based on mihomo, simple and easy to use, open-source and ad-free.",
+      "A multi-platform proxy client based on meow-rs, simple and easy to use, open-source and ad-free.",
     ),
     "descending": MessageLookupByLibrary.simpleMessage("Descending"),
     "destination": MessageLookupByLibrary.simpleMessage("Destination"),
@@ -923,6 +931,21 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "memoryStacks": MessageLookupByLibrary.simpleMessage("Stacks"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage("Go memory usage"),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("All traffic"),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "Select a profile before starting.",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "Previous TUN state needs inspection or recovery. Restart with privileged Helper to check DNS and routes before enabling TUN. Ordinary proxy mode remains available.",
+    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage(
+      "Global (experimental)",
+    ),
+    "meowTunIpv6": MessageLookupByLibrary.simpleMessage("Capture IPv6"),
     "messageTest": MessageLookupByLibrary.simpleMessage("Message test"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage(
       "This is a message.",
@@ -944,7 +967,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "more": MessageLookupByLibrary.simpleMessage("More"),
     "mtu": MessageLookupByLibrary.simpleMessage("MTU"),
     "mtuRangeTip": MessageLookupByLibrary.simpleMessage(
-      "MTU must be an integer between 1 and 65535",
+      "MTU must be an integer between 1280 and 65535",
     ),
     "multipleValuesTip": MessageLookupByLibrary.simpleMessage(
       "Separate multiple values with commas",
@@ -1191,9 +1214,11 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "query": MessageLookupByLibrary.simpleMessage("Query"),
     "queryDns": MessageLookupByLibrary.simpleMessage("Query DNS"),
+    "queryRule": MessageLookupByLibrary.simpleMessage("Query rules"),
     "quickFill": MessageLookupByLibrary.simpleMessage("Quick fill"),
     "rainbowScheme": MessageLookupByLibrary.simpleMessage("Rainbow"),
     "random": MessageLookupByLibrary.simpleMessage("Random"),
+    "recentRequests": MessageLookupByLibrary.simpleMessage("Recent requests"),
     "recordType": MessageLookupByLibrary.simpleMessage("Record type"),
     "recvMsgX": MessageLookupByLibrary.simpleMessage("Enable RecvMsgX"),
     "recvMsgXDesc": MessageLookupByLibrary.simpleMessage(
@@ -1214,7 +1239,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "replace": MessageLookupByLibrary.simpleMessage("Replace"),
     "replaceAll": MessageLookupByLibrary.simpleMessage("Replace all"),
     "request": MessageLookupByLibrary.simpleMessage("Request"),
-    "requests": MessageLookupByLibrary.simpleMessage("Recent requests"),
+    "requests": MessageLookupByLibrary.simpleMessage("Requests"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage(
       "View recent request records",
     ),
@@ -1390,12 +1415,54 @@ class MessageLookup extends MessageLookupByLibrary {
     "ruleActionUidDesc": MessageLookupByLibrary.simpleMessage(
       "Match the Linux user ID",
     ),
+    "ruleDisabled": MessageLookupByLibrary.simpleMessage("Disabled"),
     "ruleEmpty": MessageLookupByLibrary.simpleMessage("Rule is empty"),
+    "ruleEnabled": MessageLookupByLibrary.simpleMessage("Enabled"),
+    "ruleHits": MessageLookupByLibrary.simpleMessage("Hits"),
+    "ruleLastHit": MessageLookupByLibrary.simpleMessage("Last hit"),
+    "ruleLastMiss": MessageLookupByLibrary.simpleMessage("Last miss"),
+    "ruleMisses": MessageLookupByLibrary.simpleMessage("Misses"),
     "ruleName": MessageLookupByLibrary.simpleMessage("Rule name"),
+    "ruleQueryDestinationIP": MessageLookupByLibrary.simpleMessage(
+      "Destination IP",
+    ),
+    "ruleQueryInboundName": MessageLookupByLibrary.simpleMessage(
+      "Inbound name",
+    ),
+    "ruleQueryInboundUser": MessageLookupByLibrary.simpleMessage(
+      "Inbound user",
+    ),
+    "ruleQueryInvalidIP": MessageLookupByLibrary.simpleMessage(
+      "Enter a valid IP address.",
+    ),
+    "ruleQueryNoMatch": MessageLookupByLibrary.simpleMessage(
+      "No rule matched (mode policy or DIRECT fallback)",
+    ),
+    "ruleQueryNumberRange": m28,
+    "ruleQueryPortInvalid": MessageLookupByLibrary.simpleMessage(
+      "Enter a port between 1 and 65535.",
+    ),
+    "ruleQueryProcessPath": MessageLookupByLibrary.simpleMessage(
+      "Process path",
+    ),
+    "ruleQuerySniffHost": MessageLookupByLibrary.simpleMessage(
+      "Sniffed domain",
+    ),
+    "ruleQuerySourcePort": MessageLookupByLibrary.simpleMessage("Source port"),
+    "ruleQueryTarget": MessageLookupByLibrary.simpleMessage(
+      "Domain or IP address",
+    ),
     "ruleSet": MessageLookupByLibrary.simpleMessage("Rule set"),
     "ruleTarget": MessageLookupByLibrary.simpleMessage("Rule target"),
+    "ruleType": MessageLookupByLibrary.simpleMessage("Rule type"),
+    "ruleUpdateFailed": MessageLookupByLibrary.simpleMessage(
+      "Could not change the rule. The configuration may have changed; refresh and try again.",
+    ),
     "rules": MessageLookupByLibrary.simpleMessage("Rules"),
-    "rulesCount": m28,
+    "rulesCount": m29,
+    "rulesDesc": MessageLookupByLibrary.simpleMessage(
+      "View rules and matching statistics",
+    ),
     "save": MessageLookupByLibrary.simpleMessage("Save"),
     "saveChanges": MessageLookupByLibrary.simpleMessage("Save the changes?"),
     "script": MessageLookupByLibrary.simpleMessage("Script"),
@@ -1407,7 +1474,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Search"),
     "seconds": MessageLookupByLibrary.simpleMessage("seconds"),
-    "secondsCount": m29,
+    "secondsCount": m30,
     "selectAll": MessageLookupByLibrary.simpleMessage("Select all"),
     "selectMatchTarget": MessageLookupByLibrary.simpleMessage(
       "Select MATCH-TARGET",
@@ -1429,7 +1496,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Please select a sub-rule",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Selected"),
-    "selectedCountTitle": m30,
+    "selectedCountTitle": m31,
     "sendMsgX": MessageLookupByLibrary.simpleMessage("Enable SendMsgX"),
     "sendMsgXDesc": MessageLookupByLibrary.simpleMessage(
       "Send packets in batches on Darwin",
@@ -1611,8 +1678,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "uiUpdateInterval": MessageLookupByLibrary.simpleMessage(
       "UI info update interval",
     ),
-    "uiUpdateIntervalDesc": m31,
-    "uiUpdateIntervalIdleDisabledDesc": m32,
+    "uiUpdateIntervalDesc": m32,
+    "uiUpdateIntervalIdleDisabledDesc": m33,
     "unauthorized": MessageLookupByLibrary.simpleMessage("Unauthorized"),
     "undo": MessageLookupByLibrary.simpleMessage("Undo"),
     "unifiedDelay": MessageLookupByLibrary.simpleMessage("Unified delay"),
@@ -1638,7 +1705,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "urlDesc": MessageLookupByLibrary.simpleMessage(
       "Obtain a profile from a URL",
     ),
-    "urlTip": m33,
+    "urlTip": m34,
     "useHosts": MessageLookupByLibrary.simpleMessage("Use hosts"),
     "useHostsDesc": MessageLookupByLibrary.simpleMessage(
       "Checks the hosts entries in the configuration before querying upstream DNS servers",
@@ -1670,7 +1737,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "writeToSystemDesc": MessageLookupByLibrary.simpleMessage(
       "Also set the system clock",
     ),
-    "yearsAgo": m34,
+    "yearsAgo": m35,
     "yes": MessageLookupByLibrary.simpleMessage("Yes"),
     "zhCN": MessageLookupByLibrary.simpleMessage("Simplified Chinese"),
     "zhTW": MessageLookupByLibrary.simpleMessage("Traditional Chinese"),

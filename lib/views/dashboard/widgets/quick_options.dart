@@ -1,5 +1,6 @@
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/views/config/network.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -78,24 +79,27 @@ class _QuickSwitchCard extends StatelessWidget {
   }
 }
 
-class TUNButton extends StatelessWidget {
+class TUNButton extends ConsumerWidget {
   const TUNButton({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(patchClashConfigProvider.select((state) => state.tun.enable));
     return _QuickSwitchCard(
       label: context.appLocalizations.tun,
       iconData: Symbols.stacked_line_chart,
       items: [
         if (system.isDesktop) const TUNItem(),
-        const TunStackItem(),
+        const TunRouteModeItem(),
         const TunMtuItem(),
       ],
-      selector: patchClashConfigProvider.select((state) => state.tun.enable),
+      selector: runtimeStatusProvider.select(
+        (state) => state?.tunActive ?? false,
+      ),
       onChanged: (ref, value) {
         ref
             .read(patchClashConfigProvider.notifier)
-            .update((state) => state.copyWith.tun(enable: value));
+            .update((state) => state.copyWith.tun(enable: !state.tun.enable));
       },
     );
   }

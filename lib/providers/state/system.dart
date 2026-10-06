@@ -5,6 +5,40 @@ final vpnOptionsProvider = Provider<VpnOptions?>((ref) {
 });
 
 @riverpod
+({
+  PatchClashConfig config,
+  bool overrideDns,
+  bool overrideNtp,
+  bool appendSystemDns,
+})
+profileReloadState(Ref ref) {
+  final config = ref.watch(patchClashConfigProvider);
+  return (
+    // Fields supported by updateParams use the existing hot-update path.
+    config: config.copyWith(
+      tun: defaultClashConfig.tun,
+      allowLan: defaultClashConfig.allowLan,
+      findProcessMode: defaultClashConfig.findProcessMode,
+      mode: defaultClashConfig.mode,
+      logLevel: defaultClashConfig.logLevel,
+      ipv6: defaultClashConfig.ipv6,
+      tcpConcurrent: defaultClashConfig.tcpConcurrent,
+      externalController: defaultClashConfig.externalController,
+      secret: defaultClashConfig.secret,
+      unifiedDelay: defaultClashConfig.unifiedDelay,
+      mixedPort: defaultClashConfig.mixedPort,
+      geoAutoUpdate: defaultClashConfig.geoAutoUpdate,
+      geoUpdateInterval: defaultClashConfig.geoUpdateInterval,
+    ),
+    overrideDns: ref.watch(overrideDnsProvider),
+    overrideNtp: ref.watch(overrideNtpProvider),
+    appendSystemDns: ref.watch(
+      networkSettingProvider.select((state) => state.appendSystemDns),
+    ),
+  );
+}
+
+@riverpod
 UpdateParams updateParams(Ref ref) {
   final routeMode = ref.watch(
     networkSettingProvider.select((state) => state.routeMode),
@@ -36,17 +70,15 @@ UpdateParams updateParams(Ref ref) {
 
 @riverpod
 TrayState trayState(Ref ref) {
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
+  final isStart = ref.watch(isStartProvider);
   final systemProxy = ref.watch(
     networkSettingProvider.select((state) => state.systemProxy),
   );
+  final tunActive = ref.watch(runtimeStatusProvider)?.tunActive ?? false;
   final clashConfig = ref.watch(
     patchClashConfigProvider.select(
-      (state) => (
-        mode: state.mode,
-        mixedPort: state.mixedPort,
-        tunEnable: state.tun.enable,
-      ),
+      (state) =>
+          (mode: state.mode, mixedPort: state.mixedPort, tunEnable: tunActive),
     ),
   );
   final autoLaunch = ref.watch(
@@ -135,6 +167,17 @@ HotKeyAction getHotKeyAction(Ref ref, HotAction hotAction) {
 }
 
 @riverpod
+bool shouldPatchSystemDns(Ref ref) {
+  final autoSetSystemDns = ref.watch(
+    networkSettingProvider.select((state) => state.autoSetSystemDns),
+  );
+  if (!autoSetSystemDns) {
+    return false;
+  }
+  return ref.watch(runtimeStatusProvider)?.tunActive ?? false;
+}
+
+@riverpod
 SharedState sharedState(Ref ref) {
   ref.watch(loadedLocaleProvider);
   final currentProfile = ref.watch(
@@ -148,7 +191,7 @@ SharedState sharedState(Ref ref) {
   final appSetting = ref.watch(
     appSettingProvider.select(
       (state) => (
-        onlyStatisticsProxy: state.onlyStatisticsProxy,
+        onlyStatisticsProxy: false,
         showStopAction: state.showNotificationStopAction,
         testUrl: state.testUrl,
         collapseQuickSettingsPanel: state.collapseQuickSettingsPanel,
@@ -177,7 +220,7 @@ SharedState sharedState(Ref ref) {
   final vpnSetting = ref.watch(vpnSettingProvider);
   final currentProfileName = currentProfile.label;
   final selectedMap = currentProfile.selectedMap;
-  final onlyStatisticsProxy = appSetting.onlyStatisticsProxy;
+  const onlyStatisticsProxy = false;
   final testUrl = appSetting.testUrl;
   final stack = clashConfig.stack;
   final port = clashConfig.mixedPort;

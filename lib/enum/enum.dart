@@ -232,6 +232,10 @@ enum TrackerInfoSortType {
   proxyChains,
 }
 
+enum TunRouteMode { fakeIp, globalExperimental }
+
+enum CoreRuleSortType { ruleOrder, hitCount, lastHit }
+
 enum TunStack { mips, gvisor, system, mixed }
 
 enum TunCongestionController { cubic, reno, bbr, bbr3 }
@@ -379,7 +383,6 @@ enum FunctionTag {
   saveSharedFile,
   removeProxy,
   suspend,
-  coreErrorNotifier,
   handleBack,
   foreground,
   background,
@@ -453,6 +456,7 @@ enum PageLabel {
   networking,
   connections,
   dnsQueries,
+  rules,
 }
 
 enum RuleAction {

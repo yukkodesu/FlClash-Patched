@@ -45,6 +45,7 @@ class LinkManager {
   }
 
   void _handle(Uri uri, Function(String url) installConfigCallBack) {
+    if (!protocolSchemes.contains(uri.scheme)) return;
     commonPrint.log('onAppLink: $uri');
     if (uri.host == 'install-config') {
       final parameters = uri.queryParameters;

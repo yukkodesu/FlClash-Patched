@@ -347,8 +347,8 @@ extension TrackerInfosStateExt on TrackerInfosState {
   }
 }
 
-const defaultDavFileName = 'FlClash_{version}_{platform}_{date}_{time}.zip';
-const defaultDavDirectory = '/FlClash';
+const defaultDavFileName = '${appName}_{version}_{platform}_{date}_{time}.zip';
+const defaultDavDirectory = '/$appName';
 const _davPasswordFormatVersion = 'v1';
 const _davPasswordNonceLength = 16;
 const _davPasswordObfuscationMask = <int>[

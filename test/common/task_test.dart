@@ -10,17 +10,6 @@ import 'package:yaml/yaml.dart';
 int _double(int value) => value * 2;
 
 void main() {
-  test('effectiveGeositeMatcher forces succinct only on iOS', () {
-    expect(
-      effectiveGeositeMatcher(configured: GeositeMatcher.mph, isIOS: true),
-      GeositeMatcher.succinct,
-    );
-    expect(
-      effectiveGeositeMatcher(configured: GeositeMatcher.mph, isIOS: false),
-      GeositeMatcher.mph,
-    );
-  });
-
   test('encoding helpers round-trip structured data', () async {
     final encoded = await encodeJSONTask({
       'name': 'FlClash',
@@ -221,23 +210,25 @@ void main() {
       expect(result.md5, hasLength(32));
       expect(config['mixed-port'], 7893);
       expect(config['allow-lan'], true);
-      expect(config['tun']['congestion-controller'], 'cubic');
-      expect(config['global-ua'], 'FlClash-Test');
-      expect(config['profile']['store-selected'], false);
+      expect(config['tun']['auto-route'], 'fake-ip');
+      expect(config['tun'].containsKey('stack'), isFalse);
+      expect(config.containsKey('global-ua'), isFalse);
+      expect(config.containsKey('profile'), isFalse);
       expect(
         config['dns']['nameserver'],
         containsAll(['1.1.1.1', 'system://']),
       );
       expect(config['hosts']['router.local'], ['192.168.1.1', '192.168.1.2']);
-      expect(config['sniffer']['sniff']['HTTP']['ports'], ['80', '443']);
+      expect(config['sniffer']['sniff']['HTTP']['ports'], [80, '443']);
       expect(
         config['proxy-providers']['remote']['path'],
-        startsWith(join('/profiles', 'providers', '7', 'proxies')),
+        startsWith(join('profiles', 'providers', '7', 'proxies')),
       );
       expect(
         config['rule-providers']['remote']['path'],
-        startsWith(join('/profiles', 'providers', '7', 'rules')),
+        startsWith(join('profiles', 'providers', '7', 'rules')),
       );
+      expect(config['proxy-providers']['file']['path'], './local.yaml');
       expect(config['rules'], [
         'DOMAIN-SUFFIX,added.example,Original',
         'DOMAIN,existing.example,DIRECT',
@@ -247,7 +238,7 @@ void main() {
   );
 
   test(
-    'makeRealProfileTask applies every TUN setting and preserves extras',
+    'makeRealProfileTask preserves unsupported nested TUN fields for diagnostics',
     () async {
       for (final tun in [
         const Tun(
@@ -266,6 +257,11 @@ void main() {
           congestionController: TunCongestionController.bbr,
         ),
         const Tun(),
+        const Tun(routeMode: TunRouteMode.globalExperimental),
+        const Tun(
+          routeMode: TunRouteMode.globalExperimental,
+          captureIpv6: true,
+        ),
       ]) {
         final result = await makeRealProfileTask(
           MakeRealProfileState(
@@ -279,6 +275,7 @@ void main() {
                 'disable-icmp-forwarding': !tun.disableIcmpForwarding,
                 'endpoint-independent-nat': !tun.endpointIndependentNat,
                 'route-exclude-address': ['192.168.0.0/16'],
+                'inet6-address': ['fd00:1234::1/126'],
               },
             },
             realPatchConfig: PatchClashConfig(tun: tun),
@@ -291,10 +288,19 @@ void main() {
           ),
         );
         final config = loadYaml(result.yaml) as YamlMap;
-        expect(config['tun'], {
-          ...tun.toJson(),
-          'route-exclude-address': ['192.168.0.0/16'],
-        });
+        expect(config.containsKey('strict'), isFalse);
+        expect(
+          config['tun']['auto-route'],
+          tun.routeMode == TunRouteMode.fakeIp ? 'fake-ip' : 'global',
+        );
+        expect(
+          config['tun']['inet6-address'],
+          tun.captureIpv6 ? ['fd00:1234::1/126'] : null,
+        );
+        expect(config['tun']['route-exclude-address'], ['192.168.0.0/16']);
+        expect(config['tun']['strict-route'], !tun.strictRoute);
+        expect(config['tun'].containsKey('stack'), isFalse);
+        expect(config['tun'].containsKey('congestion-controller'), isFalse);
       }
     },
   );
@@ -340,44 +346,6 @@ void main() {
         (loadYaml(blank.yaml) as YamlMap)['rules'].first,
         'DOMAIN-SUFFIX,added.example,Original',
       );
-    },
-  );
-
-  // The core re-reads these two keys out of the generated config on every
-  // profile apply and adopts whatever it finds, so a subscription that ships
-  // them would otherwise decide whether GEO databases auto-update — including
-  // switching the updater back on after the user turned it off.
-  test(
-    'makeRealProfileTask lets the app setting own the geo updater',
-    () async {
-      final rawConfig = await decodeJSONTask<Map<String, dynamic>>(
-        await encodeJSONTask({
-          'geo-auto-update': true,
-          'geo-update-interval': 6,
-        }),
-      );
-
-      final result = await makeRealProfileTask(
-        MakeRealProfileState(
-          profilesPath: '/profiles',
-          profileId: 11,
-          rawConfig: rawConfig,
-          realPatchConfig: const PatchClashConfig(
-            geoAutoUpdate: false,
-            geoUpdateInterval: 48,
-          ),
-          overrideDns: false,
-          appendSystemDns: false,
-          proxyGroups: const [],
-          rules: const [],
-          addedRules: const [],
-          defaultUA: 'FlClash-Test',
-        ),
-      );
-      final config = loadYaml(result.yaml) as YamlMap;
-
-      expect(config['geo-auto-update'], false);
-      expect(config['geo-update-interval'], 48);
     },
   );
 
@@ -452,57 +420,6 @@ void main() {
     expect(config['rules'], ['DOMAIN,custom.example,DIRECT']);
   });
 
-  test(
-    'makeRealProfileTask overrides NTP and keeps keys it cannot edit',
-    () async {
-      final rawConfig = await decodeJSONTask<Map<String, dynamic>>(
-        await encodeJSONTask({
-          'ntp': {'enable': false, 'server': 'pool.ntp.org', 'extra': 'keep'},
-        }),
-      );
-      final untouched = await makeRealProfileTask(
-        MakeRealProfileState(
-          profilesPath: '/profiles',
-          profileId: 14,
-          rawConfig: rawConfig,
-          realPatchConfig: const PatchClashConfig(),
-          overrideDns: false,
-          appendSystemDns: false,
-          proxyGroups: const [],
-          rules: const [],
-          addedRules: const [],
-          defaultUA: 'FlClash-Test',
-        ),
-      );
-      final untouchedConfig = loadYaml(untouched.yaml) as YamlMap;
-      expect(untouchedConfig['ntp']['server'], 'pool.ntp.org');
-      expect(untouchedConfig['ntp']['extra'], 'keep');
-
-      final result = await makeRealProfileTask(
-        MakeRealProfileState(
-          profilesPath: '/profiles',
-          profileId: 14,
-          rawConfig: rawConfig,
-          realPatchConfig: const PatchClashConfig(
-            ntp: Ntp(enable: true, server: 'time.cloudflare.com', port: 123),
-          ),
-          overrideDns: false,
-          overrideNtp: true,
-          appendSystemDns: false,
-          proxyGroups: const [],
-          rules: const [],
-          addedRules: const [],
-          defaultUA: 'FlClash-Test',
-        ),
-      );
-      final config = loadYaml(result.yaml) as YamlMap;
-      expect(config['ntp']['enable'], true);
-      expect(config['ntp']['server'], 'time.cloudflare.com');
-      expect(config['ntp']['port'], 123);
-      expect(config['ntp']['extra'], 'keep');
-    },
-  );
-
   test('makeRealProfileTask keeps the DNS keys it cannot edit', () async {
     final rawConfig = await decodeJSONTask<Map<String, dynamic>>(
       await encodeJSONTask({
@@ -538,63 +455,14 @@ void main() {
     final config = loadYaml(result.yaml) as YamlMap;
 
     expect(config['dns']['direct-nameserver'], ['223.5.5.5']);
-    expect(config['dns']['proxy-server-nameserver-policy'], isEmpty);
+    expect(config['dns']['proxy-server-nameserver-policy'], {
+      'www.example.com': ['8.8.8.8'],
+    });
     expect(config['dns']['nameserver'], isNot(contains('system://')));
     expect(
       config['proxy-providers']['first']['path'],
       isNot(config['proxy-providers']['second']['path']),
     );
-  });
-
-  group('makeRealProfileTask interface-name mode', () {
-    Future<YamlMap> runWith(PatchClashConfig realPatchConfig) async {
-      final rawConfig = await decodeJSONTask<Map<String, dynamic>>(
-        await encodeJSONTask({'interface-name': 'en0'}),
-      );
-
-      final result = await makeRealProfileTask(
-        MakeRealProfileState(
-          profilesPath: '/profiles',
-          profileId: 13,
-          rawConfig: rawConfig,
-          realPatchConfig: realPatchConfig,
-          overrideDns: false,
-          appendSystemDns: false,
-          proxyGroups: const [],
-          rules: const [],
-          addedRules: const [],
-          defaultUA: 'FlClash-Test',
-        ),
-      );
-      return loadYaml(result.yaml) as YamlMap;
-    }
-
-    // Default mode, so a subscription value must not survive into the
-    // generated config.
-    test('clear forces interface-name empty', () async {
-      final config = await runWith(const PatchClashConfig());
-
-      expect(config['interface-name'], '');
-    });
-
-    test('follow leaves the profile value untouched', () async {
-      final config = await runWith(
-        const PatchClashConfig(interfaceNameMode: InterfaceNameMode.follow),
-      );
-
-      expect(config['interface-name'], 'en0');
-    });
-
-    test('custom writes the configured interface name', () async {
-      final config = await runWith(
-        const PatchClashConfig(
-          interfaceNameMode: InterfaceNameMode.custom,
-          interfaceName: 'eth0',
-        ),
-      );
-
-      expect(config['interface-name'], 'eth0');
-    });
   });
 
   group('makeRealProfileTask legacy provider file migration', () {
@@ -641,7 +509,10 @@ void main() {
         ),
       );
       final config = loadYaml(result.yaml) as YamlMap;
-      expect(config['proxy-providers'][name]['path'], newPath);
+      expect(
+        config['proxy-providers'][name]['path'],
+        relative(newPath, from: dirname(tempDir.path)),
+      );
       return (legacyPath: legacyPath, newPath: newPath);
     }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:fl_clash/core/desktop/rpc_client.dart';
+import 'package:fl_clash/core/desktop/model.dart';
 import 'package:fl_clash/core/event.dart';
 import 'package:fl_clash/core/method.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +18,130 @@ Future<Map<String, Object?>> _sentRequest(
 }
 
 void main() {
+  test(
+    'terminal close preserves an in-flight session cleanup acknowledgement',
+    () async {
+      final transport = FakeDesktopCoreTransport.connected(pid: 42);
+      final client = CoreRpcClient(transport);
+      addTearDown(transport.close);
+      addTearDown(client.close);
+      final shutdown = client.shutdownSession(
+        DesktopCoreSession(
+          sessionId: '0123456789abcdef0123456789abcdef',
+          lease: FakeProcessLease(owner: CoreProcessOwner.direct, pid: 42),
+          connectionGeneration: 1,
+        ),
+        const Duration(seconds: 1),
+      );
+      final request = await _sentRequest(transport);
+      transport.addJson({'id': request['id'], 'result': true});
+      scheduleMicrotask(client.beginShutdown);
+      transport.disconnect(1);
+
+      await shutdown;
+      expect(await client.invoke<bool>(method: CoreMethod.getIsInit), isNull);
+    },
+  );
+
+  test(
+    'a previous connection EOF cannot cancel the replacement session RPC',
+    () async {
+      final transport = FakeDesktopCoreTransport.connected(pid: 42);
+      final client = CoreRpcClient(transport);
+      addTearDown(transport.close);
+      addTearDown(client.close);
+      transport.connect(pid: 84, generation: 2);
+      final invocation = client.invoke<bool>(method: CoreMethod.getIsInit);
+      final request = await _sentRequest(transport);
+
+      transport.disconnect(1);
+      transport.addJson({'id': request['id'], 'result': true});
+
+      expect(await invocation, isTrue);
+    },
+  );
+
+  test(
+    'shutdown cannot be sent to a connection belonging to another lease',
+    () async {
+      final transport = FakeDesktopCoreTransport.connected(pid: 84);
+      final client = CoreRpcClient(transport);
+      addTearDown(transport.close);
+      addTearDown(client.close);
+      final session = DesktopCoreSession(
+        sessionId: '0123456789abcdef0123456789abcdef',
+        lease: FakeProcessLease(owner: CoreProcessOwner.direct, pid: 42),
+        connectionGeneration: 1,
+      );
+
+      await expectLater(
+        client.shutdownSession(session, const Duration(seconds: 1)),
+        throwsA(isA<StateError>()),
+      );
+      expect(transport.sentMessages, isEmpty);
+    },
+  );
+
+  test(
+    'planned session stop cancels an ordinary call whose send fails',
+    () async {
+      final transport = FakeDesktopCoreTransport.connected(pid: 42)
+        ..sendGate = Completer<void>()
+        ..sendError = StateError('connection closed during send');
+      final client = CoreRpcClient(transport);
+      addTearDown(transport.close);
+      addTearDown(client.close);
+      final pending = client.invoke<bool>(method: CoreMethod.getIsInit);
+      await pumpEventQueue();
+      final shutdown = client.shutdownSession(
+        DesktopCoreSession(
+          sessionId: '0123456789abcdef0123456789abcdef',
+          lease: FakeProcessLease(owner: CoreProcessOwner.direct, pid: 42),
+          connectionGeneration: 1,
+        ),
+        const Duration(seconds: 1),
+      );
+      final cleanupFailure = expectLater(shutdown, throwsA(isA<StateError>()));
+      transport.sendGate!.complete();
+
+      expect(await pending, isNull);
+      await cleanupFailure;
+    },
+  );
+
+  test(
+    'terminal shutdown receives the cleanup acknowledgement before EOF',
+    () async {
+      final transport = FakeDesktopCoreTransport.connected(pid: 42);
+      final client = CoreRpcClient(transport);
+      addTearDown(transport.close);
+      addTearDown(client.close);
+      final pending = client.invoke<bool>(method: CoreMethod.getIsInit);
+      await _sentRequest(transport);
+      client.beginShutdown();
+      expect(await pending, isNull);
+      final session = DesktopCoreSession(
+        sessionId: '0123456789abcdef0123456789abcdef',
+        lease: FakeProcessLease(owner: CoreProcessOwner.direct, pid: 42),
+        connectionGeneration: 1,
+      );
+
+      final shutdown = client.shutdownSession(
+        session,
+        const Duration(seconds: 1),
+      );
+      await pumpEventQueue();
+      final request = jsonDecode(transport.sentMessages.last) as Map;
+      expect(request['method'], 'shutdown');
+      transport.addJson({'id': request['id'], 'result': true});
+      transport.disconnect(1);
+      await shutdown;
+
+      expect(await client.invoke<bool>(method: CoreMethod.getIsInit), isNull);
+      expect(transport.sentMessages, hasLength(2));
+    },
+  );
+
   test('decodes a large node response in the background', () async {
     final transport = FakeDesktopCoreTransport.connected();
     final client = CoreRpcClient(transport);

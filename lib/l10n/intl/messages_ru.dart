@@ -89,22 +89,24 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m27(count) => "${count} прокси";
 
-  static String m28(count) =>
-      "${Intl.plural(count, one: '${count} правило', few: '${count} правила', many: '${count} правил', other: '${count} правила')}";
+  static String m28(maximum) => "Введите целое число от 0 до ${maximum}.";
 
   static String m29(count) =>
+      "${Intl.plural(count, one: '${count} правило', few: '${count} правила', many: '${count} правил', other: '${count} правила')}";
+
+  static String m30(count) =>
       "${Intl.plural(count, one: '${count} секунда', few: '${count} секунды', many: '${count} секунд', other: '${count} секунды')}";
 
-  static String m30(count) => "Выбрано: ${count}";
+  static String m31(count) => "Выбрано: ${count}";
 
-  static String m31(interval, idleInterval) =>
+  static String m32(interval, idleInterval) =>
       "${interval} · бездействие ${idleInterval}";
 
-  static String m32(interval) => "${interval} · бездействие отключено";
+  static String m33(interval) => "${interval} · бездействие отключено";
 
-  static String m33(label) => "Значение «${label}» должно быть URL";
+  static String m34(label) => "Значение «${label}» должно быть URL";
 
-  static String m34(count) =>
+  static String m35(count) =>
       "${Intl.plural(count, one: '${count} год назад', few: '${count} года назад', many: '${count} лет назад', other: '${count} года назад')}";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
@@ -260,6 +262,12 @@ class MessageLookup extends MessageLookupByLibrary {
     "autoRun": MessageLookupByLibrary.simpleMessage("Автовключение"),
     "autoRunDesc": MessageLookupByLibrary.simpleMessage(
       "Включаться автоматически при открытии приложения",
+    ),
+    "autoSetSystemDns": MessageLookupByLibrary.simpleMessage(
+      "Автонастройка системного DNS",
+    ),
+    "autoSetSystemDnsDesc": MessageLookupByLibrary.simpleMessage(
+      "Добавить резервный DNS-сервер в систему",
     ),
     "autoUpdate": MessageLookupByLibrary.simpleMessage("Автообновление"),
     "autoUpdateInterval": MessageLookupByLibrary.simpleMessage(
@@ -470,7 +478,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "deleteMultipTip": m3,
     "deleteTip": m4,
     "desc": MessageLookupByLibrary.simpleMessage(
-      "Многоплатформенный прокси-клиент на основе mihomo, простой и удобный в использовании, с открытым исходным кодом и без рекламы.",
+      "Мультиплатформенный прокси-клиент на основе meow-rs: простой, удобный, с открытым исходным кодом и без рекламы.",
     ),
     "descending": MessageLookupByLibrary.simpleMessage("По убыванию"),
     "destination": MessageLookupByLibrary.simpleMessage("Назначение"),
@@ -973,6 +981,21 @@ class MessageLookup extends MessageLookupByLibrary {
     "memoryTotal": MessageLookupByLibrary.simpleMessage(
       "Использование памяти Go",
     ),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "meow-rs не поддерживает профили с шифрованием AGE. Импортируйте расшифрованный профиль YAML.",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("Весь трафик"),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "Выберите профиль перед запуском.",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "Состояние предыдущего сеанса TUN требует проверки или восстановления. Перезапустите приложение через Helper с повышенными правами, чтобы проверить DNS и маршруты перед включением TUN. Обычный режим прокси остаётся доступным.",
+    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage(
+      "Глобальный (экспериментальный)",
+    ),
+    "meowTunIpv6": MessageLookupByLibrary.simpleMessage("Перехват IPv6"),
     "messageTest": MessageLookupByLibrary.simpleMessage("Тест сообщения"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("Это сообщение."),
     "min": MessageLookupByLibrary.simpleMessage("Минимальный"),
@@ -994,7 +1017,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "more": MessageLookupByLibrary.simpleMessage("Ещё"),
     "mtu": MessageLookupByLibrary.simpleMessage("MTU"),
     "mtuRangeTip": MessageLookupByLibrary.simpleMessage(
-      "MTU должен быть целым числом от 1 до 65535",
+      "MTU должен быть целым числом от 1280 до 65535",
     ),
     "multipleValuesTip": MessageLookupByLibrary.simpleMessage(
       "Разделяйте несколько значений запятыми",
@@ -1255,9 +1278,11 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "query": MessageLookupByLibrary.simpleMessage("Запросить"),
     "queryDns": MessageLookupByLibrary.simpleMessage("DNS-запрос"),
+    "queryRule": MessageLookupByLibrary.simpleMessage("Проверить правила"),
     "quickFill": MessageLookupByLibrary.simpleMessage("Быстрое заполнение"),
     "rainbowScheme": MessageLookupByLibrary.simpleMessage("Радуга"),
     "random": MessageLookupByLibrary.simpleMessage("Случайный"),
+    "recentRequests": MessageLookupByLibrary.simpleMessage("Последние запросы"),
     "recordType": MessageLookupByLibrary.simpleMessage("Тип записи"),
     "recvMsgX": MessageLookupByLibrary.simpleMessage("Включить RecvMsgX"),
     "recvMsgXDesc": MessageLookupByLibrary.simpleMessage(
@@ -1278,7 +1303,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "replace": MessageLookupByLibrary.simpleMessage("Заменить"),
     "replaceAll": MessageLookupByLibrary.simpleMessage("Заменить все"),
     "request": MessageLookupByLibrary.simpleMessage("Запрос"),
-    "requests": MessageLookupByLibrary.simpleMessage("Последние запросы"),
+    "requests": MessageLookupByLibrary.simpleMessage("Запросы"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage(
       "Просмотр последних запросов",
     ),
@@ -1466,12 +1491,58 @@ class MessageLookup extends MessageLookupByLibrary {
     "ruleActionUidDesc": MessageLookupByLibrary.simpleMessage(
       "Сопоставить Linux USER ID",
     ),
+    "ruleDisabled": MessageLookupByLibrary.simpleMessage("Отключено"),
     "ruleEmpty": MessageLookupByLibrary.simpleMessage("Правило пусто"),
+    "ruleEnabled": MessageLookupByLibrary.simpleMessage("Включено"),
+    "ruleHits": MessageLookupByLibrary.simpleMessage("Совпадения"),
+    "ruleLastHit": MessageLookupByLibrary.simpleMessage("Последнее совпадение"),
+    "ruleLastMiss": MessageLookupByLibrary.simpleMessage(
+      "Последнее несовпадение",
+    ),
+    "ruleMisses": MessageLookupByLibrary.simpleMessage("Несовпадения"),
     "ruleName": MessageLookupByLibrary.simpleMessage("Название правила"),
+    "ruleQueryDestinationIP": MessageLookupByLibrary.simpleMessage(
+      "IP назначения",
+    ),
+    "ruleQueryInboundName": MessageLookupByLibrary.simpleMessage(
+      "Имя входящего подключения",
+    ),
+    "ruleQueryInboundUser": MessageLookupByLibrary.simpleMessage(
+      "Пользователь входящего подключения",
+    ),
+    "ruleQueryInvalidIP": MessageLookupByLibrary.simpleMessage(
+      "Введите корректный IP-адрес.",
+    ),
+    "ruleQueryNoMatch": MessageLookupByLibrary.simpleMessage(
+      "Нет совпадений (политика режима или DIRECT)",
+    ),
+    "ruleQueryNumberRange": m28,
+    "ruleQueryPortInvalid": MessageLookupByLibrary.simpleMessage(
+      "Введите порт от 1 до 65535.",
+    ),
+    "ruleQueryProcessPath": MessageLookupByLibrary.simpleMessage(
+      "Путь процесса",
+    ),
+    "ruleQuerySniffHost": MessageLookupByLibrary.simpleMessage(
+      "Обнаруженный домен",
+    ),
+    "ruleQuerySourcePort": MessageLookupByLibrary.simpleMessage(
+      "Порт источника",
+    ),
+    "ruleQueryTarget": MessageLookupByLibrary.simpleMessage(
+      "Домен или IP-адрес",
+    ),
     "ruleSet": MessageLookupByLibrary.simpleMessage("Набор правил"),
     "ruleTarget": MessageLookupByLibrary.simpleMessage("Цель правила"),
+    "ruleType": MessageLookupByLibrary.simpleMessage("Тип правила"),
+    "ruleUpdateFailed": MessageLookupByLibrary.simpleMessage(
+      "Не удалось изменить правило. Возможно, конфигурация изменилась. Обновите список и повторите попытку.",
+    ),
     "rules": MessageLookupByLibrary.simpleMessage("Правила"),
-    "rulesCount": m28,
+    "rulesCount": m29,
+    "rulesDesc": MessageLookupByLibrary.simpleMessage(
+      "Просмотр правил и статистики совпадений",
+    ),
     "save": MessageLookupByLibrary.simpleMessage("Сохранить"),
     "saveChanges": MessageLookupByLibrary.simpleMessage("Сохранить изменения?"),
     "script": MessageLookupByLibrary.simpleMessage("Скрипт"),
@@ -1483,7 +1554,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "search": MessageLookupByLibrary.simpleMessage("Поиск"),
     "seconds": MessageLookupByLibrary.simpleMessage("секунд"),
-    "secondsCount": m29,
+    "secondsCount": m30,
     "selectAll": MessageLookupByLibrary.simpleMessage("Выбрать всё"),
     "selectMatchTarget": MessageLookupByLibrary.simpleMessage(
       "Выбрать MATCH-TARGET",
@@ -1505,7 +1576,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Выберите подправило",
     ),
     "selected": MessageLookupByLibrary.simpleMessage("Выбрано"),
-    "selectedCountTitle": m30,
+    "selectedCountTitle": m31,
     "sendMsgX": MessageLookupByLibrary.simpleMessage("Включить SendMsgX"),
     "sendMsgXDesc": MessageLookupByLibrary.simpleMessage(
       "Пакетная отправка пакетов в Darwin",
@@ -1709,8 +1780,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "uiUpdateInterval": MessageLookupByLibrary.simpleMessage(
       "Интервал обновления информации UI",
     ),
-    "uiUpdateIntervalDesc": m31,
-    "uiUpdateIntervalIdleDisabledDesc": m32,
+    "uiUpdateIntervalDesc": m32,
+    "uiUpdateIntervalIdleDisabledDesc": m33,
     "unauthorized": MessageLookupByLibrary.simpleMessage("Не разрешено"),
     "undo": MessageLookupByLibrary.simpleMessage("Отменить"),
     "unifiedDelay": MessageLookupByLibrary.simpleMessage("Единая задержка"),
@@ -1736,7 +1807,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "uploadTraffic": MessageLookupByLibrary.simpleMessage("Исходящий трафик"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("Получить профиль по URL"),
-    "urlTip": m33,
+    "urlTip": m34,
     "useHosts": MessageLookupByLibrary.simpleMessage("Использовать hosts"),
     "useHostsDesc": MessageLookupByLibrary.simpleMessage(
       "Проверяет записи hosts из конфигурации перед запросом к вышестоящим DNS-серверам",
@@ -1776,7 +1847,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "writeToSystemDesc": MessageLookupByLibrary.simpleMessage(
       "Также устанавливать системные часы",
     ),
-    "yearsAgo": m34,
+    "yearsAgo": m35,
     "yes": MessageLookupByLibrary.simpleMessage("Да"),
     "zhCN": MessageLookupByLibrary.simpleMessage("Упрощённый китайский"),
     "zhTW": MessageLookupByLibrary.simpleMessage("Традиционный китайский"),

@@ -168,6 +168,14 @@ _Tun _$TunFromJson(Map<String, dynamic> json) => _Tun(
   enable: json['enable'] as bool? ?? false,
   device: json['device'] as String? ?? appName,
   mtu: (json['mtu'] as num?)?.toInt() ?? defaultTunMtu,
+  routeMode:
+      $enumDecodeNullable(
+        _$TunRouteModeEnumMap,
+        json['routeMode'],
+        unknownValue: TunRouteMode.fakeIp,
+      ) ??
+      TunRouteMode.fakeIp,
+  captureIpv6: json['captureIpv6'] as bool? ?? false,
   autoRoute: json['auto-route'] as bool? ?? false,
   stack:
       $enumDecodeNullable(
@@ -182,7 +190,7 @@ _Tun _$TunFromJson(Map<String, dynamic> json) => _Tun(
       (json['dns-hijack'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList() ??
-      const [],
+      const ['any:53'],
   routeAddress:
       (json['route-address'] as List<dynamic>?)
           ?.map((e) => e as String)
@@ -204,6 +212,8 @@ Map<String, dynamic> _$TunToJson(_Tun instance) => <String, dynamic>{
   'enable': instance.enable,
   'device': instance.device,
   'mtu': instance.mtu,
+  'routeMode': _$TunRouteModeEnumMap[instance.routeMode]!,
+  'captureIpv6': instance.captureIpv6,
   'auto-route': instance.autoRoute,
   'stack': _$TunStackEnumMap[instance.stack]!,
   'recvmsgx': instance.recvMsgX,
@@ -215,6 +225,11 @@ Map<String, dynamic> _$TunToJson(_Tun instance) => <String, dynamic>{
   'endpoint-independent-nat': instance.endpointIndependentNat,
   'congestion-controller':
       _$TunCongestionControllerEnumMap[instance.congestionController]!,
+};
+
+const _$TunRouteModeEnumMap = {
+  TunRouteMode.fakeIp: 'fakeIp',
+  TunRouteMode.globalExperimental: 'globalExperimental',
 };
 
 const _$TunStackEnumMap = {

@@ -36,23 +36,40 @@ class ProfilesAction extends _$ProfilesAction {
   }
 
   Future<String> validateConfigWithData(String data) async {
-    return _core.validateConfigWithData(data);
+    try {
+      final parsed = yaml_parser.loadYaml(data);
+      if (parsed is! Map) {
+        throw const FormatException('A profile must be a YAML mapping.');
+      }
+      return '';
+    } catch (error) {
+      return error.toString();
+    }
   }
 
   Future<String> prepareProfileConfig(
     String content,
     String? ageSecretKey,
   ) async {
-    var prepared = content;
     if (ageSecretKey?.isNotEmpty == true) {
-      final decrypted = await _core.decryptAgeConfig(content, ageSecretKey!);
-      if (decrypted.isNotEmpty) {
-        prepared = decrypted;
-      }
+      throw MessageException(currentAppLocalizations.meowAgeUnsupported);
     }
-    final message = await _core.validateConfig(prepared);
+    final prepared = content;
+    final message = await validateConfigWithData(prepared);
     if (message.isNotEmpty) {
       throw MessageException(message);
+    }
+    final checked = await _core.checkConfig(prepared);
+    ref.read(configurationDiagnosticsProvider.notifier).value =
+        checked.diagnostics;
+    if (checked.diagnostics.isNotEmpty) {
+      dialogs.showNotifier(
+        checked.diagnostics
+            .map((item) => '${item.path}: ${item.reason} ${item.suggestion}')
+            .join('\n'),
+        level: checked.valid ? MessageLevel.warning : MessageLevel.error,
+        allowCopy: true,
+      );
     }
     return prepared;
   }

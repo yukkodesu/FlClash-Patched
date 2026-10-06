@@ -48,12 +48,14 @@ class AboutView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appLocalizations = context.appLocalizations;
+    final identity = ref.watch(coreIdentityProvider);
     return CommonScaffold(
       title: appLocalizations.about,
       body: ListView(
         padding: sectionPagePadding,
         children: [
           _AboutHero(
+            coreVersion: identity?.version,
             onEnterDeveloperMode: () {
               ref
                   .read(appSettingProvider.notifier)
@@ -98,8 +100,8 @@ class AboutView extends ConsumerWidget {
               _buildLinkItem(
                 icon: Symbols.memory,
                 title: appLocalizations.core,
-                url: 'https://github.com/chenx-dust/mihomo/tree/FlClash',
-                label: 'Github: chenx-dust/mihomo',
+                url: 'https://github.com/yukkodesu/meow-rs',
+                label: 'Github: yukkodesu/meow-rs',
               ),
             ],
           ),
@@ -110,9 +112,10 @@ class AboutView extends ConsumerWidget {
 }
 
 class _AboutHero extends StatelessWidget {
+  final String? coreVersion;
   final VoidCallback onEnterDeveloperMode;
 
-  const _AboutHero({required this.onEnterDeveloperMode});
+  const _AboutHero({required this.onEnterDeveloperMode, this.coreVersion});
 
   static const _logoSize = 96.0;
   static const _logoInset = 14.0;
@@ -153,10 +156,6 @@ class _AboutHero extends StatelessWidget {
                   text: appName,
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
-                TextSpan(
-                  text: ' Patched',
-                  style: TextStyle(fontWeight: FontWeight.w100),
-                ),
               ],
             ),
             textAlign: TextAlign.center,
@@ -168,7 +167,7 @@ class _AboutHero extends StatelessWidget {
             alignment: WrapAlignment.center,
             children: [
               _Pill(
-                label: 'v${globalState.packageInfo.version}',
+                label: 'v${globalState.packageInfo.releaseVersion}',
                 color: colorScheme.primary,
                 foregroundColor: colorScheme.onPrimary,
               ),
@@ -177,6 +176,12 @@ class _AboutHero extends StatelessWidget {
                 color: colorScheme.surfaceContainerHighest,
                 foregroundColor: colorScheme.onSurfaceVariant,
               ),
+              if (coreVersion != null)
+                _Pill(
+                  label: 'meow-rs $coreVersion',
+                  color: colorScheme.surfaceContainerHighest,
+                  foregroundColor: colorScheme.onSurfaceVariant,
+                ),
             ],
           ),
           const SizedBox(height: 16),

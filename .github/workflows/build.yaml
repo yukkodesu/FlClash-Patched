@@ -1,6 +1,16 @@
 name: build
 
 on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: Build desktop installation packages after validation
+        type: boolean
+        default: true
+      native_acceptance:
+        description: Run privileged TUN, Helper and system proxy acceptance on disposable runners
+        type: boolean
+        default: false
   push:
     branches:
       - '**'
@@ -12,26 +22,35 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 env:
-  IS_STABLE: ${{ !contains(github.ref, '-') }}
   FLUTTER_VERSION: '3.47.6'
-  GO_VERSION: '1.26.8'
-  NDK_VERSION: r30
 
 jobs:
   dart-checks:
     name: Dart checks
     runs-on: ubuntu-latest
+    outputs:
+      release_channel: ${{ steps.release-channel.outputs.channel }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      - name: Read release channel
+        id: release-channel
+        run: |
+          channel=$(yq -r '.release_channel' build_config.yaml)
+          [[ "$channel" == pre || "$channel" == stable ]]
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+
       - name: Test commit message hook
         run: bash tool/check_commit_msg_test.sh
 
       - name: Test comment density hook
         run: bash tool/check_comment_density_test.sh
+
+      - name: Test product uninstall commands
+        run: python3 tool/product_uninstall_test.py
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -41,7 +60,9 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          dart tool/geodata.dart
 
       - name: Check format
         run: dart format --output=none --set-exit-if-changed lib test tool plugins setup.dart
@@ -50,7 +71,7 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
       - name: Generate release notes
-        if: startsWith(github.ref, 'refs/tags/v') && env.IS_STABLE == 'true'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.release-channel.outputs.channel == 'stable'
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -59,7 +80,7 @@ jobs:
           dart run tool/changelog.dart render --tag "$TAG" --out release.md
 
       - name: Upload release notes
-        if: startsWith(github.ref, 'refs/tags/v') && env.IS_STABLE == 'true'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.release-channel.outputs.channel == 'stable'
         uses: actions/upload-artifact@v7
         with:
           name: release-notes
@@ -74,7 +95,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+        shard: [0, 1, 2, 3]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -100,6 +121,7 @@ jobs:
       - name: Skip native build hooks
         run: |
           yq -i '.hooks.user_defines.setup.build_assets = false | .hooks.user_defines.rust_api.build_assets = false' pubspec.yaml
+          dart tool/geodata.dart
 
       - name: Run tests
         env:
@@ -133,106 +155,193 @@ jobs:
           dart analyze
           dart test
 
-  go:
-    name: Go core
-    runs-on: ubuntu-latest
+  meow-host:
+    name: Meow host (${{ matrix.platform }}/${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows, arch: x64, os: windows-2022, triple: x86_64-pc-windows-msvc }
+          - { platform: linux, arch: x64, os: ubuntu-22.04, triple: x86_64-unknown-linux-gnu }
+          - { platform: macos, arch: arm64, os: macos-26, triple: aarch64-apple-darwin }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: dtolnay/rust-toolchain@1.98.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: core/go.sum
-
-      - name: Validate Go core wrapper
-        working-directory: core
-        env:
-          CGO_ENABLED: 0
-        run: |
-          if ! compgen -G '*_test.go' > /dev/null; then
-            echo 'No Go tests found in core/; the test step would pass vacuously.' >&2
-            exit 1
-          fi
-          test -z "$(gofmt -l ./*.go ./platform ./tun)" || {
-            gofmt -l ./*.go ./platform ./tun >&2
-            exit 1
-          }
-          go test -count=1 .
-          go vet .
-          GOOS=linux go vet ./platform
-
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        id: ndk
+          targets: ${{ matrix.triple }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
         with:
-          ndk-version: ${{ env.NDK_VERSION }}
-
-      - name: Validate the Android core library
-        working-directory: core
-        env:
-          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          workspaces: |
+            core/meow-rs
+            services/helper
+          key: meow-${{ matrix.triple }}
+          cache-on-failure: true
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: ${{ matrix.platform }}
+          triple: ${{ matrix.triple }}
+      - name: Check host formatting and lint
+        if: matrix.platform == 'linux'
+        working-directory: core/meow-rs
         run: |
-          # Nothing else compiles the `android && cgo` files before a `v*` tag.
-          CC="$(echo "$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android21-clang)"
-          test -x "$CC" || { echo "NDK clang not found at $CC" >&2; exit 1; }
-          tags="$(sed -n 's/^tags: *//p' ../build_config.yaml)"
-          test -n "$tags" || { echo 'Could not read tags from build_config.yaml' >&2; exit 1; }
-          export CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC
-          go vet "-tags=$tags" . ./tun ./platform
-
-  android:
-    name: Android unit tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+          cargo fmt --all -- --check
+          cargo clippy --locked -p flclash-meow-host -p meow-common --all-targets -- -D warnings
+      - name: Test and build host
+        working-directory: core/meow-rs
+        shell: bash
+        run: |
+          cargo test --locked -p flclash-meow-host -p meow-common
+            case '${{ matrix.platform }}' in
+              linux) export MEOW_TEST_OUTBOUND_INTERFACE="$(ip -4 route get 1.1.1.1 | awk '{for (i=1;i<NF;i++) if ($i=="dev") {print $(i+1); exit}}')" ;;
+              macos) export MEOW_TEST_OUTBOUND_INTERFACE="$(route -n get default | awk '/interface:/ {print $2}')" ;;
+              windows) export MEOW_TEST_OUTBOUND_INTERFACE="$(powershell.exe -NoProfile -Command '(Find-NetRoute -RemoteIPAddress 1.1.1.1 | Select-Object -First 1).InterfaceAlias' | tr -d '\r')" ;;
+            esac
+            test -n "$MEOW_TEST_OUTBOUND_INTERFACE"
+          cargo test --locked -p meow-proxy --test direct_udp_binding
+          cargo build --locked --release -p flclash-meow-host --target ${{ matrix.triple }}
+      - name: Windows Helper and uninstall contracts
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          cargo test --locked --manifest-path services/helper/Cargo.toml --features windows-service
+          python tool/product_uninstall_test.py
+      - name: Elevated Windows caller storage boundary
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && matrix.platform == 'windows'
+        working-directory: core/meow-rs
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Storage ownership acceptance requires a disposable GitHub-hosted runner.' }
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'The runner must already have an elevated token.' }
+          cargo test --locked -p meow-common --test managed_files_windows elevated_exact_owner_is_accepted_but_ordinary_caller_rejects_admin_owned_home -- --ignored --exact --nocapture
+      - name: Build native rust_api library
+        working-directory: plugins/rust_api/rust
+        run: cargo build --locked --release --target ${{ matrix.triple }}
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: master
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        id: ndk
-        with:
-          ndk-version: ${{ env.NDK_VERSION }}
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Run Android unit tests
-        working-directory: android
-        env:
-          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+      - name: Prepare real host integration test
+        shell: bash
         run: |
-          {
-            echo "flutter.sdk=$FLUTTER_ROOT"
-            echo "sdk.dir=$ANDROID_HOME"
-          } > local.properties
-          wrapper="$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper"
-          test -d "$wrapper" || flutter precache
-          cp -R "$wrapper/." .
-          chmod +x gradlew
-          # `:core` only calls System.loadLibrary; the excluded Flutter tasks would run
-          # the native build hooks for every debug ABI, which no JVM unit test consumes.
-          ./gradlew :common:testDebugUnitTest :service:testDebugUnitTest :app:testDebugUnitTest \
-            -x :app:compileFlutterBuildDebug -x :app:copyFlutterAssetsDebug
+          flutter pub get
+          python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
+          dart tool/geodata.dart
+      - name: Mandatory CoreController integration test
+        id: core-e2e
+        shell: bash
+        env:
+          FLCLASH_MEOW_HOST: ${{ github.workspace }}/core/meow-rs/target/${{ matrix.triple }}/release/flclash-meow-host${{ matrix.platform == 'windows' && '.exe' || '' }}
+          FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR: ${{ github.workspace }}/plugins/rust_api/rust/target/${{ matrix.triple }}/release
+        run: |
+          test -n "$FLCLASH_MEOW_HOST" && test -f "$FLCLASH_MEOW_HOST"
+          test -f "$FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR/${{ matrix.platform == 'windows' && 'rust_api.dll' || (matrix.platform == 'linux' && 'librust_api.so' || 'librust_api.dylib') }}"
+          "$FLCLASH_MEOW_HOST" --version
+          flutter test test/core/meow_host_integration_test.dart --reporter expanded
+      - name: Prepare native Unix system proxy acceptance
+        id: proxy-unix-prepare
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (!cancelled() && matrix.platform != 'windows' && steps.core-e2e.outcome != 'skipped')
+        working-directory: plugins/proxy
+        shell: bash
+        run: |
+          test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted
+          if [[ '${{ matrix.platform }}' == linux ]]; then
+            sudo apt-get install -y dbus-x11 dconf-cli dconf-service gsettings-desktop-schemas
+          fi
+          flutter pub get
+      - name: Actual Unix system proxy ownership acceptance
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (!cancelled() && steps.proxy-unix-prepare.outcome == 'success')
+        working-directory: plugins/proxy
+        shell: bash
+        env:
+          FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE: '1'
+          FLCLASH_MEOW_PROXY_EVIDENCE_PATH: ${{ github.workspace }}/build/native-proxy/${{ matrix.platform }}-${{ matrix.arch }}.json
+        run: |
+          test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted
+          mkdir -p "$GITHUB_WORKSPACE/build/native-proxy"
+          if [[ '${{ matrix.platform }}' == linux ]]; then
+            dbus-run-session -- dart run tool/native_proxy_acceptance.dart
+          else
+            sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" \
+              FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE="$FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE" \
+              FLCLASH_MEOW_PROXY_EVIDENCE_PATH="$FLCLASH_MEOW_PROXY_EVIDENCE_PATH" \
+              "${FLUTTER_ROOT:?}/bin/cache/dart-sdk/bin/dart" run tool/native_proxy_acceptance.dart
+          fi
+          python -c "import json, os; assert json.load(open(os.environ['FLCLASH_MEOW_PROXY_EVIDENCE_PATH']))['outcome'] == 'passed'"
+      - name: Actual Windows system proxy ownership acceptance
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (!cancelled() && matrix.platform == 'windows' && steps.core-e2e.outcome != 'skipped')
+        shell: pwsh
+        env:
+          FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE: '1'
+          FLCLASH_MEOW_PROXY_EVIDENCE_PATH: ${{ github.workspace }}/build/native-proxy/${{ matrix.platform }}-${{ matrix.arch }}.json
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Native system proxy acceptance requires an opted-in disposable GitHub-hosted runner.' }
+          New-Item -ItemType Directory -Force build/native-proxy | Out-Null
+          flutter precache --windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $engine = Join-Path $env:FLUTTER_ROOT 'bin/cache/artifacts/engine/windows-x64'
+          $proxySource = Join-Path $env:GITHUB_WORKSPACE 'plugins/proxy/windows'
+          cmake -S tool/native_proxy_windows -B build/native-proxy/windows -A x64 "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" "-DFLUTTER_ENGINE_DIR=$engine" "-DPROXY_SOURCE_DIR=$proxySource"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build/native-proxy/windows --config Release --target proxy_test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build/native-proxy/windows/proxy/Release/proxy_test.exe '--gtest_filter=ProxyNativeAcceptance.*'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $evidence = Get-Content -Raw -LiteralPath $env:FLCLASH_MEOW_PROXY_EVIDENCE_PATH | ConvertFrom-Json -AsHashtable
+          if ($evidence.outcome -ne 'passed') { throw 'Native system proxy acceptance did not record a passing OS result.' }
+      - name: Upload system proxy ownership evidence
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: proxy-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/native-proxy/*.json
+          if-no-files-found: warn
+      - name: Native TUN ownership and crash recovery
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (!cancelled() && steps.core-e2e.outcome == 'success')
+        shell: bash
+        run: |
+          python tool/native_desktop_acceptance.py --log build/native-acceptance/${{ matrix.platform }}-${{ matrix.arch }}.log
+          if [ '${{ matrix.platform }}' = windows ]; then
+            python tool/native_desktop_acceptance.py --mode global --log build/native-acceptance/windows-x64-global.log
+          fi
+      - name: Upload native acceptance evidence
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-acceptance-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/native-acceptance
+          if-no-files-found: ignore
+      - name: Stage hash-coupled production Core and Helper
+        id: helper-stage
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (!cancelled() && steps.core-e2e.outcome == 'success' && matrix.platform != 'macos')
+        working-directory: plugins/setup/setup_hooks
+        shell: bash
+        run: |
+          dart pub get
+          dart run bin/build_desktop.dart ${{ matrix.platform }} ${{ matrix.arch }}
+      - name: Actual privileged Helper lifetime acceptance
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (!cancelled() && steps.helper-stage.outcome == 'success' && matrix.platform != 'macos')
+        shell: bash
+        env:
+          FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR: ${{ github.workspace }}/plugins/rust_api/rust/target/${{ matrix.triple }}/release
+        run: |
+          python tool/privileged_helper_acceptance.py \
+            --bundle libclash/${{ matrix.platform }} \
+            --log .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
+      - name: Upload Helper lifetime evidence
+        if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (always() && matrix.platform != 'macos')
+        uses: actions/upload-artifact@v7
+        with:
+          name: helper-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
+          if-no-files-found: warn
 
   rust:
     name: Rust
@@ -270,60 +379,19 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  windows-helper-test:
-    name: Windows helper test
-    runs-on: windows-2022
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: services/helper
-
-      - name: Check format
-        run: cargo fmt --manifest-path services/helper/Cargo.toml -- --check
-
-      - name: Run Windows service tests
-        run: cargo test --manifest-path services/helper/Cargo.toml --features windows-service
-
   build:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [ dart-checks, dart-tests, plugins, go, android, rust, windows-helper-test ]
+    if: (github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    needs: [ dart-checks, dart-tests, plugins, meow-host, rust ]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - platform: android
-            os: ubuntu-latest
-          - platform: windows
-            os: Windows-2022
-            arch: x64
-          - platform: windows
-            os: Windows-2022
-            arch: x64-v3
-          - platform: linux
-            os: ubuntu-22.04
-            arch: x64
-          - platform: linux
-            os: ubuntu-22.04
-            arch: x64-v3
-          - platform: macos
-            os: macos-26
-            arch: x64-v3
-          - platform: macos
-            os: macos-26
-            arch: arm64
-          - platform: ios
-            os: macos-26
-            arch: arm64
-          - platform: windows
-            os: windows-11-arm
-            arch: arm64
-          - platform: linux
-            os: ubuntu-22.04-arm
-            arch: arm64
+          - { platform: windows, os: windows-2022, arch: x64, triple: x86_64-pc-windows-msvc }
+          - { platform: windows, os: windows-11-arm, arch: arm64, triple: aarch64-pc-windows-msvc }
+          - { platform: linux, os: ubuntu-22.04, arch: x64, triple: x86_64-unknown-linux-gnu }
+          - { platform: linux, os: ubuntu-22.04-arm, arch: arm64, triple: aarch64-unknown-linux-gnu }
+          - { platform: macos, os: macos-26-intel, arch: x64, triple: x86_64-apple-darwin }
+          - { platform: macos, os: macos-26, arch: arm64, triple: aarch64-apple-darwin }
       fail-fast: false
 
     steps:
@@ -341,32 +409,24 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Android Signing
-        if: startsWith(matrix.platform,'android')
-        run: |
-          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/keystore.jks
-          {
-            echo "keyAlias=${{ secrets.KEY_ALIAS }}"
-            echo "storePassword=${{ secrets.STORE_PASSWORD }}"
-            echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
-          } >> android/local.properties
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - name: Setup host Rust toolchain
+        uses: dtolnay/rust-toolchain@1.98.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: core/go.sum
-
+          targets: ${{ matrix.triple }}
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: ${{ matrix.platform }}
+          triple: ${{ matrix.triple }}
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.platform }}-${{ matrix.arch || 'all' }}
-          workspaces: services/helper
+          cache-on-failure: true
+          workspaces: |
+            services/helper
+            core/meow-rs
+            plugins/rust_api/rust
           cache-directories: .dart_tool/hooks_runner
-
-      - name: Setup Gradle
-        if: startsWith(matrix.platform,'android')
-        uses: gradle/actions/setup-gradle@v6
 
       - name: Enable git long paths (Windows)
         if: startsWith(matrix.os, 'windows')
@@ -387,25 +447,27 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.3.app || sudo xcode-select -s /Applications/Xcode_26.2.app
           xcodebuild -version
 
-      - name: Setup NDK
-        if: startsWith(matrix.platform,'android')
-        uses: nttld/setup-ndk@v1
-        id: build-ndk
-        with:
-          ndk-version: ${{ env.NDK_VERSION }}
-          add-to-path: true
-          link-to-sdk: true
-
       - name: Get Flutter Dependency
         run: |
           flutter --version
           flutter pub get
 
-      - name: Setup
-        env:
-          ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
-        run: dart setup.dart ${{ matrix.platform }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.platform == 'ios' && '--no-codesign' || '' }} ${{ (matrix.platform == 'macos' || matrix.platform == 'linux' || matrix.platform == 'windows') && format('--arch {0}', matrix.arch) || '' }} -v
+      - name: Match package version to release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          release_version="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$ ]]
+          pubspec_version=$(sed -n 's/^version: //p' pubspec.yaml | tr -d '\r')
+          [[ "$release_version" == "$pubspec_version" ]]
 
+      - name: Setup
+        run: dart setup.dart ${{ matrix.platform }} --env ${{ needs.dart-checks.outputs.release_channel }} --arch ${{ matrix.arch }} -v
+      - name: Smoke staged core
+        shell: bash
+        run: |
+          test -d dist && test -n "$(find dist -type f -print -quit)"
+          "libclash/${{ matrix.platform }}/FlClashMeowCore${{ matrix.platform == 'windows' && '.exe' || '' }}" --version
       - name: Upload
         uses: actions/upload-artifact@v7
         with:
@@ -414,9 +476,12 @@ jobs:
           overwrite: true
 
   upload:
+    if: github.repository == 'yukkodesu/FlClash-Patched' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
-    needs: [ build ]
+    needs: [ build, dart-checks ]
+    env:
+      RELEASE_CHANNEL: ${{ needs.dart-checks.outputs.release_channel }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -430,7 +495,7 @@ jobs:
           merge-multiple: true
 
       - name: Download release notes
-        if: env.IS_STABLE == 'true'
+        if: env.RELEASE_CHANNEL == 'stable'
         uses: actions/download-artifact@v8
         with:
           name: release-notes
@@ -438,7 +503,7 @@ jobs:
 
       - name: Patch release.md
         run: |
-          if [[ "$IS_STABLE" != true ]]; then
+          if [[ "$RELEASE_CHANNEL" == pre ]]; then
             : > release.md
           fi
           version=$(echo "${{ github.ref_name }}" | sed 's/^v//')
@@ -447,6 +512,6 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
-          prerelease: ${{ env.IS_STABLE != 'true' }}
+          prerelease: ${{ env.RELEASE_CHANNEL == 'pre' }}
           files: ./dist/*
           body_path: './release.md'

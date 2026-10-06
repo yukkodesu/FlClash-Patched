@@ -1,12 +1,9 @@
-import 'dart:io';
-
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
 import 'build_cache.dart';
-import 'error.dart';
 import 'fingerprint.dart';
-import 'go_builder.dart';
+import 'host_builder.dart';
 import 'options.dart';
 import 'rust_builder.dart';
 import 'target.dart';
@@ -14,34 +11,21 @@ import 'util.dart';
 
 final _log = Logger('setup_hooks');
 
-class AndroidToolchain {
-  const AndroidToolchain({
-    required this.clangDirectory,
-    required this.apiLevel,
-  });
-
-  final String clangDirectory;
-  final int apiLevel;
-
-  String clangFor(Target target) => p.join(
-    clangDirectory,
-    '${target.ndkTriple}$apiLevel-clang${Platform.isWindows ? '.cmd' : ''}',
-  );
-}
-
 class BuildRequest {
   const BuildRequest({
     required this.rootDir,
     required this.target,
     this.harnessDir,
-    this.androidToolchain,
+    this.macOSDeploymentTarget,
+    this.macOSCompiler,
   });
 
   final String rootDir;
   final Target target;
 
   final String? harnessDir;
-  final AndroidToolchain? androidToolchain;
+  final String? macOSDeploymentTarget;
+  final Uri? macOSCompiler;
 }
 
 class BuildReport {
@@ -65,9 +49,6 @@ class BuildReport {
 Future<BuildReport> buildPlatform(BuildRequest request) async {
   final stopwatch = Stopwatch()..start();
   final target = request.target;
-  if (target.goos == 'android' && request.androidToolchain == null) {
-    throw BuildException('Android target $target needs an NDK toolchain');
-  }
   final rootDir = request.rootDir;
   final config = BuildConfig.load(rootDir: rootDir);
   final cache = BuildCache(rootDir: rootDir);
@@ -77,24 +58,15 @@ Future<BuildReport> buildPlatform(BuildRequest request) async {
     final dir => collectPackageInputs(dir),
   };
 
-  final core = await GoBuilder(
+  final core = await HostBuilder(
     rootDir: rootDir,
     config: config,
     cache: cache,
     notice: notice,
     harnessInputs: harnessInputs,
-    androidToolchain: request.androidToolchain,
+    macOSDeploymentTarget: request.macOSDeploymentTarget,
+    macOSCompiler: request.macOSCompiler,
   ).build(target);
-  if (target.goos == 'ios') {
-    final lowMemoryCore = await GoBuilder(
-      rootDir: rootDir,
-      config: config,
-      cache: cache,
-      notice: notice,
-      harnessInputs: harnessInputs,
-    ).build(Target.iosArm64LowMem);
-    return _report([core, lowMemoryCore]);
-  }
   if (!target.hasHelper) {
     _log.info('Done in ${stopwatch.elapsed}: ${core.primaryOutput}');
     return _report([core]);

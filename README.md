@@ -1,142 +1,61 @@
-<div>
+[简体中文](README_zh_CN.md)
 
-[**简体中文**](README_zh_CN.md)
+# FlClash-Meow
 
-</div>
+A desktop proxy client derived from [FlClash-Patched](https://github.com/chenx-dust/FlClash-Patched) and [FlClash](https://github.com/chen08209/FlClash), using the [meow-rs fork](https://github.com/yukkodesu/meow-rs) through an embedded Rust host.
 
-# FlClash Patched
+This product uses one meow-rs core. Its target matrix is Windows, macOS and Linux, each on x64 and ARM64. Retained Android/iOS sources are outside the build and release scope. The client, data directory, Helper and update source have independent FlClash-Meow identities.
 
-[![Downloads](https://img.shields.io/github/downloads/chenx-dust/FlClash-Patched/total?style=flat-square&logo=github)](https://github.com/chenx-dust/FlClash-Patched/releases/)[![Last Version](https://img.shields.io/github/release/chenx-dust/FlClash-Patched/all.svg?style=flat-square)](https://github.com/chenx-dust/FlClash-Patched/releases/)[![License](https://img.shields.io/github/license/chenx-dust/FlClash-Patched?style=flat-square)](LICENSE)
+This is a draft desktop migration; FlClash-Meow release packages have not been published yet. Builds and local proxy checks do not certify installation or native TUN cleanup. See the [acceptance matrix and exact source/run records](https://github.com/yukkodesu/FlClash-Patched/issues/8) for completed and pending checks, and [this fork's Releases](https://github.com/yukkodesu/FlClash-Patched/releases) for future packages.
 
-A fork of [FlClash](https://github.com/chen08209/FlClash), with several bug fixes, power efficiency improvements and new features.
+## Features and differences
 
-> [!CAUTION]
-> 如果您是中华人民共和国公民或者长期居住在中华人民共和国境内，请在使用前仔细阅读并理解 [免责声明](./README_zh_CN.md#免责声明) 中的内容。下载、安装或使用本项目即表示您同意免责声明中的条款，并承担由此产生的全部责任。
+The client retains configuration/subscription management, Material You themes, system proxy, tray, shortcuts and autostart. Its runtime capabilities come from the pinned host rather than mihomo compatibility claims.
 
-## Features
+| Area | Product behavior |
+|---|---|
+| Configuration | Preserves original imports and checks derived configuration before applying it. Unsupported protocols/options, unknown keys and unsafe provider paths block application; nodes and rules are not silently dropped. Custom direct aliases are rejected because the adapter exposes DIRECT. |
+| Proxies and providers | Supports the pinned meow build's groups, node selection, delay tests and provider query/refresh operations. Missing subscription metadata is unknown. |
+| Runtime changes | Mode and log level change dynamically; other configuration changes use a controlled restart. Logs and actual bound listener/DNS/controller addresses are available. |
+| Statistics and connections | Traffic includes all core traffic, rather than proxy-only totals. Connection snapshots and close operations cover TCP; there are no precise UDP connection details, per-node totals or complete request-history events. Available memory metrics describe the actual process, with unavailable values shown explicitly. |
+| Authentication | meow always exempts source addresses 127.0.0.1/32 and ::1/128, even with an empty skip-auth-prefixes. Configuration checks expose this warning; loopback binding does not authenticate local programs. |
+| TUN | Fake-IP range capture differs from experimental global route capture. IPv6 capture requires the appropriate global configuration and platform verification. Neither an enabled switch nor a ready Helper proves capture. Unsupported mihomo stack, strict-route, route-address and endpoint-independent-nat switches are removed. |
 
-> [!WARNING]
-> This fork is maintained with a strong personal taste. Suggestions are welcome, but may not be adopted. The release cadence is relatively fast with force pushes, so staying up to date may come with issues, and compatibility with the original project is not guaranteed. Please ensure you have backup measures in place.
+On Linux, other DNS managers may overwrite the TUN resolver change. Fake-IP requires queries through core DNS; verify the system resolver before relying on capture. Automatic OS DNS redirection remains unverified in the native records.
 
-- Support iOS platform (requires an Apple Developer account to build)
-- Optimized experience on Linux (Pacman package distribution, fixed RPM dependencies, WM_CLASS issues)
-- Fixed bugs from upstream (startup time, window positioning, notifications)
-- Energy efficiency optimizations (improved Android Doze, unified UI timer suspend)
-- UI optimizations (proxy selection, log and connection filtering/sorting)
-- New features (Age-Key encryption support, Windows high-priority startup, Tailscale integration, etc.)
+Tailscale/ZeroTier/EasyTier control, AGE key operations, Go GC/goroutine/pprof diagnostics, DNS query tracing, provider sideloading, manual geodata hot-replacement transactions and separate core/external-UI updaters are outside this product. The optional external-controller is independent of client IPC and defaults to disabled. See the [full capability and configuration policy](https://github.com/yukkodesu/FlClash-Patched/issues/1).
 
-For more information, please check the details in [Applied Patches (#1)](https://github.com/chenx-dust/FlClash-Patched/issues/1)
+## Build from source
 
-# Original Introduction
+Start from a checkout of the intended FlClash-Meow client revision. The core source is the exact gitlink recorded at core/meow-rs, from yukkodesu/meow-rs; do not replace it with that repository's latest branch tip.
 
-A multi-platform proxy client based on mihomo, simple and easy to use, open-source and ad-free.
+~~~bash
+git submodule update --init --recursive
+git ls-tree HEAD core/meow-rs
+flutter pub get
+~~~
 
-## Features
+Use Flutter **3.47.6**, Git, rustup/Cargo, CMake, a native C/C++ compiler, Python and libclang. The core pins Rust **1.98.1**; the separate plugins/rust_api/rust library pins **1.99.0**. Run Cargo from the relevant crate checkout so its toolchain pin applies. Set LIBCLANG_PATH to the libclang library directory if discovery fails.
 
-✈️ Multi-platform: Android, iOS, Windows, macOS and Linux
+| Build host | Additional prerequisites |
+|---|---|
+| Windows | Visual Studio Desktop development with C++, matching MSVC tools/Windows SDK, NASM and Inno Setup. The host embeds an architecture-matching official Wintun DLL; MEOW_WINTUN_DLL can select a verified local input. |
+| Linux | Ninja, Clang, pkg-config, GTK3, libayatana-appindicator and libsecret development packages, plus the selected package format's tools. |
+| macOS | Xcode/command-line tools, native LLVM/libclang, and Node/npm with appdmg for DMG packaging. |
 
-💻 Adaptive multiple screen sizes, Multiple color themes available
+Build on the matching operating system. Architecture values are amd64 or arm64; Windows/Linux require a matching native build host. Select one command for your target:
 
-💡 Based on Material You Design, [Surfboard](https://github.com/getsurfboard/surfboard)-like UI
+Linux packaging supports Debian, pacman, AppImage and zip. RPM is excluded because the current packager ignores uninstall hooks and Core hash protection. See the [uninstall scope and custom XDG limitation](linux/packaging/).
 
-☁️ Supports data sync via WebDAV
+~~~bash
+dart setup.dart windows --arch amd64
+dart setup.dart linux --arch arm64
+dart setup.dart macos --arch amd64
+dart setup.dart macos --arch arm64
+~~~
 
-✨ Support subscription link, Dark mode
+Packaging builds the Rust host and separate runtime library, then embeds the final host hash in the Windows/Linux Helper and records a manifest. Keep both native build_assets hooks enabled for packaging. Go and mihomo are not desktop build dependencies. Detailed prerequisites, direct artifact builds and verification commands are in [.agents/project.md](.agents/project.md) and [.agents/commands.md](.agents/commands.md); the [native CI workflow](.github/workflows/build.yaml) checks the six target combinations.
 
-## Use
+## Attribution and license
 
-### Linux
-
-⚠️ Make sure to install the following dependencies before using them
-
-   ```bash
-    sudo apt-get install libayatana-appindicator3-dev
-   ```
-
-### Android
-
-Support the following actions
-
-   ```bash
-    cc.chenx.flclash.action.START
-    
-    cc.chenx.flclash.action.STOP
-    
-    cc.chenx.flclash.action.TOGGLE
-   ```
-
-## Download
-
-<a href="https://github.com/chenx-dust/FlClash-Patched/releases"><img alt="Get it on GitHub" src="snapshots/get-it-on-github.svg" width="200px"/></a>
-
-## Build
-
-1. Update submodules
-   ```bash
-   git submodule update --init --recursive
-   ```
-
-2. Install `Flutter` and `Golang` environment
-
-3. Build Application
-
-    - android
-
-        1. Install `Android SDK`, `Android NDK`
-
-        2. Set `ANDROID_NDK` environment variable
-
-        3. Run build script
-
-           ```bash
-           dart setup.dart android
-           ```
-
-    - windows
-
-        1. Requires a Windows client
-
-        2. Install `GCC`, `Inno Setup`
-
-        3. Run build script
-
-           ```bash
-           dart setup.dart windows
-           ```
-
-    - linux
-
-        1. Requires a Linux client
-
-        2. Dependencies are auto-installed by setup script, or manually:
-           ```bash
-           sudo apt-get install -y libayatana-appindicator3-dev
-           ```
-
-        3. Run build script
-
-           ```bash
-           dart setup.dart linux
-           ```
-
-    - macOS
-
-        1. Requires a macOS client
-
-        2. Run build script
-
-           ```bash
-           dart setup.dart macos
-           ```
-
-    - iOS
-
-        1. Requires a macOS client
-
-        2. Configure Apple Developer capabilities, App Group and provisioning profiles for the app bundle and Network Extension bundle
-
-        3. Run build script
-
-           ```bash
-           dart setup.dart ios --ios-bundle-id com.example.flclash
-           ```
+The client derives from FlClash and FlClash-Patched and remains under [GPL-3.0](LICENSE). The embedded engine derives from [meow-rs](https://github.com/meow-rs/meow-rs) under its [MIT license](https://github.com/meow-rs/meow-rs/blob/HEAD/LICENSE). The product-specific Rust host stays in our meow-rs fork; bundled dependencies retain their own notices and licenses.

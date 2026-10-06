@@ -72,7 +72,20 @@ CoreEvent _geoUpdate({
 }
 
 _MockCoreHandlerInterface _coreInterface() {
-  return _MockCoreHandlerInterface();
+  final handler = _MockCoreHandlerInterface();
+  when(() => handler.checkConfig(any())).thenAnswer(
+    (_) async => ConfigCheck.fromJson({'valid': true, 'diagnostics': []}),
+  );
+  when(() => handler.getRuntimeState()).thenAnswer(
+    (_) async => CoreRuntimeState.fromJson({
+      'initialized': true,
+      'configured': false,
+      'running': false,
+      'tunActive': false,
+      'generation': 0,
+    }),
+  );
+  return handler;
 }
 
 Future<ProviderContainer> _pumpCoreManager(
@@ -85,6 +98,7 @@ Future<ProviderContainer> _pumpCoreManager(
       coreHandlerProvider.overrideWithValue(
         CoreController.scoped(coreInterface),
       ),
+      addedRulesStreamProvider.overrideWith((_, _) => Stream.value([])),
       ...overrides,
     ],
   );
@@ -116,6 +130,7 @@ Future<void> _waitForSetupToSettle(
   WidgetTester tester,
   bool Function() condition,
 ) async {
+  await tester.pump();
   await tester.runAsync(() async {
     final deadline = DateTime.now().add(const Duration(seconds: 10));
     while (!condition() && DateTime.now().isBefore(deadline)) {
@@ -130,6 +145,7 @@ Future<void> _waitForSetupToSettle(
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
   });
+  await tester.pump(const Duration(milliseconds: 1100));
 }
 
 void main() {
@@ -144,6 +160,7 @@ void main() {
     PathProviderPlatform.instance = _FakePathProvider(
       profileSwitchTempDir.path,
     );
+    await appPath.homeDirPath;
   });
 
   tearDownAll(() {
@@ -171,6 +188,8 @@ void main() {
       ),
     );
     container.read(coreStatusProvider.notifier).value = CoreStatus.connected;
+    container.read(requestedRunningProvider.notifier).value = true;
+    container.read(runTimeProvider.notifier).value = 0;
     final transitions = <CoreStatus>[];
     final subscription = container.listen<CoreStatus>(
       coreStatusProvider,
@@ -185,6 +204,8 @@ void main() {
 
     expect(container.read(coreStatusProvider), CoreStatus.disconnected);
     expect(transitions, [CoreStatus.disconnected]);
+    expect(container.read(requestedRunningProvider), isTrue);
+    expect(container.read(isStartProvider), isFalse);
     verifyNever(() => coreInterface.stop());
 
     await tester.pumpWidget(const SizedBox());
@@ -208,7 +229,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('a crash is ignored when the core is not connected', (
+  testWidgets('a crash during initialization ends the connecting state', (
     tester,
   ) async {
     final coreInterface = _coreInterface();
@@ -225,9 +246,9 @@ void main() {
     coreEventManager.sendEvent(_crash);
     await tester.pump();
 
-    expect(container.read(coreStatusProvider), CoreStatus.connecting);
-    expect(transitions, isEmpty);
-    expect(find.text('boom'), findsNothing);
+    expect(container.read(coreStatusProvider), CoreStatus.disconnected);
+    expect(transitions, [CoreStatus.disconnected]);
+    expect(find.text('boom'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -260,37 +281,38 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('geo events are forwarded to the geo resource action', (
+  testWidgets(
+    'legacy geo events do not advertise unsupported updater activity',
+    (tester) async {
+      final coreInterface = _coreInterface();
+      final container = await _pumpCoreManager(tester, coreInterface);
+      final key = GeoResource.MMDB.updatingKey;
+      final subscription = container.listen<bool>(
+        isUpdatingProvider(key),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+
+      coreEventManager.sendEvent(_geoUpdate(updating: true));
+      await tester.pump();
+
+      expect(container.read(isUpdatingProvider(key)), isFalse);
+
+      coreEventManager.sendEvent(_geoUpdate(error: 'background failure'));
+      await tester.pump();
+
+      expect(container.read(isUpdatingProvider(key)), isFalse);
+      expect(find.text('background failure'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('connection errors stay in logs without a global notification', (
     tester,
   ) async {
     final coreInterface = _coreInterface();
     final container = await _pumpCoreManager(tester, coreInterface);
-    final key = GeoResource.MMDB.updatingKey;
-    final subscription = container.listen<bool>(
-      isUpdatingProvider(key),
-      (_, _) {},
-    );
-    addTearDown(subscription.close);
-
-    coreEventManager.sendEvent(_geoUpdate(updating: true));
-    await tester.pump();
-
-    expect(container.read(isUpdatingProvider(key)), isTrue);
-
-    coreEventManager.sendEvent(_geoUpdate(error: 'background failure'));
-    await tester.pump();
-
-    expect(container.read(isUpdatingProvider(key)), isFalse);
-    expect(find.text('background failure'), findsNothing);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  testWidgets('non-geo Core errors retain global notifications', (
-    tester,
-  ) async {
-    final coreInterface = _coreInterface();
-    await _pumpCoreManager(tester, coreInterface);
 
     try {
       coreEventManager.sendEvent(
@@ -301,9 +323,12 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('core failure'), findsOneWidget);
+      expect(find.text('core failure'), findsNothing);
+      expect(
+        container.read(logsProvider).list.map((log) => log.payload),
+        contains('core failure'),
+      );
     } finally {
-      throttler.cancel(FunctionTag.coreErrorNotifier);
       await tester.pumpWidget(const SizedBox.shrink());
     }
   });
@@ -374,10 +399,10 @@ void main() {
 
       container.read(currentProfileIdProvider.notifier).value = b.id;
       container.read(currentProfileIdProvider.notifier).value = c.id;
-      await _waitForSetupToSettle(tester, () => setupCalls >= 2);
+      await _waitForSetupToSettle(tester, () => setupCalls >= 1);
 
       expect(container.read(currentProfileIdProvider), c.id);
-      expect(setupCalls, 2);
+      expect(setupCalls, 1);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });

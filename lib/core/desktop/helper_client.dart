@@ -539,6 +539,27 @@ final class HelperCoreLease implements CoreProcessLease {
   CoreProcessOwner get owner => CoreProcessOwner.helper;
 
   @override
+  Future<bool> waitForExit(Duration timeout) async {
+    final elapsed = Stopwatch()..start();
+    while (true) {
+      final probeTimeout = timeout - elapsed.elapsed;
+      if (!await _livenessProbe(pid).timeout(
+        probeTimeout < Duration.zero ? Duration.zero : probeTimeout,
+        onTimeout: () => true,
+      )) {
+        return true;
+      }
+      final remaining = timeout - elapsed.elapsed;
+      if (remaining <= Duration.zero) return false;
+      await Future<void>.delayed(
+        remaining < const Duration(milliseconds: 25)
+            ? remaining
+            : const Duration(milliseconds: 25),
+      );
+    }
+  }
+
+  @override
   Future<CoreProcessStopResult> stop(Duration timeout) {
     final stopOperation = _stopOperation;
     if (stopOperation != null) {

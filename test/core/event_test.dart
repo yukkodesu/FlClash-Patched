@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fl_clash/core/event.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
@@ -22,7 +24,47 @@ class _RecordingListener with CoreEventListener {
   }
 }
 
+class _HeldFailingListener with CoreEventListener {
+  final released = Completer<void>();
+
+  @override
+  Future<void> onLoaded(String providerName) async {
+    await released.future;
+    throw StateError('Listener failed asynchronously');
+  }
+}
+
 void main() {
+  test(
+    'async listener failures are isolated without delaying other listeners',
+    () async {
+      final errors = <Object>[];
+      final failing = _HeldFailingListener();
+      final healthy = _RecordingListener();
+      coreEventManager.addListener(failing);
+      coreEventManager.addListener(healthy);
+      addTearDown(() {
+        coreEventManager.removeListener(failing);
+        coreEventManager.removeListener(healthy);
+      });
+      await runZonedGuarded(() async {
+        coreEventManager.sendEvent(
+          const CoreEvent(type: CoreEventType.loaded, data: 'provider-a'),
+        );
+        await pumpEventQueue();
+        expect(healthy.loaded, ['provider-a']);
+        failing.released.complete();
+        await pumpEventQueue();
+        coreEventManager.sendEvent(
+          const CoreEvent(type: CoreEventType.loaded, data: 'provider-b'),
+        );
+        await pumpEventQueue();
+        expect(healthy.loaded, ['provider-a', 'provider-b']);
+      }, (error, _) => errors.add(error));
+      expect(errors, isEmpty);
+    },
+  );
+
   test('live Core logs carry the Core source', () async {
     final listener = _RecordingListener();
     coreEventManager.addListener(listener);

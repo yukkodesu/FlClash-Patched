@@ -7,7 +7,6 @@ import 'package:fl_clash/pages/editor.dart';
 import 'package:fl_clash/pages/scan.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/providers/action.dart';
-import 'package:fl_clash/views/profiles/age_key_generator.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:material_ui/material_ui.dart';
@@ -163,21 +162,14 @@ class URLFormDialog extends StatefulWidget {
 
 class _URLFormDialogState extends State<URLFormDialog> {
   final _urlController = TextEditingController();
-  final _ageSecretKeyController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _obscureAgeSecretKey = true;
 
   void _handleAddProfileFormURL() {
     if (!_formKey.currentState!.validate()) return;
-    final ageSecretKey = _ageSecretKeyController.text.trim();
     Navigator.of(context).pop<({String url, String? ageSecretKey})>((
       url: _urlController.text.trim(),
-      ageSecretKey: ageSecretKey.isEmpty ? null : ageSecretKey,
+      ageSecretKey: null,
     ));
-  }
-
-  Future<void> _showAgeKeyGenerator() async {
-    await dialogs.showCommonDialog<void>(child: const AgeKeyGeneratorDialog());
   }
 
   Future<void> _pasteUrlFromClipboard() async {
@@ -196,7 +188,6 @@ class _URLFormDialogState extends State<URLFormDialog> {
   @override
   void dispose() {
     _urlController.dispose();
-    _ageSecretKeyController.dispose();
     super.dispose();
   }
 
@@ -206,11 +197,6 @@ class _URLFormDialogState extends State<URLFormDialog> {
     return CommonDialog(
       title: appLocalizations.importFromURL,
       actions: [
-        IconButton(
-          tooltip: appLocalizations.ageKeyGenerateTitle,
-          onPressed: _showAgeKeyGenerator,
-          icon: const Icon(Symbols.key),
-        ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: Text(appLocalizations.cancel),
@@ -250,37 +236,6 @@ class _URLFormDialogState extends State<URLFormDialog> {
                   }
                   if (!value.isUrl) {
                     return appLocalizations.urlTip('').trim();
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _ageSecretKeyController,
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _handleAddProfileFormURL(),
-                obscureText: _obscureAgeSecretKey,
-                decoration: InputDecoration(
-                  labelText: appLocalizations.ageSecretKeyOptional,
-                  suffixIcon: IconButton(
-                    tooltip: _obscureAgeSecretKey
-                        ? appLocalizations.showPassword
-                        : appLocalizations.hidePassword,
-                    onPressed: () {
-                      setState(() {
-                        _obscureAgeSecretKey = !_obscureAgeSecretKey;
-                      });
-                    },
-                    icon: Icon(
-                      _obscureAgeSecretKey
-                          ? Symbols.visibility
-                          : Symbols.visibility_off,
-                    ),
-                  ),
-                ),
-                validator: (value) {
-                  if (value?.isNotEmpty == true &&
-                      !value!.startsWith('AGE-SECRET-KEY-')) {
-                    return appLocalizations.ageSecretKeyInvalidValidationDesc;
                   }
                   return null;
                 },

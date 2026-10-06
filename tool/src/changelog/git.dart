@@ -2,16 +2,13 @@ import 'dart:io';
 
 import 'models.dart';
 
-final _tagPattern = RegExp(r'^v(\d+)\.(\d+)\.(\d+)(?:-pre\.(\d+))?$');
+final _tagPattern = RegExp(
+  r'^v(\d+)\.(\d+)\.(\d+)(?:-pre\.(\d+)|\+([1-9]\d*))?$',
+);
 
 const _fieldSeparator = '\u001f';
 const _recordSeparator = '\u001e';
 
-/// A release tag that matches the `vMAJOR.MINOR.PATCH[-pre.N]` contract.
-///
-/// Every other tag in the repository is ignored on purpose: `backup-pre-squash-*`
-/// and similar bookkeeping tags used to leak into the generated changelog as
-/// fake version sections.
 class VersionTag implements Comparable<VersionTag> {
   const VersionTag({
     required this.name,
@@ -19,6 +16,7 @@ class VersionTag implements Comparable<VersionTag> {
     required this.minor,
     required this.patch,
     this.pre,
+    this.revision,
   });
 
   final String name;
@@ -26,10 +24,12 @@ class VersionTag implements Comparable<VersionTag> {
   final int minor;
   final int patch;
   final int? pre;
+  final int? revision;
 
   bool get isPrerelease => pre != null;
 
-  String get version => '$major.$minor.$patch';
+  String get version =>
+      '$major.$minor.$patch${revision == null ? '' : '+$revision'}';
 
   static VersionTag? tryParse(String name) {
     final match = _tagPattern.firstMatch(name.trim());
@@ -42,6 +42,7 @@ class VersionTag implements Comparable<VersionTag> {
       minor: int.parse(match.group(2)!),
       patch: int.parse(match.group(3)!),
       pre: match.group(4) == null ? null : int.parse(match.group(4)!),
+      revision: match.group(5) == null ? null : int.parse(match.group(5)!),
     );
   }
 
@@ -60,7 +61,7 @@ class VersionTag implements Comparable<VersionTag> {
       return byPatch;
     }
     if (pre == null && other.pre == null) {
-      return 0;
+      return (revision ?? 0).compareTo(other.revision ?? 0);
     }
     if (pre == null) {
       return 1;

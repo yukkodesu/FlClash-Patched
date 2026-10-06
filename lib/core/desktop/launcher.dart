@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/core/event.dart';
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/models/models.dart';
 
 import 'model.dart';
 
@@ -36,12 +38,22 @@ final class DirectCoreLauncher implements CoreProcessLauncher {
   }) async {
     final process = await _startProcess(corePath, [address]);
     process.stdout.listen((_) {});
-    process.stderr.listen((data) {
-      final error = utf8.decode(data);
-      if (error.isNotEmpty) {
-        commonPrint.log(error, logLevel: LogLevel.warning);
-      }
-    });
+    process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .transform(const LineSplitter())
+        .listen((line) {
+          final error = line
+              .replaceAll(RegExp(r'\x1b\[[0-?]*[ -/]*[@-~]'), '')
+              .trim();
+          if (error.isNotEmpty) {
+            coreEventManager.sendEvent(
+              CoreEvent(
+                type: CoreEventType.log,
+                data: {'LogLevel': LogLevel.error.name, 'Payload': error},
+              ),
+            );
+          }
+        });
     return DirectCoreLease(sessionId: sessionId, process: process);
   }
 }
@@ -52,6 +64,7 @@ final class DirectCoreLease implements CoreProcessLease {
 
   final Process _process;
   Future<CoreProcessStopResult>? _stopOperation;
+  bool _exitConfirmed = false;
 
   DirectCoreLease({required this.sessionId, required Process process})
     : _process = process;
@@ -61,6 +74,17 @@ final class DirectCoreLease implements CoreProcessLease {
 
   @override
   int get pid => _process.pid;
+
+  @override
+  Future<bool> waitForExit(Duration timeout) async {
+    if (_exitConfirmed) return true;
+    try {
+      await _process.exitCode.timeout(timeout);
+      return _exitConfirmed = true;
+    } on TimeoutException {
+      return false;
+    }
+  }
 
   @override
   Future<CoreProcessStopResult> stop(Duration timeout) {
@@ -79,12 +103,13 @@ final class DirectCoreLease implements CoreProcessLease {
   }
 
   Future<CoreProcessStopResult> _stop(Duration timeout) async {
-    final stopped = _process.kill();
-    try {
-      await _process.exitCode.timeout(timeout);
-      return CoreProcessStopResult(stopped: stopped, exitConfirmed: true);
-    } on TimeoutException {
-      return CoreProcessStopResult(stopped: stopped, exitConfirmed: false);
+    if (_exitConfirmed) {
+      return const CoreProcessStopResult(stopped: false, exitConfirmed: true);
     }
+    final stopped = _process.kill();
+    return CoreProcessStopResult(
+      stopped: stopped,
+      exitConfirmed: await waitForExit(timeout),
+    );
   }
 }

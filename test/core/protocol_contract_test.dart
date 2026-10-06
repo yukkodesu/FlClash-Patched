@@ -165,15 +165,16 @@ class _RecordingCoreHandler extends CoreHandlerInterface {
         'heapReleased': 2048,
       },
       CoreMethod.getGoroutineCount => 42,
-      CoreMethod.queryDns => {
-        'domain': 'example.com',
-        'type': 'AAAA',
-        'initiator': 'manual',
-        'upstream': 'udp://1.1.1.1:53',
-        'answers': ['2606:2800:220:1::248'],
-        'rcode': 'NOERROR',
-        'delay': 8,
-        'time': '2026-10-06T00:00:00.000Z',
+      CoreMethod.queryRule => {
+        'target': 'example.com',
+        'port': 443,
+        'network': 'tcp',
+        'mode': 'rule',
+        'rule': 'DomainSuffix',
+        'rulePayload': 'example.com',
+        'proxy': 'DIRECT',
+        'ip': '',
+        'delay': 0,
       },
       _ => '',
     };
@@ -222,14 +223,18 @@ class _EmptyConfigCoreHandler extends _RecordingCoreHandler {
 }
 
 void main() {
-  test('configuration fields match the shared Go contract', () async {
+  test('hot updates send mode, log level and native TUN settings', () async {
     final fixture =
         jsonDecode(await File('test/fixtures/config_patch.json').readAsString())
             as Map<String, dynamic>;
     final params = UpdateParams.fromJson(fixture);
-    final encoded = jsonDecode(jsonEncode(params));
-
-    expect(encoded, fixture);
+    final handler = _RecordingCoreHandler();
+    await handler.updateConfig(params);
+    expect(handler.calls[CoreMethod.updateConfig], {
+      'mode': 'rule',
+      'log-level': 'info',
+      'tun': params.tun.meowConfig,
+    });
   });
 
   test('method call keeps structured arguments', () async {
@@ -438,14 +443,66 @@ void main() {
     expect(memory.other, 128);
     expect(memory.heapReleased, 2048);
     expect(await handler.getGoroutineCount(), 42);
-    final dnsQuery = await handler.queryDns('example.com', 'AAAA');
-    expect(handler.calls[CoreMethod.queryDns], {
-      'domain': 'example.com',
-      'type': 'AAAA',
+    final ruleQuery = await handler.queryRule(
+      const RuleQueryParams(target: 'example.com'),
+    );
+    expect(handler.calls[CoreMethod.queryRule], {
+      'target': 'example.com',
+      'port': 443,
+      'network': 'tcp',
     });
-    expect(dnsQuery.initiator, DnsQueryInitiator.manual);
-    expect(dnsQuery.answers, ['2606:2800:220:1::248']);
+    expect(ruleQuery.rule, 'DomainSuffix');
+    expect(ruleQuery.proxy, 'DIRECT');
+    expect(ruleQuery.mode, Mode.rule);
+    await handler.queryRule(
+      const RuleQueryParams(
+        target: 'example.com',
+        sourceIP: '192.0.2.2',
+        sourcePort: 12345,
+        destinationIP: '192.0.2.1',
+        process: 'browser',
+        processPath: '/usr/bin/browser',
+        uid: 123,
+        inboundName: 'mixed-in',
+        inboundUser: 'alice',
+        sniffHost: 'sniff.example',
+        dscp: 63,
+      ),
+    );
+    expect(handler.calls[CoreMethod.queryRule], {
+      'target': 'example.com',
+      'port': 443,
+      'network': 'tcp',
+      'sourceIP': '192.0.2.2',
+      'sourcePort': 12345,
+      'destinationIP': '192.0.2.1',
+      'process': 'browser',
+      'processPath': '/usr/bin/browser',
+      'uid': 123,
+      'inboundName': 'mixed-in',
+      'inboundUser': 'alice',
+      'sniffHost': 'sniff.example',
+      'dscp': 63,
+    });
   });
+
+  test(
+    'manual DNS lookup reports the missing capability without invoking RPC',
+    () async {
+      final handler = _RecordingCoreHandler();
+      await expectLater(
+        handler.queryDns('example.com', 'AAAA'),
+        throwsA(
+          isA<CoreMethodException>().having(
+            (error) => error.code,
+            'code',
+            'unsupported_method',
+          ),
+        ),
+      );
+      expect(handler.calls, isEmpty);
+    },
+  );
 
   test('getProfileConfig preserves structured core errors', () async {
     final handler = _FailingConfigCoreHandler();

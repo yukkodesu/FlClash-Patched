@@ -2,6 +2,7 @@ part of '../state.dart';
 
 @riverpod
 GroupsState currentGroupsState(Ref ref) {
+  final focus = ref.watch(proxyFocusProvider);
   final mode = ref.watch(
     patchClashConfigProvider.select((state) => state.mode),
   );
@@ -24,7 +25,12 @@ GroupsState currentGroupsState(Ref ref) {
       Mode.global => groups.toList(),
       Mode.rule =>
         groups
-            .where((item) => showHiddenGroups || item.hidden != true)
+            .where(
+              (item) =>
+                  showHiddenGroups ||
+                  item.hidden != true ||
+                  item.name == focus?.groupName,
+            )
             .where((element) => element.name != GroupName.GLOBAL.name)
             .toList(),
     },
@@ -37,7 +43,7 @@ ProxyState proxyState(Ref ref) {
     isIOS: system.isIOS,
     suspend: ref.watch(suspendProvider),
   );
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
+  final isStart = ref.watch(isStartProvider);
   final systemProxySelector = ref.watch(
     networkSettingProvider.select(
       (state) => SystemProxySelectorState(
@@ -80,6 +86,7 @@ ProxiesActionsState proxiesActionsState(Ref ref) {
 
 @riverpod
 GroupsState filterGroupsState(Ref ref, String query) {
+  final focus = ref.watch(proxyFocusProvider);
   final currentGroups = ref.watch(currentGroupsStateProvider);
   final hideUnavailable = ref.watch(
     proxiesStyleSettingProvider.select((state) => state.hideUnavailable),
@@ -101,6 +108,10 @@ GroupsState filterGroupsState(Ref ref, String query) {
           all: group.all.where((proxy) {
             if (matcher != null && !matcher.hasMatch(proxy.name)) {
               return false;
+            }
+            if (group.name == focus?.groupName &&
+                (focus?.proxyName == null || proxy.name == focus?.proxyName)) {
+              return true;
             }
             if (delayMap != null) {
               final testUrl = group.testUrl.takeFirstValid([defaultTestUrl!]);
@@ -152,7 +163,8 @@ ProxiesTabState proxiesTabState(Ref ref) {
 
 @riverpod
 bool isStart(Ref ref) {
-  return ref.watch(runTimeProvider.select((state) => state != null));
+  return ref.watch(runtimeStatusProvider)?.running ??
+      ref.watch(runTimeProvider.select((state) => state != null));
 }
 
 @riverpod

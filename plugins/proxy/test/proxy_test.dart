@@ -76,6 +76,7 @@ void main() {
       () async {
         final checkedExecutables = <String>[];
         final executedCommands = <String>[];
+        final settings = <String, String>{};
         final proxy = LinuxProxy(
           commandRunner: ProxyCommandRunner((
             executable,
@@ -83,11 +84,17 @@ void main() {
             runInShell = false,
           }) async {
             executedCommands.add(executable);
+            final key = arguments[5];
+            if (executable.startsWith('kread')) {
+              return ProcessResult(1, 0, settings[key] ?? arguments.last, '');
+            }
+            settings[key] = arguments.last;
             return ProcessResult(1, 0, '', '');
           }),
           executableChecker: (executable) async {
             checkedExecutables.add(executable);
-            return executable == 'kwriteconfig5';
+            return executable == 'kwriteconfig5' ||
+                executable == 'kreadconfig5';
           },
         );
 
@@ -103,8 +110,9 @@ void main() {
           'gsettings',
           'kwriteconfig6',
           'kwriteconfig5',
+          'kreadconfig5',
         ]);
-        expect(executedCommands, everyElement('kwriteconfig5'));
+        expect(executedCommands.toSet(), {'kwriteconfig5', 'kreadconfig5'});
       },
     );
 

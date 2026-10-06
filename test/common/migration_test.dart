@@ -7,6 +7,45 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Migration', () {
+    test(
+      'enables legacy DNS hijacking once and preserves later choices',
+      () async {
+        for (final hijack in <List<String>>[
+          [],
+          ['udp://any:53'],
+        ]) {
+          final configMap = _createConfigMap();
+          final patch = configMap['patchClashConfig']! as Map<String, Object?>;
+          final tun = patch['tun']! as Map<String, Object?>;
+          tun['dns-hijack'] = hijack;
+          final store = _FakeMigrationStore(configMap: configMap, version: 2);
+
+          final config = await Migration(store: store).run();
+
+          expect(
+            config.patchClashConfig.tun.dnsHijack,
+            hijack.isEmpty ? ['any:53'] : hijack,
+          );
+          expect(store.version, Migration.currentVersion);
+          expect(store.savedConfig, config);
+        }
+
+        final configMap = _createConfigMap();
+        final patch = configMap['patchClashConfig']! as Map<String, Object?>;
+        (patch['tun']! as Map<String, Object?>)['dns-hijack'] = [];
+        final store = _FakeMigrationStore(
+          configMap: configMap,
+          version: Migration.currentVersion,
+        );
+
+        expect(
+          (await Migration(store: store).run()).patchClashConfig.tun.dnsHijack,
+          isEmpty,
+        );
+        expect(store.savedConfig, isNull);
+      },
+    );
+
     test('returns current config without rewriting storage', () async {
       final configMap = _createConfigMap(
         davProps: const DAVProps(

@@ -7,19 +7,17 @@ import 'package:fl_clash/core/interface.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:flutter/services.dart';
-import 'package:path/path.dart';
+
+import 'desktop/geodata.dart';
 
 class CoreController {
   static CoreController? _instance;
   late CoreHandlerInterface _interface;
 
   CoreController._internal() {
-    if (system.isMobile) {
-      _interface = coreLib!;
-    } else {
-      _interface = coreService!;
-    }
+    _interface =
+        coreService ??
+        (throw UnsupportedError('FlClash-Meow supports desktop platforms.'));
   }
 
   @visibleForTesting
@@ -48,6 +46,12 @@ class CoreController {
 
   Future<CoreLifecycleResult> close() => _interface.close();
 
+  Future<CoreInfo> getCoreInfo() => _interface.getCoreInfo();
+
+  Future<CoreRuntimeState> getRuntimeState() => _interface.getRuntimeState();
+
+  Future<ConfigCheck> checkConfig(String yaml) => _interface.checkConfig(yaml);
+
   static Future<void> ensureHomeDir() async {
     final homePath = await appPath.homeDirPath;
     final homeDir = Directory(homePath);
@@ -58,32 +62,11 @@ class CoreController {
     await system.grantHomeDirAccess(homePath);
   }
 
-  static Future<void> initGeo() async {
-    final homePath = await appPath.homeDirPath;
-    const geoFileNameList = [MMDB, GEOIP, GEOSITE, ASN, BUNDLE_MRS];
-    for (final geoFileName in geoFileNameList) {
-      try {
-        final geoFile = File(join(homePath, geoFileName));
-        final isExists = await geoFile.exists();
-        if (isExists) {
-          continue;
-        }
-        final data = await rootBundle.load('assets/data/$geoFileName');
-        final List<int> bytes = data.buffer.asUint8List();
-        await geoFile.writeAsBytes(bytes, flush: true);
-      } catch (e) {
-        commonPrint.log(
-          'Failed to initialize geo data: $e',
-          logLevel: LogLevel.error,
-        );
-      }
-    }
-  }
-
   Future<bool> init(int version) async {
+    await getCoreInfo();
     await ensureHomeDir();
-    await initGeo();
     final homeDirPath = await appPath.homeDirPath;
+    await seedBundledGeodata(homeDirPath);
     return _interface.init(InitParams(homeDir: homeDirPath, version: version));
   }
 
@@ -113,10 +96,10 @@ class CoreController {
     if (preloadInvoke == null) {
       return _interface.setupConfig(params);
     }
-    final (result, _) = await (
-      _interface.setupConfig(params),
-      preloadInvoke(),
-    ).wait;
+    final result = await _interface.setupConfig(params);
+    if (result.isEmpty) {
+      await preloadInvoke();
+    }
     return result;
   }
 
@@ -158,6 +141,14 @@ class CoreController {
 
   Future<void> closeConnections() async {
     await _interface.closeConnections();
+  }
+
+  Future<List<CoreRule>> getRules() {
+    return _interface.getRules();
+  }
+
+  Future<bool> setRuleDisabled(SetRuleDisabledParams params) {
+    return _interface.setRuleDisabled(params);
   }
 
   Future<void> resetConnections() async {
@@ -229,8 +220,9 @@ class CoreController {
     final data = Map<String, dynamic>.from(
       await _interface.getProfileConfig(id),
     );
-    data['rules'] = data['rule'];
-    data.remove('rule');
+    if (data.containsKey('rule')) {
+      data['rules'] = data.remove('rule');
+    }
     return data;
   }
 
@@ -284,6 +276,10 @@ class CoreController {
 
   Future<DnsQuery> queryDns(String domain, String type) {
     return _interface.queryDns(domain, type);
+  }
+
+  Future<RuleQuery> queryRule(RuleQueryParams params) {
+    return _interface.queryRule(params);
   }
 
   Future<void> requestGc() async {

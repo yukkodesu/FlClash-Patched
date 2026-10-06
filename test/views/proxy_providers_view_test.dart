@@ -155,13 +155,13 @@ void main() {
     await pump(tester, container);
 
     final l10n = currentAppLocalizations;
-    expect(find.text(l10n.proxiesCount(7)), findsOneWidget);
-    expect(find.text(l10n.rulesCount(9)), findsOneWidget);
-    expect(find.text(l10n.proxiesCount(0)), findsNothing);
-    expect(find.text(l10n.entriesCount(7)), findsNothing);
+    expect(find.text(l10n.proxiesCount(7), findRichText: true), findsOneWidget);
+    expect(find.text(l10n.rulesCount(9), findRichText: true), findsOneWidget);
+    expect(find.text(l10n.proxiesCount(0), findRichText: true), findsNothing);
+    expect(find.text(l10n.entriesCount(7), findRichText: true), findsNothing);
     expect(find.textContaining(' · '), findsNothing);
     final countChip = find.ancestor(
-      of: find.text(l10n.proxiesCount(7)),
+      of: find.text(l10n.proxiesCount(7), findRichText: true),
       matching: find.byType(MetaChip),
     );
     expect(countChip, findsOneWidget);
@@ -203,7 +203,12 @@ void main() {
       const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
     );
     expect(
-      tester.widget<Text>(find.text(l10n.proxiesCount(7))).style?.color,
+      tester
+          .widget<EmojiText>(
+            find.descendant(of: countChip, matching: find.byType(EmojiText)),
+          )
+          .style
+          ?.color,
       colorScheme.onSurfaceVariant,
     );
     expect(find.byType(MetaChip), findsNWidgets(5));
@@ -219,12 +224,12 @@ void main() {
 
     final l10n = currentAppLocalizations;
     await openMenu(tester, 'http-one');
-    expect(find.text(l10n.upload), findsOne);
+    expect(find.text(l10n.upload), findsNothing);
     expect(find.text(l10n.sync), findsOne);
     await closeMenu(tester);
 
     await openMenu(tester, 'file-one');
-    expect(find.text(l10n.upload), findsOne);
+    expect(find.text(l10n.upload), findsNothing);
     expect(find.text(l10n.sync), findsNothing);
   });
 
@@ -245,8 +250,8 @@ void main() {
     final l10n = currentAppLocalizations;
     await openMenu(tester, 'yaml-rule');
     expect(find.text(l10n.preview), findsOneWidget);
-    expect(find.text(l10n.edit), findsOneWidget);
-    expect(find.text(l10n.upload), findsOneWidget);
+    expect(find.text(l10n.edit), findsNothing);
+    expect(find.text(l10n.upload), findsNothing);
     expect(find.text(l10n.exportFile), findsOneWidget);
     await closeMenu(tester);
 

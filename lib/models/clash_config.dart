@@ -24,7 +24,7 @@ const defaultGeoXUrl = {
 
 const defaultMixedPort = 7890;
 const defaultKeepAliveInterval = 30;
-const defaultTunMtu = 9000;
+const defaultTunMtu = 1500;
 
 const defaultBypassPrivateRouteAddress = [
   '1.0.0.0/8',
@@ -252,13 +252,17 @@ abstract class Tun with _$Tun {
     @Default(false) bool enable,
     @Default(appName) String device,
     @Default(defaultTunMtu) int mtu,
+    @Default(TunRouteMode.fakeIp)
+    @JsonKey(unknownEnumValue: TunRouteMode.fakeIp)
+    TunRouteMode routeMode,
+    @Default(false) bool captureIpv6,
     @JsonKey(name: 'auto-route') @Default(false) bool autoRoute,
     @Default(TunStack.mips)
     @JsonKey(unknownEnumValue: TunStack.mips)
     TunStack stack,
     @JsonKey(name: 'recvmsgx') @Default(true) bool recvMsgX,
     @JsonKey(name: 'sendmsgx') @Default(true) bool sendMsgX,
-    @JsonKey(name: 'dns-hijack') @Default([]) List<String> dnsHijack,
+    @JsonKey(name: 'dns-hijack') @Default(['any:53']) List<String> dnsHijack,
     @JsonKey(name: 'route-address') @Default([]) List<String> routeAddress,
     @JsonKey(name: 'strict-route') @Default(false) bool strictRoute,
     @JsonKey(name: 'disable-icmp-forwarding')
@@ -290,21 +294,23 @@ abstract class Tun with _$Tun {
 }
 
 extension TunExt on Tun {
-  List<String> resolveRouteAddress(RouteMode routeMode) =>
-      routeMode == RouteMode.bypassPrivate
-      ? defaultBypassPrivateRouteAddress
-      : routeAddress;
+  Map<String, Object?> get meowConfig => {
+    'enable': enable,
+    'mtu': mtu,
+    'auto-route': switch (routeMode) {
+      TunRouteMode.fakeIp => 'fake-ip',
+      TunRouteMode.globalExperimental => 'global',
+    },
+    'dns-hijack': dnsHijack,
+    'inet6-address': routeMode == TunRouteMode.globalExperimental && captureIpv6
+        ? 'fdfe:dcba:9876::1/126'
+        : null,
+    if (!system.isMacOS) 'device': device,
+  };
 
-  Tun getRealTun(RouteMode routeMode) {
-    final mRouteAddress = resolveRouteAddress(routeMode);
-    return switch (system.isDesktop) {
-      true => copyWith(autoRoute: true, routeAddress: []),
-      false => copyWith(
-        autoRoute: mRouteAddress.isEmpty ? true : false,
-        routeAddress: mRouteAddress,
-      ),
-    };
-  }
+  List<String> resolveRouteAddress(RouteMode routeMode) => routeAddress;
+
+  Tun getRealTun(RouteMode routeMode) => this;
 }
 
 @freezed
@@ -370,6 +376,28 @@ abstract class Dns with _$Dns {
       () => const Dns(),
     );
   }
+}
+
+extension MeowDnsConfig on Dns {
+  Map<String, Object?> get meowConfig => {
+    'enable': enable,
+    'listen': listen,
+    'use-hosts': useHosts,
+    'use-system-hosts': useSystemHosts,
+    'default-nameserver': defaultNameserver,
+    'enhanced-mode': enhancedMode.value,
+    'fake-ip-range': fakeIpRange,
+    'fake-ip-filter': fakeIpFilter,
+    'nameserver': nameserver,
+    'fallback': fallback,
+    'proxy-server-nameserver': proxyServerNameserver,
+    'fallback-filter': {
+      'geoip': fallbackFilter.geoip,
+      'geoip-code': fallbackFilter.geoipCode,
+      'ipcidr': fallbackFilter.ipcidr,
+      'domain': fallbackFilter.domain,
+    },
+  };
 }
 
 @freezed

@@ -118,9 +118,12 @@ class TUNItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final recovery = ref.watch(runtimeStatusProvider)?.recovery;
     return ConfigToggleItem(
       title: (l) => l.tun,
-      subtitle: (l) => l.tunDesc,
+      subtitle: (l) => recovery?.requiresAttention == true
+          ? '${l.meowRecoveryRequired}\n${recovery!.details.join('\n')}'
+          : l.tunDesc,
       selector: patchClashConfigProvider.select((state) => state.tun.enable),
       onChanged: _tunWriter(
         (state, value) => state.copyWith.tun(enable: value),
@@ -186,6 +189,19 @@ class Ipv6Item extends ConsumerWidget {
       subtitle: (l) => l.ipv6InboundDesc,
       select: (state) => state.ipv6,
       update: (state, value) => state.copyWith(ipv6: value),
+    );
+  }
+}
+
+class AutoSetSystemDnsItem extends ConsumerWidget {
+  const AutoSetSystemDnsItem({super.key});
+
+  @override
+  Widget build(BuildContext context, ref) {
+    return _networkToggle(
+      title: (l) => l.autoSetSystemDns,
+      select: (state) => state.autoSetSystemDns,
+      update: (state, value) => state.copyWith(autoSetSystemDns: value),
     );
   }
 }
@@ -355,7 +371,7 @@ class TunMtuItem extends ConsumerWidget {
       keyboardType: TextInputType.number,
       validator: (value) {
         final parsed = int.tryParse(value ?? '');
-        return parsed == null || parsed <= 0 || parsed > 65535
+        return parsed == null || parsed < 1280 || parsed > 65535
             ? l.mtuRangeTip
             : null;
       },
@@ -569,26 +585,56 @@ List<Widget> networkOptionsItems({
   required bool isDesktop,
   required bool isMacOS,
   bool isIOS = false,
-}) {
-  return [
-    if (isDesktop) const TUNItem(),
-    if (isDesktop) const StrictRouteItem(),
-    const IcmpForwardingItem(),
-    if (isDesktop) const TunDnsHijackItem(),
-    const EndpointIndependentNatItem(),
-    const TunStackItem(),
-    const TunCongestionControllerItem(),
-    if (isMacOS || isIOS) ...[const RecvMsgXItem(), const SendMsgXItem()],
-    const TunMtuItem(),
-    // mihomo's DefaultSocketHook ignores interface-name on Android
-    // (core/lib.go installHooks, vendored dialer.go), so these rows only
-    // apply on desktop.
-    if (isDesktop) ...[
-      const InterfaceNameModeItem(),
-      const InterfaceNameItem(),
-    ],
-    if (!isDesktop) ...[const RouteModeItem(), const RouteAddressItem()],
-  ];
+}) => const [
+  TUNItem(),
+  TunRouteModeItem(),
+  TunIpv6Item(),
+  TunDnsHijackItem(),
+  TunMtuItem(),
+];
+
+class TunIpv6Item extends ConsumerWidget {
+  const TunIpv6Item({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routeMode = ref.watch(
+      patchClashConfigProvider.select((state) => state.tun.routeMode),
+    );
+    if (routeMode != TunRouteMode.globalExperimental) {
+      return const SizedBox.shrink();
+    }
+    return ConfigToggleItem(
+      title: (l) => l.meowTunIpv6,
+      selector: patchClashConfigProvider.select(
+        (state) => state.tun.captureIpv6,
+      ),
+      onChanged: _tunWriter(
+        (state, value) => state.copyWith.tun(captureIpv6: value),
+      ),
+    );
+  }
+}
+
+class TunRouteModeItem extends ConsumerWidget {
+  const TunRouteModeItem({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ConfigOptionsItem<TunRouteMode>(
+      title: (l) => l.routeMode,
+      options: TunRouteMode.values,
+      textBuilder: (mode) => switch (mode) {
+        TunRouteMode.fakeIp => context.appLocalizations.meowTunFakeIp,
+        TunRouteMode.globalExperimental =>
+          context.appLocalizations.meowTunGlobal,
+      },
+      selector: patchClashConfigProvider.select((state) => state.tun.routeMode),
+      onChanged: _tunWriter(
+        (state, value) => state.copyWith.tun(routeMode: value),
+      ),
+    );
+  }
 }
 
 class NetworkListView extends ConsumerWidget {

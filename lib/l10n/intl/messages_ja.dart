@@ -78,20 +78,22 @@ class MessageLookup extends MessageLookupByLibrary {
 
   static String m27(count) => "プロキシ ${count} 件";
 
-  static String m28(count) => "ルール ${count} 件";
+  static String m28(maximum) => "0 から ${maximum} の整数を入力してください。";
 
-  static String m29(count) => "${count} 秒";
+  static String m29(count) => "ルール ${count} 件";
 
-  static String m30(count) => "${count} 件選択中";
+  static String m30(count) => "${count} 秒";
 
-  static String m31(interval, idleInterval) =>
+  static String m31(count) => "${count} 件選択中";
+
+  static String m32(interval, idleInterval) =>
       "${interval} · アイドル ${idleInterval}";
 
-  static String m32(interval) => "${interval} · アイドル無効";
+  static String m33(interval) => "${interval} · アイドル無効";
 
-  static String m33(label) => "${label} は URL である必要があります";
+  static String m34(label) => "${label} は URL である必要があります";
 
-  static String m34(count) => "${count} 年前";
+  static String m35(count) => "${count} 年前";
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
@@ -203,6 +205,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "autoLaunchDesc": MessageLookupByLibrary.simpleMessage("システム起動時に自動的に起動します"),
     "autoRun": MessageLookupByLibrary.simpleMessage("自動実行"),
     "autoRunDesc": MessageLookupByLibrary.simpleMessage("アプリを開いたときに自動的に実行します"),
+    "autoSetSystemDns": MessageLookupByLibrary.simpleMessage("オートセットシステム DNS"),
+    "autoSetSystemDnsDesc": MessageLookupByLibrary.simpleMessage(
+      "予備の DNS サーバーをシステムに追加",
+    ),
     "autoUpdate": MessageLookupByLibrary.simpleMessage("自動更新"),
     "autoUpdateInterval": MessageLookupByLibrary.simpleMessage("自動更新間隔（分）"),
     "back": MessageLookupByLibrary.simpleMessage("戻る"),
@@ -370,7 +376,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "deleteMultipTip": m3,
     "deleteTip": m4,
     "desc": MessageLookupByLibrary.simpleMessage(
-      "mihomo ベースのマルチプラットフォームプロキシクライアント。シンプルで使いやすく、オープンソースで広告なし。",
+      "meow-rs ベースのマルチプラットフォームプロキシクライアント。シンプルで使いやすく、オープンソースで広告なし。",
     ),
     "descending": MessageLookupByLibrary.simpleMessage("降順"),
     "destination": MessageLookupByLibrary.simpleMessage("宛先"),
@@ -766,6 +772,19 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "memoryStacks": MessageLookupByLibrary.simpleMessage("スタック"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage("Go メモリ使用量"),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "meow-rs は AGE 暗号化設定に対応していません。復号した YAML 設定をインポートしてください。",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("全トラフィック"),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "開始する前にプロファイルを選択してください。",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "前回の TUN 状態の確認または復元が必要です。権限を持つ Helper で再起動し、DNS とルートを確認してから TUN を有効にしてください。通常のプロキシモードは引き続き利用できます。",
+    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage("グローバル（実験的）"),
+    "meowTunIpv6": MessageLookupByLibrary.simpleMessage("IPv6 をキャプチャ"),
     "messageTest": MessageLookupByLibrary.simpleMessage("メッセージテスト"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("これはメッセージです。"),
     "min": MessageLookupByLibrary.simpleMessage("最小"),
@@ -783,7 +802,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "more": MessageLookupByLibrary.simpleMessage("その他"),
     "mtu": MessageLookupByLibrary.simpleMessage("MTU"),
     "mtuRangeTip": MessageLookupByLibrary.simpleMessage(
-      "MTU は 1 から 65535 までの整数である必要があります",
+      "MTU は 1280 から 65535 までの整数である必要があります",
     ),
     "multipleValuesTip": MessageLookupByLibrary.simpleMessage(
       "複数の値はカンマで区切ってください",
@@ -992,9 +1011,11 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "query": MessageLookupByLibrary.simpleMessage("照会"),
     "queryDns": MessageLookupByLibrary.simpleMessage("DNS を照会"),
+    "queryRule": MessageLookupByLibrary.simpleMessage("ルールを照会"),
     "quickFill": MessageLookupByLibrary.simpleMessage("クイック入力"),
     "rainbowScheme": MessageLookupByLibrary.simpleMessage("レインボー"),
     "random": MessageLookupByLibrary.simpleMessage("ランダム"),
+    "recentRequests": MessageLookupByLibrary.simpleMessage("最近のリクエスト"),
     "recordType": MessageLookupByLibrary.simpleMessage("レコードタイプ"),
     "recvMsgX": MessageLookupByLibrary.simpleMessage("RecvMsgX を有効にする"),
     "recvMsgXDesc": MessageLookupByLibrary.simpleMessage("Darwin でパケットを一括受信"),
@@ -1011,7 +1032,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "replace": MessageLookupByLibrary.simpleMessage("置換"),
     "replaceAll": MessageLookupByLibrary.simpleMessage("すべて置換"),
     "request": MessageLookupByLibrary.simpleMessage("リクエスト"),
-    "requests": MessageLookupByLibrary.simpleMessage("最近のリクエスト"),
+    "requests": MessageLookupByLibrary.simpleMessage("リクエスト"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage("最近のリクエスト記録を表示します"),
     "reset": MessageLookupByLibrary.simpleMessage("リセット"),
     "resetPageChangesTip": MessageLookupByLibrary.simpleMessage(
@@ -1161,12 +1182,40 @@ class MessageLookup extends MessageLookupByLibrary {
     "ruleActionUidDesc": MessageLookupByLibrary.simpleMessage(
       "Linux USER ID をマッチング",
     ),
+    "ruleDisabled": MessageLookupByLibrary.simpleMessage("無効"),
     "ruleEmpty": MessageLookupByLibrary.simpleMessage("ルールが空です"),
+    "ruleEnabled": MessageLookupByLibrary.simpleMessage("有効"),
+    "ruleHits": MessageLookupByLibrary.simpleMessage("一致"),
+    "ruleLastHit": MessageLookupByLibrary.simpleMessage("最終一致"),
+    "ruleLastMiss": MessageLookupByLibrary.simpleMessage("最終不一致"),
+    "ruleMisses": MessageLookupByLibrary.simpleMessage("不一致"),
     "ruleName": MessageLookupByLibrary.simpleMessage("ルール名"),
+    "ruleQueryDestinationIP": MessageLookupByLibrary.simpleMessage("宛先 IP"),
+    "ruleQueryInboundName": MessageLookupByLibrary.simpleMessage("インバウンド名"),
+    "ruleQueryInboundUser": MessageLookupByLibrary.simpleMessage("インバウンドユーザー"),
+    "ruleQueryInvalidIP": MessageLookupByLibrary.simpleMessage(
+      "有効な IP アドレスを入力してください。",
+    ),
+    "ruleQueryNoMatch": MessageLookupByLibrary.simpleMessage(
+      "一致するルールなし（モードのポリシーまたは DIRECT）",
+    ),
+    "ruleQueryNumberRange": m28,
+    "ruleQueryPortInvalid": MessageLookupByLibrary.simpleMessage(
+      "1 から 65535 のポートを入力してください。",
+    ),
+    "ruleQueryProcessPath": MessageLookupByLibrary.simpleMessage("プロセスのパス"),
+    "ruleQuerySniffHost": MessageLookupByLibrary.simpleMessage("検出されたドメイン"),
+    "ruleQuerySourcePort": MessageLookupByLibrary.simpleMessage("送信元ポート"),
+    "ruleQueryTarget": MessageLookupByLibrary.simpleMessage("ドメインまたは IP アドレス"),
     "ruleSet": MessageLookupByLibrary.simpleMessage("ルールセット"),
     "ruleTarget": MessageLookupByLibrary.simpleMessage("ルールターゲット"),
+    "ruleType": MessageLookupByLibrary.simpleMessage("ルールの種類"),
+    "ruleUpdateFailed": MessageLookupByLibrary.simpleMessage(
+      "ルールを変更できませんでした。設定が変更された可能性があります。更新して再試行してください。",
+    ),
     "rules": MessageLookupByLibrary.simpleMessage("ルール"),
-    "rulesCount": m28,
+    "rulesCount": m29,
+    "rulesDesc": MessageLookupByLibrary.simpleMessage("ルールとマッチ統計を表示"),
     "save": MessageLookupByLibrary.simpleMessage("保存"),
     "saveChanges": MessageLookupByLibrary.simpleMessage("変更を保存しますか？"),
     "script": MessageLookupByLibrary.simpleMessage("スクリプト"),
@@ -1176,7 +1225,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "scrollToSelected": MessageLookupByLibrary.simpleMessage("選択項目へスクロール"),
     "search": MessageLookupByLibrary.simpleMessage("検索"),
     "seconds": MessageLookupByLibrary.simpleMessage("秒"),
-    "secondsCount": m29,
+    "secondsCount": m30,
     "selectAll": MessageLookupByLibrary.simpleMessage("すべて選択"),
     "selectMatchTarget": MessageLookupByLibrary.simpleMessage(
       "MATCH-TARGET を選択",
@@ -1192,7 +1241,7 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "selectSubRule": MessageLookupByLibrary.simpleMessage("サブルールを選択してください"),
     "selected": MessageLookupByLibrary.simpleMessage("選択済み"),
-    "selectedCountTitle": m30,
+    "selectedCountTitle": m31,
     "sendMsgX": MessageLookupByLibrary.simpleMessage("SendMsgX を有効にする"),
     "sendMsgXDesc": MessageLookupByLibrary.simpleMessage("Darwin でパケットを一括送信"),
     "server": MessageLookupByLibrary.simpleMessage("サーバー"),
@@ -1340,8 +1389,8 @@ class MessageLookup extends MessageLookupByLibrary {
       "アプリウィンドウがフォーカスを失ったときにアイドル更新間隔を使用",
     ),
     "uiUpdateInterval": MessageLookupByLibrary.simpleMessage("UI 情報の更新間隔"),
-    "uiUpdateIntervalDesc": m31,
-    "uiUpdateIntervalIdleDisabledDesc": m32,
+    "uiUpdateIntervalDesc": m32,
+    "uiUpdateIntervalIdleDisabledDesc": m33,
     "unauthorized": MessageLookupByLibrary.simpleMessage("未許可"),
     "undo": MessageLookupByLibrary.simpleMessage("元に戻す"),
     "unifiedDelay": MessageLookupByLibrary.simpleMessage("統一遅延"),
@@ -1363,7 +1412,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "uploadTraffic": MessageLookupByLibrary.simpleMessage("アップロード通信量"),
     "url": MessageLookupByLibrary.simpleMessage("URL"),
     "urlDesc": MessageLookupByLibrary.simpleMessage("URL 経由でプロファイルを取得"),
-    "urlTip": m33,
+    "urlTip": m34,
     "useHosts": MessageLookupByLibrary.simpleMessage("Hostsを使用"),
     "useHostsDesc": MessageLookupByLibrary.simpleMessage(
       "上流 DNS へ問い合わせる前に、設定内の hosts エントリを確認します",
@@ -1389,7 +1438,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "whitelistMode": MessageLookupByLibrary.simpleMessage("ホワイトリストモード"),
     "writeToSystem": MessageLookupByLibrary.simpleMessage("システムに書き込む"),
     "writeToSystemDesc": MessageLookupByLibrary.simpleMessage("システムクロックも設定します"),
-    "yearsAgo": m34,
+    "yearsAgo": m35,
     "yes": MessageLookupByLibrary.simpleMessage("はい"),
     "zhCN": MessageLookupByLibrary.simpleMessage("簡体字中国語"),
     "zhTW": MessageLookupByLibrary.simpleMessage("繁体字中国語"),
