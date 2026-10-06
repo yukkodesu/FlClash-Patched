@@ -8,13 +8,13 @@ Initialize the pinned `yukkodesu/meow-rs` submodule:
 git submodule update --init --recursive
 ```
 
-`setup.dart` packages FlClash-Meow for desktop only, with `amd64|arm64` architecture values. Windows/Linux require a
+`setup.dart` packages FlClash-Meow for desktop only, with `x64|arm64` architecture values. Windows/Linux require a
 matching native host; macOS can build a requested Xcode slice, while CI runs both natively.
 
 ```bash
-dart setup.dart windows --arch amd64
+dart setup.dart windows --arch x64
 dart setup.dart linux --arch arm64
-dart setup.dart macos --arch amd64
+dart setup.dart macos --arch x64
 dart setup.dart macos --arch arm64
 ```
 
@@ -32,7 +32,7 @@ Rust host first, then embeds its final SHA256 in the Windows/Linux Helper and wr
 ```bash
 cd plugins/setup/setup_hooks
 dart pub get
-dart run bin/build_desktop.dart windows amd64
+dart run bin/build_desktop.dart windows x64
 ```
 
 The cache lives in `.dart_tool/setup_build_cache/` at the repository root. Deleting it forces the harness to invoke

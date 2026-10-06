@@ -105,6 +105,8 @@ mixin CoreInterface {
 
   FutureOr<void> stopDnsNotify();
 
+  Future<DnsQuery> queryDns(String domain, String type);
+
   Future<bool> crash();
 
   FutureOr<List<TrackerInfo>> getConnections();
@@ -569,6 +571,14 @@ abstract class CoreHandlerInterface with CoreInterface {
   @override
   FutureOr<void> stopDnsNotify() {
     _invokeMethod<bool>(method: CoreMethod.stopDnsNotify);
+  }
+
+  @override
+  Future<DnsQuery> queryDns(String domain, String type) async {
+    throw const CoreMethodException(
+      code: 'unsupported_method',
+      message: 'meow-rs does not expose manual DNS queries.',
+    );
   }
 
   @override

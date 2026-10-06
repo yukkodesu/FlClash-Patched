@@ -397,7 +397,7 @@ Shared:
 ## Build System
 
 `setup.dart` writes `env.json` and packages desktop releases with the existing `chenx-dust/flutter_distributor` fork.
-It accepts only `windows|linux|macos` and `amd64|arm64`, requires both native hooks enabled, and keeps the Linux package
+It accepts only `windows|linux|macos` and `x64|arm64`, requires both native hooks enabled, and keeps the Linux package
 formats and Windows portable `config/`. Mobile packaging and Go microarchitecture variants are outside this build.
 
 `plugins/setup/hook/build.dart` invokes `CoreBuilder` from the pure Dart `plugins/setup/setup_hooks` package.
@@ -424,7 +424,7 @@ Independent product identities are `FlClash-Meow` display name, `FlClashMeow` ex
 `FlClashMeowHelperService` Helper, `com.yukko.flclashmeow` bundle ID, and `flclash-meow` URI/package ID. Helper protocol 6
 and its wire header remain unchanged; service, port/socket, and Core IPC namespaces are isolated.
 
-Defaults are in `plugins/setup/setup_hooks/lib/src/options.dart` and `build_config.yaml`. Six native CI jobs build/test the
+Defaults are in `plugins/setup/setup_hooks/lib/src/options.dart` and `build_config.yaml`. Three native CI jobs build/test the
 host and Rust API and run CoreController E2E with explicit artifacts. Manual dispatch also builds desktop packages
 without publishing a release. Elevated TUN and install/uninstall evidence is recorded separately in
 `https://github.com/yukkodesu/FlClash-Patched/issues/8`.

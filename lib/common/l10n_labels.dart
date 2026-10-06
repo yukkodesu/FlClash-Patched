@@ -45,6 +45,7 @@ extension DnsQueryInitiatorL10n on DnsQueryInitiator {
       DnsQueryInitiator.rule => appLocalizations.rule,
       DnsQueryInitiator.direct => appLocalizations.direct,
       DnsQueryInitiator.proxy => appLocalizations.proxy,
+      DnsQueryInitiator.manual => appLocalizations.manual,
       DnsQueryInitiator.other => appLocalizations.other,
     };
   }
@@ -147,6 +148,7 @@ extension LocaleL10n on Locale {
       'ja' => appLocalizations.ja,
       'ru' => appLocalizations.ru,
       'zh_CN' => appLocalizations.zhCN,
+      'zh_TW' => appLocalizations.zhTW,
       final code => code,
     };
   }

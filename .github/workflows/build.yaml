@@ -60,6 +60,24 @@ jobs:
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
+      - name: Generate release notes
+        if: startsWith(github.ref, 'refs/tags/v') && env.IS_STABLE == 'true'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          yq -i '.hooks.user_defines.setup.build_assets = false | .hooks.user_defines.rust_api.build_assets = false' pubspec.yaml
+          dart run tool/changelog.dart build
+          dart run tool/changelog.dart render --tag "$TAG" --out release.md
+
+      - name: Upload release notes
+        if: startsWith(github.ref, 'refs/tags/v') && env.IS_STABLE == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release.md
+          retention-days: 1
+          if-no-files-found: error
+
   dart-tests:
     name: Dart tests (${{ matrix.shard }})
     needs: rust
@@ -133,8 +151,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: windows, arch: amd64, os: windows-2022, triple: x86_64-pc-windows-msvc }
-          - { platform: linux, arch: amd64, os: ubuntu-22.04, triple: x86_64-unknown-linux-gnu }
+          - { platform: windows, arch: x64, os: windows-2022, triple: x86_64-pc-windows-msvc }
+          - { platform: linux, arch: x64, os: ubuntu-22.04, triple: x86_64-unknown-linux-gnu }
           - { platform: macos, arch: arm64, os: macos-26, triple: aarch64-apple-darwin }
     steps:
       - uses: actions/checkout@v7
@@ -344,11 +362,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - { platform: windows, os: windows-2022, arch: amd64, triple: x86_64-pc-windows-msvc }
+          - { platform: windows, os: windows-2022, arch: x64, triple: x86_64-pc-windows-msvc }
           - { platform: windows, os: windows-11-arm, arch: arm64, triple: aarch64-pc-windows-msvc }
-          - { platform: linux, os: ubuntu-22.04, arch: amd64, triple: x86_64-unknown-linux-gnu }
+          - { platform: linux, os: ubuntu-22.04, arch: x64, triple: x86_64-unknown-linux-gnu }
           - { platform: linux, os: ubuntu-22.04-arm, arch: arm64, triple: aarch64-unknown-linux-gnu }
-          - { platform: macos, os: macos-26-intel, arch: amd64, triple: x86_64-apple-darwin }
+          - { platform: macos, os: macos-26-intel, arch: x64, triple: x86_64-apple-darwin }
           - { platform: macos, os: macos-26, arch: arm64, triple: aarch64-apple-darwin }
       fail-fast: false
 
@@ -410,6 +428,18 @@ jobs:
           flutter --version
           flutter pub get
 
+      - name: Match package version to release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          release_version="${GITHUB_REF_NAME#v}"
+          [[ "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-pre\.[1-9][0-9]*)?$ ]]
+          pubspec_version=$(sed -n 's/^version: //p' pubspec.yaml)
+          app_version="${pubspec_version%%+*}"
+          build_number="${pubspec_version##*+}"
+          [[ "${release_version%%-*}" == "${app_version%%-*}" && "$build_number" =~ ^[0-9]+$ ]]
+          sed -i "s/^version:.*/version: $release_version+$build_number/" pubspec.yaml
+
       - name: Setup
         run: dart setup.dart ${{ matrix.platform }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} --arch ${{ matrix.arch }} -v
       - name: Smoke staged core
@@ -425,7 +455,7 @@ jobs:
           overwrite: true
 
   upload:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.repository == 'yukkodesu/FlClash-Patched' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     needs: [ build ]
@@ -433,8 +463,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Download
         uses: actions/download-artifact@v8
@@ -443,34 +471,12 @@ jobs:
           pattern: artifact-*
           merge-multiple: true
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Skip native build hooks
-        run: |
-          yq -i '.hooks.user_defines.setup.build_assets = false | .hooks.user_defines.rust_api.build_assets = false' pubspec.yaml
-
-      - name: Generate release notes
+      - name: Download release notes
         if: env.IS_STABLE == 'true'
-        shell: bash
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          target=()
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            dart run tool/changelog.dart build
-            target=(--tag "$TAG")
-          else
-            dart run tool/changelog.dart build --unreleased
-          fi
-          dart run tool/changelog.dart render release "${target[@]}" --out release.md
+        uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: .
 
       - name: Patch release.md
         run: |

@@ -8,7 +8,7 @@ import 'package:setup_hooks/src/target.dart';
 Future<void> main(List<String> args) async {
   if (args.length != 2) {
     stderr.writeln(
-      'Usage: dart run bin/build_desktop.dart <windows|linux|macos> <amd64|arm64>',
+      'Usage: dart run bin/build_desktop.dart <windows|linux|macos> <x64|arm64>',
     );
     exitCode = 64;
     return;

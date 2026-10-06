@@ -175,7 +175,7 @@ Future<void> main(List<String> arguments) async {
             as Map<String, dynamic>;
       }
 
-      for (final arch in ['amd64', 'arm64']) {
+      for (final arch in ['x64', 'arm64']) {
         expect(build(firstSdk, arch)['rebuilt'], true);
         final cached = build(firstSdk, arch);
         expect(cached['rebuilt'], false);

@@ -16,7 +16,7 @@ void main() {
       addTearDown(() => root.deleteSync(recursive: true));
       final target = Target.resolve(
         platform: Platform.operatingSystem,
-        arch: Platform.version.contains('arm64') ? 'arm64' : 'amd64',
+        arch: Platform.version.contains('arm64') ? 'arm64' : 'x64',
       );
       void write(String name, String value) {
         File(p.join(root.path, name))

@@ -7,18 +7,18 @@ class Target {
   final String arch;
 
   static const macosArm64 = Target(platform: 'macos', arch: 'arm64');
-  static const macosAmd64 = Target(platform: 'macos', arch: 'amd64');
+  static const macosX64 = Target(platform: 'macos', arch: 'x64');
   static const linuxArm64 = Target(platform: 'linux', arch: 'arm64');
-  static const linuxAmd64 = Target(platform: 'linux', arch: 'amd64');
-  static const windowsAmd64 = Target(platform: 'windows', arch: 'amd64');
+  static const linuxX64 = Target(platform: 'linux', arch: 'x64');
+  static const windowsX64 = Target(platform: 'windows', arch: 'x64');
   static const windowsArm64 = Target(platform: 'windows', arch: 'arm64');
 
   static const all = [
     macosArm64,
-    macosAmd64,
+    macosX64,
     linuxArm64,
-    linuxAmd64,
-    windowsAmd64,
+    linuxX64,
+    windowsX64,
     windowsArm64,
   ];
 
@@ -26,8 +26,9 @@ class Target {
       all.where((target) => target.platform == platform).toList();
 
   static Target resolve({required String platform, required String arch}) {
+    final normalized = arch == 'amd64' ? 'x64' : arch;
     for (final target in forPlatform(platform)) {
-      if (target.arch == arch) return target;
+      if (target.arch == normalized) return target;
     }
     throw BuildException('No desktop Core target for $platform/$arch');
   }
@@ -37,7 +38,7 @@ class Target {
   String get platformDir => platform;
 
   String get rustTriple {
-    final rustArch = arch == 'amd64' ? 'x86_64' : 'aarch64';
+    final rustArch = arch == 'x64' ? 'x86_64' : 'aarch64';
     return switch (platform) {
       'windows' => '$rustArch-pc-windows-msvc',
       'linux' => '$rustArch-unknown-linux-gnu',

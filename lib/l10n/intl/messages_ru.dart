@@ -941,6 +941,7 @@ class MessageLookup extends MessageLookupByLibrary {
       "Для снятия ограничения loopback у UWP-приложений",
     ),
     "loose": MessageLookupByLibrary.simpleMessage("Свободный"),
+    "manual": MessageLookupByLibrary.simpleMessage("Вручную"),
     "matchSourceIp": MessageLookupByLibrary.simpleMessage(
       "Сопоставлять IP источника",
     ),
@@ -1290,6 +1291,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "qrcodeDesc": MessageLookupByLibrary.simpleMessage(
       "Сканируйте QR-код, чтобы получить профиль",
     ),
+    "query": MessageLookupByLibrary.simpleMessage("Запросить"),
+    "queryDns": MessageLookupByLibrary.simpleMessage("DNS-запрос"),
     "quickFill": MessageLookupByLibrary.simpleMessage("Быстрое заполнение"),
     "rainbowScheme": MessageLookupByLibrary.simpleMessage("Радуга"),
     "random": MessageLookupByLibrary.simpleMessage("Случайный"),
@@ -1313,7 +1316,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "replace": MessageLookupByLibrary.simpleMessage("Заменить"),
     "replaceAll": MessageLookupByLibrary.simpleMessage("Заменить все"),
     "request": MessageLookupByLibrary.simpleMessage("Запрос"),
-    "requests": MessageLookupByLibrary.simpleMessage("Запросы"),
+    "requests": MessageLookupByLibrary.simpleMessage("Последние запросы"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage(
       "Просмотр последних запросов",
     ),
@@ -1814,5 +1817,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "yearsAgo": m34,
     "yes": MessageLookupByLibrary.simpleMessage("Да"),
     "zhCN": MessageLookupByLibrary.simpleMessage("Упрощённый китайский"),
+    "zhTW": MessageLookupByLibrary.simpleMessage("Традиционный китайский"),
   };
 }

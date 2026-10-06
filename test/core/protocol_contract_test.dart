@@ -433,6 +433,24 @@ void main() {
     expect(await handler.getGoroutineCount(), 42);
   });
 
+  test(
+    'manual DNS lookup reports the missing capability without invoking RPC',
+    () async {
+      final handler = _RecordingCoreHandler();
+      await expectLater(
+        handler.queryDns('example.com', 'AAAA'),
+        throwsA(
+          isA<CoreMethodException>().having(
+            (error) => error.code,
+            'code',
+            'unsupported_method',
+          ),
+        ),
+      );
+      expect(handler.calls, isEmpty);
+    },
+  );
+
   test('getProfileConfig preserves structured core errors', () async {
     final handler = _FailingConfigCoreHandler();
 

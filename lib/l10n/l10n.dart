@@ -295,6 +295,16 @@ class AppLocalizations {
     return Intl.message('Simplified Chinese', name: 'zhCN', desc: '', args: []);
   }
 
+  /// `Traditional Chinese`
+  String get zhTW {
+    return Intl.message(
+      'Traditional Chinese',
+      name: 'zhTW',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Theme`
   String get theme {
     return Intl.message('Theme', name: 'theme', desc: '', args: []);
@@ -1440,9 +1450,14 @@ class AppLocalizations {
     );
   }
 
-  /// `Requests`
+  /// `Recent requests`
   String get requests {
-    return Intl.message('Requests', name: 'requests', desc: '', args: []);
+    return Intl.message(
+      'Recent requests',
+      name: 'requests',
+      desc: '',
+      args: [],
+    );
   }
 
   /// `View recent request records`
@@ -1468,6 +1483,21 @@ class AppLocalizations {
       desc: '',
       args: [],
     );
+  }
+
+  /// `Query DNS`
+  String get queryDns {
+    return Intl.message('Query DNS', name: 'queryDns', desc: '', args: []);
+  }
+
+  /// `Query`
+  String get query {
+    return Intl.message('Query', name: 'query', desc: '', args: []);
+  }
+
+  /// `Manual`
+  String get manual {
+    return Intl.message('Manual', name: 'manual', desc: '', args: []);
   }
 
   /// `Initiator`
@@ -3505,16 +3535,6 @@ class AppLocalizations {
     return Intl.message(
       'Start from scratch',
       name: 'startFromScratch',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Auto-set system DNS`
-  String get autoSetSystemDns {
-    return Intl.message(
-      'Auto-set system DNS',
-      name: 'autoSetSystemDns',
       desc: '',
       args: [],
     );
@@ -6340,16 +6360,6 @@ class AppLocalizations {
     );
   }
 
-  /// `Add a fallback DNS server to the system`
-  String get autoSetSystemDnsDesc {
-    return Intl.message(
-      'Add a fallback DNS server to the system',
-      name: 'autoSetSystemDnsDesc',
-      desc: '',
-      args: [],
-    );
-  }
-
   /// `Capture system DNS`
   String get captureDns {
     return Intl.message(
@@ -7329,6 +7339,26 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Auto-set system DNS`
+  String get autoSetSystemDns {
+    return Intl.message(
+      'Auto-set system DNS',
+      name: 'autoSetSystemDns',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Add a fallback DNS server to the system`
+  String get autoSetSystemDnsDesc {
+    return Intl.message(
+      'Add a fallback DNS server to the system',
+      name: 'autoSetSystemDnsDesc',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {
@@ -7340,6 +7370,7 @@ class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {
       Locale.fromSubtags(languageCode: 'ja'),
       Locale.fromSubtags(languageCode: 'ru'),
       Locale.fromSubtags(languageCode: 'zh', countryCode: 'CN'),
+      Locale.fromSubtags(languageCode: 'zh', countryCode: 'TW'),
     ];
   }
 

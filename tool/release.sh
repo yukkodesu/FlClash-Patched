@@ -10,6 +10,7 @@ want_version=""
 do_push=0
 assume_yes=0
 dry_run=0
+remote=my
 
 usage() {
   cat <<'EOF'
@@ -21,7 +22,7 @@ Usage: tool/release.sh <pre|stable> [options]
 Options:
   --version X.Y.Z    Target app version. Defaults to the pubspec version,
                      bumping the patch when that version is already tagged.
-  --push             Push the branch and the tag once the local steps pass.
+  --push             Push the branch and tag to the verified user fork (my).
   --yes              Skip the confirmation prompt.
   --dry-run          Report the plan and exit without changing anything.
   -h, --help         Show this help.
@@ -80,6 +81,16 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   die "working tree has uncommitted changes; commit or stash them first"
 fi
 
+if ((do_push)); then
+  push_urls="$(git remote get-url --push --all "$remote")" || die "missing fork remote: $remote"
+  while IFS= read -r push_url; do
+    case "$push_url" in
+      git@github.com:yukkodesu/FlClash-Patched.git | https://github.com/yukkodesu/FlClash-Patched.git | https://github.com/yukkodesu/FlClash-Patched | ssh://git@github.com/yukkodesu/FlClash-Patched.git) ;;
+      *) die "remote $remote must push only to yukkodesu/FlClash-Patched" ;;
+    esac
+  done <<<"$push_urls"
+fi
+
 branch="$(git rev-parse --abbrev-ref HEAD)"
 [[ "$branch" != "HEAD" ]] || die "detached HEAD; check out a branch first"
 if [[ "$branch" != "main" ]]; then
@@ -122,11 +133,11 @@ echo "branch    : $branch"
 echo "version   : $current -> $version$([[ $bumped == 1 ]] && echo ' (pubspec will be rewritten)')"
 echo "tag       : $tag"
 if [[ "$mode" == "pre" ]]; then
-  echo "changelog : rendered by CI from build --unreleased; nothing committed"
-  echo "publishes : build artifacts + Telegram only, no GitHub release"
+  echo "changelog : none; nothing committed"
+  echo "publishes : GitHub prerelease with build artifacts"
 else
   echo "changelog : CHANGELOG.md + changelog.json regenerated and committed"
-  echo "publishes : GitHub release with artifacts, SHA256SUMS, Homebrew cask"
+  echo "publishes : GitHub release with desktop build artifacts"
 fi
 echo "push      : $([[ $do_push == 1 ]] && echo yes || echo 'no (printed at the end)')"
 echo
@@ -146,7 +157,7 @@ tool/bump_version.sh minor
 
 echo "--- release notes for $tag ---"
 if dart run tool/changelog.dart build --unreleased >/dev/null 2>&1; then
-  dart run tool/changelog.dart render release 2>/dev/null |
+  dart run tool/changelog.dart render 2>/dev/null |
     sed -n '/changelog:begin/,/changelog:end/p' | sed '1d;$d'
 else
   echo "(preview unavailable: 'build --unreleased' found nothing to collect)"
@@ -199,11 +210,11 @@ git tag "$tag"
 echo "tagged $tag at $(git rev-parse --short HEAD)"
 
 if ((do_push)); then
-  git push origin "$branch"
-  git push origin "$tag"
+  git push "$remote" "$branch"
+  git push "$remote" "$tag"
   echo "pushed $branch and $tag"
 else
   echo
   echo "Nothing was pushed. To publish:"
-  echo "  git push origin $branch && git push origin $tag"
+  echo "  git push $remote $branch && git push $remote $tag"
 fi

@@ -75,7 +75,7 @@ ArgParser createSetupArgParser() => ArgParser()
   )
   ..addOption(
     'arch',
-    allowed: ['arm64', 'amd64'],
+    allowed: ['arm64', 'x64', 'amd64'],
     help: 'Target desktop architecture',
   )
   ..addFlag(
@@ -99,8 +99,8 @@ List<String> createFlutterBuildArgs({
 Map<String, String> createBuildEnvironment(String env) => {'APP_ENV': env};
 
 String createMacosBuildConfig(String arch) {
-  final (target, excluded) = switch (arch) {
-    'amd64' => ('x86_64', 'arm64'),
+  final (target, excluded) = switch (parsePackageArchitecture(arch).name) {
+    'x64' => ('x86_64', 'arm64'),
     'arm64' => ('arm64', 'x86_64'),
     _ => throw ArgumentError.value(
       arch,
@@ -145,10 +145,11 @@ class PackageArchitecture {
 }
 
 PackageArchitecture parsePackageArchitecture(String arch) {
-  if (arch != 'amd64' && arch != 'arm64') {
-    throw ArgumentError.value(arch, 'arch', 'Expected arm64 or amd64');
+  final normalized = arch == 'amd64' ? 'x64' : arch;
+  if (normalized != 'x64' && normalized != 'arm64') {
+    throw ArgumentError.value(arch, 'arch', 'Expected arm64 or x64');
   }
-  return PackageArchitecture(name: arch);
+  return PackageArchitecture(name: normalized);
 }
 
 PackageArchitecture resolvePackageArchitecture({
@@ -160,7 +161,8 @@ PackageArchitecture resolvePackageArchitecture({
     throw ArgumentError('Desktop platforms only');
   }
   final parsed = parsePackageArchitecture(requested ?? hostArch);
-  if (platform != 'macos' && parsed.name != hostArch) {
+  if (platform != 'macos' &&
+      parsed.name != parsePackageArchitecture(hostArch).name) {
     throw ArgumentError(
       'Build $platform/${parsed.name} on a matching architecture machine.',
     );
@@ -275,12 +277,12 @@ Future<void> injectPortableConfigDirIntoZip(String zipPath) async {
 String _detectArch() {
   if (Platform.isWindows) {
     final pa = Platform.environment['PROCESSOR_ARCHITECTURE'] ?? 'AMD64';
-    return pa.toUpperCase() == 'ARM64' ? 'arm64' : 'amd64';
+    return pa.toUpperCase() == 'ARM64' ? 'arm64' : 'x64';
   }
   final result = Process.runSync('uname', ['-m']);
   final machine = (result.stdout as String).trim();
   if (machine == 'aarch64') return 'arm64';
-  if (machine == 'x86_64') return 'amd64';
+  if (machine == 'x86_64') return 'x64';
   return machine;
 }
 

@@ -746,6 +746,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "loopback": MessageLookupByLibrary.simpleMessage("ループバック解除ツール"),
     "loopbackDesc": MessageLookupByLibrary.simpleMessage("UWP ループバック解除用"),
     "loose": MessageLookupByLibrary.simpleMessage("ゆったり"),
+    "manual": MessageLookupByLibrary.simpleMessage("手動"),
     "matchSourceIp": MessageLookupByLibrary.simpleMessage("送信元 IP をマッチング"),
     "matchTarget": MessageLookupByLibrary.simpleMessage("MATCH-TARGET"),
     "matchTargetDesc": MessageLookupByLibrary.simpleMessage(
@@ -1017,6 +1018,8 @@ class MessageLookup extends MessageLookupByLibrary {
     "qrcodeDesc": MessageLookupByLibrary.simpleMessage(
       "QR コードをスキャンしてプロファイルを取得",
     ),
+    "query": MessageLookupByLibrary.simpleMessage("照会"),
+    "queryDns": MessageLookupByLibrary.simpleMessage("DNS を照会"),
     "quickFill": MessageLookupByLibrary.simpleMessage("クイック入力"),
     "rainbowScheme": MessageLookupByLibrary.simpleMessage("レインボー"),
     "random": MessageLookupByLibrary.simpleMessage("ランダム"),
@@ -1036,7 +1039,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "replace": MessageLookupByLibrary.simpleMessage("置換"),
     "replaceAll": MessageLookupByLibrary.simpleMessage("すべて置換"),
     "request": MessageLookupByLibrary.simpleMessage("リクエスト"),
-    "requests": MessageLookupByLibrary.simpleMessage("リクエスト"),
+    "requests": MessageLookupByLibrary.simpleMessage("最近のリクエスト"),
     "requestsDesc": MessageLookupByLibrary.simpleMessage("最近のリクエスト記録を表示します"),
     "reset": MessageLookupByLibrary.simpleMessage("リセット"),
     "resetPageChangesTip": MessageLookupByLibrary.simpleMessage(
@@ -1417,5 +1420,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "yearsAgo": m34,
     "yes": MessageLookupByLibrary.simpleMessage("はい"),
     "zhCN": MessageLookupByLibrary.simpleMessage("簡体字中国語"),
+    "zhTW": MessageLookupByLibrary.simpleMessage("繁体字中国語"),
   };
 }

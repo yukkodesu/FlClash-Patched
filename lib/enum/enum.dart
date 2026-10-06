@@ -255,7 +255,7 @@ enum ResultType {
 
 enum CoreEventType { log, delay, request, dns, loaded, crash, geoUpdate }
 
-enum DnsQueryInitiator { app, rule, direct, proxy, other }
+enum DnsQueryInitiator { app, rule, direct, proxy, manual, other }
 
 enum InvokeMessageType { protect, process }
 

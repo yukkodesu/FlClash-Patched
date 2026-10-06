@@ -263,6 +263,10 @@ class CoreController {
     _interface.stopDnsNotify();
   }
 
+  Future<DnsQuery> queryDns(String domain, String type) {
+    return _interface.queryDns(domain, type);
+  }
+
   Future<void> requestGc() async {
     await _interface.forceGc();
   }

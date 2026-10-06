@@ -691,7 +691,10 @@ void main() {
 
       await setupAction.requestAdmin(true);
 
-      expect(container.read(shouldPatchSystemDnsProvider), isFalse);
+      expect(
+        container.read(authorizedTunEnableProvider),
+        isNot(TunAuthorizationState.authorized),
+      );
     });
   });
 }

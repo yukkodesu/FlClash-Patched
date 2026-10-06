@@ -37,10 +37,7 @@ void main() {
       throwsArgumentError,
     );
     expect(() => setup.createPackageTargets('ios', null), throwsArgumentError);
-    expect(
-      () => setup.parsePackageArchitecture('amd64-v3'),
-      throwsArgumentError,
-    );
+    expect(() => setup.parsePackageArchitecture('x64-v3'), throwsArgumentError);
     expect(() => setup.parsePackageArchitecture('arm'), throwsArgumentError);
   });
 
@@ -52,15 +49,15 @@ void main() {
             .resolvePackageArchitecture(
               platform: 'windows',
               requested: 'amd64',
-              hostArch: 'amd64',
+              hostArch: 'x64',
             )
             .name,
-        'amd64',
+        'x64',
       );
       expect(
         () => setup.resolvePackageArchitecture(
           platform: 'linux',
-          requested: 'amd64',
+          requested: 'x64',
           hostArch: 'arm64',
         ),
         throwsArgumentError,
@@ -69,18 +66,18 @@ void main() {
         setup
             .resolvePackageArchitecture(
               platform: 'macos',
-              requested: 'amd64',
+              requested: 'x64',
               hostArch: 'arm64',
             )
             .name,
-        'amd64',
+        'x64',
       );
     },
   );
 
   test('pins macOS native targets to the requested package architecture', () {
     expect(
-      setup.createMacosBuildConfig('amd64'),
+      setup.createMacosBuildConfig('x64'),
       'ARCHS = x86_64\nEXCLUDED_ARCHS = arm64\n',
     );
     expect(

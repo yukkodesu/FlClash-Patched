@@ -109,6 +109,13 @@ void main() {
         expect(request.rootDir, repository.path);
         expect(request.harnessDir, p.join(packageRoot.path, 'setup_hooks'));
         expect(request.target.rustTriple, triple);
+        expect(request.target.arch, arch == Architecture.x64 ? 'x64' : 'arm64');
+        if (arch == Architecture.x64) {
+          expect(
+            Target.resolve(platform: request.target.platform, arch: 'amd64'),
+            same(request.target),
+          );
+        }
         expect(request.macOSDeploymentTarget, os == OS.macOS ? '13.0' : null);
       }
     });
@@ -171,7 +178,7 @@ void main() {
           output: output,
         );
 
-        expect(seen?.target, Target.linuxAmd64);
+        expect(seen?.target, Target.linuxX64);
         expect(BuildOutput(output.json).dependencies, [
           Uri.file(sourceFile),
           Uri.directory(coreDir),

@@ -32,6 +32,7 @@ final _toggleCases = <_ToggleCase>[
     'SendMsgX',
     const SendMsgXItem(),
     (c) => c.read(patchClashConfigProvider).tun.sendMsgX,
+    initial: true,
   ),
   _ToggleCase(
     'VPN',
@@ -63,12 +64,6 @@ final _toggleCases = <_ToggleCase>[
     initial: true,
   ),
   _ToggleCase('ipv6', const Ipv6Item(), (c) => c.read(vpnSettingProvider).ipv6),
-  _ToggleCase(
-    'auto set system dns',
-    const AutoSetSystemDnsItem(),
-    (c) => c.read(networkSettingProvider).autoSetSystemDns,
-    initial: true,
-  ),
   _ToggleCase(
     'dns hijacking',
     const DNSHijackingItem(),

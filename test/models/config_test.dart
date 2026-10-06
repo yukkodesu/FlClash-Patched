@@ -20,11 +20,11 @@ void main() {
   test('TUN batch packet options preserve defaults and explicit overrides', () {
     final defaults = Tun.fromJson({});
     expect(defaults.recvMsgX, isTrue);
-    expect(defaults.sendMsgX, isFalse);
-    final tun = Tun.fromJson({'recvmsgx': false, 'sendmsgx': true});
+    expect(defaults.sendMsgX, isTrue);
+    final tun = Tun.fromJson({'recvmsgx': false, 'sendmsgx': false});
     final json = roundTrip(tun.toJson, Tun.fromJson).toJson();
     expect(json['recvmsgx'], isFalse);
-    expect(json['sendmsgx'], isTrue);
+    expect(json['sendmsgx'], isFalse);
   });
 
   test('TUN congestion controller defaults to cubic and round-trips', () {

@@ -24,6 +24,7 @@ Do not use this for README translation sync or manual edits to generated localiz
 4. Add or update every source ARB:
    - `arb/intl_en.arb`
    - `arb/intl_zh_CN.arb`
+   - `arb/intl_zh_TW.arb`
    - `arb/intl_ja.arb`
    - `arb/intl_ru.arb`
 5. Replace inline strings with existing project accessors:

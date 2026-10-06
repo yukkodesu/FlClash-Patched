@@ -102,7 +102,7 @@ final class CoreBuilder implements Builder {
     }
     final arch = switch (code.targetArchitecture) {
       Architecture.arm64 => 'arm64',
-      Architecture.x64 => 'amd64',
+      Architecture.x64 => 'x64',
       final other => throw BuildException('No Core build for $platform $other'),
     };
     final rootDir = repositoryRoot(input);
