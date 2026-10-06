@@ -9,6 +9,7 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 
 import 'transport.dart';
+import 'model.dart';
 
 /// How many timeout windows a request may be extended across while Core keeps
 /// answering other requests, before it fails regardless.
@@ -49,9 +50,13 @@ final class CoreRpcClient implements CoreRpcChannel {
 
   int _methodCallId = 0;
   bool _shutdownRequested = false;
+  bool _stoppingSession = false;
+  String? _shutdownId;
+  Completer<Object?>? _shutdownResponse;
   Future<void>? _closeOperation;
   Future<void> _frameWork = Future<void>.value();
   int _frameGeneration = 0;
+  int? _connectionGeneration;
 
   /// Time since Core last answered any request. A method timeout is a liveness
   /// guard for a stalled link (a restart mid-flight, a stream that stopped
@@ -79,7 +84,7 @@ final class CoreRpcClient implements CoreRpcChannel {
     Object? arguments,
     Duration? timeout,
   }) async {
-    if (_shutdownRequested) {
+    if (_shutdownRequested || _stoppingSession) {
       return null;
     }
     final id = '${++_methodCallId}';
@@ -88,12 +93,15 @@ final class CoreRpcClient implements CoreRpcChannel {
     final requestTimeout = timeout ?? const Duration(minutes: 3);
     final stopwatch = Stopwatch()..start();
     try {
-      await Future.any<Object?>([
+      final connection = await Future.any<Object?>([
         transport.waitUntilConnected(_shorter(_connectTimeout, requestTimeout)),
         completer.future,
       ]);
       if (completer.isCompleted) {
         return await completer.future as T?;
+      }
+      if (connection is TransportConnected) {
+        _connectionGeneration = connection.generation;
       }
       final sendTimeout = requestTimeout - stopwatch.elapsed;
       if (sendTimeout <= Duration.zero) {
@@ -126,7 +134,7 @@ final class CoreRpcClient implements CoreRpcChannel {
       rethrow;
     } catch (error) {
       _removePending(id, completer);
-      if (_shutdownRequested) {
+      if (_shutdownRequested || _stoppingSession) {
         return null;
       }
       throw CoreMethodException(
@@ -176,6 +184,44 @@ final class CoreRpcClient implements CoreRpcChannel {
 
   static Duration _shorter(Duration a, Duration b) => a < b ? a : b;
 
+  Future<void> shutdownSession(
+    DesktopCoreSession session,
+    Duration timeout,
+  ) async {
+    _stoppingSession = true;
+    _completePending();
+    final response = Completer<Object?>();
+    response.future.ignore();
+    final id = '${++_methodCallId}';
+    _shutdownId = id;
+    _shutdownResponse = response;
+    try {
+      await (() async {
+        if (transport.state != DesktopTransportState.connected) {
+          throw StateError('Core session is no longer connected');
+        }
+        final connection = await transport.waitUntilConnected(timeout);
+        if (!identical(_shutdownResponse, response) ||
+            connection.generation != session.connectionGeneration ||
+            (connection.pid != null && connection.pid != session.pid)) {
+          throw StateError('Core shutdown connection does not match its lease');
+        }
+        _connectionGeneration = connection.generation;
+        await transport.send(
+          json.encode(CoreMethodCall(id: id, method: CoreMethod.shutdown)),
+        );
+        if (await response.future != true) {
+          throw StateError('Core did not confirm resource cleanup');
+        }
+      })().timeout(timeout);
+    } finally {
+      if (identical(_shutdownResponse, response)) {
+        _shutdownId = null;
+        _shutdownResponse = null;
+      }
+    }
+  }
+
   void _removePending(String id, Completer<Object?> completer) {
     final removed = _pending.remove(id);
     if (identical(removed, completer) && !completer.isCompleted) {
@@ -189,14 +235,16 @@ final class CoreRpcClient implements CoreRpcChannel {
   }
 
   Future<void> _processFrame(Uint8List frame, int generation) async {
-    if (_shutdownRequested || generation != _frameGeneration) return;
+    if (generation != _frameGeneration) return;
     try {
       final data = frame.length >= _backgroundDecodeThreshold
           ? await compute(_decodeFrame, frame, debugLabel: 'Core IPC decode')
           : _decodeFrame(frame);
-      if (_shutdownRequested || generation != _frameGeneration) return;
+      if (generation != _frameGeneration) return;
       if (data.containsKey('method')) {
-        _handleMethodCall(CoreMethodCall.fromJson(data));
+        if (!_shutdownRequested && !_stoppingSession) {
+          _handleMethodCall(CoreMethodCall.fromJson(data));
+        }
       } else {
         _handleResponse(CoreMethodResponse.fromJson(data));
       }
@@ -228,7 +276,11 @@ final class CoreRpcClient implements CoreRpcChannel {
       ..reset()
       ..start();
     final id = response.id;
-    final completer = id == null ? null : _pending.remove(id);
+    final completer = id == _shutdownId
+        ? _shutdownResponse
+        : id == null
+        ? null
+        : _pending.remove(id);
     if (completer == null || completer.isCompleted) {
       return;
     }
@@ -255,14 +307,24 @@ final class CoreRpcClient implements CoreRpcChannel {
 
   void _handleTransportEvent(DesktopTransportEvent event) {
     switch (event) {
-      case TransportDisconnected():
-        _invalidateFrames();
-        _failPending(
-          const CoreMethodException(
-            code: 'transport_disconnected',
-            message: 'Core transport disconnected',
-          ),
+      case TransportDisconnected(:final generation):
+        if (_connectionGeneration != null &&
+            generation != _connectionGeneration) {
+          return;
+        }
+        const error = CoreMethodException(
+          code: 'transport_disconnected',
+          message: 'Core transport disconnected',
         );
+        if (_stoppingSession) {
+          unawaited(
+            _frameWork.then((_) {
+              if (_connectionGeneration == generation) _disconnect(error);
+            }),
+          );
+        } else {
+          _disconnect(error);
+        }
       case TransportFailed(:final error):
         _invalidateFrames();
         _failPending(
@@ -272,9 +334,17 @@ final class CoreRpcClient implements CoreRpcChannel {
             details: error.toString(),
           ),
         );
-      case TransportReady() || TransportConnected():
+      case TransportConnected(:final generation):
+        _connectionGeneration = generation;
+        _stoppingSession = false;
+      case TransportReady():
         break;
     }
+  }
+
+  void _disconnect(CoreMethodException error) {
+    _invalidateFrames();
+    _failPending(error);
   }
 
   void _invalidateFrames() {
@@ -289,6 +359,10 @@ final class CoreRpcClient implements CoreRpcChannel {
       if (!completer.isCompleted) {
         completer.completeError(error);
       }
+    }
+    final shutdown = _shutdownResponse;
+    if (shutdown != null && !shutdown.isCompleted) {
+      shutdown.completeError(error);
     }
   }
 
@@ -308,7 +382,7 @@ final class CoreRpcClient implements CoreRpcChannel {
       return;
     }
     _shutdownRequested = true;
-    _invalidateFrames();
+    if (!_stoppingSession) _invalidateFrames();
     _completePending();
   }
 

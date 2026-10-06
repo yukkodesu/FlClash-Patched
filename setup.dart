@@ -4,215 +4,99 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
-import 'package:xml/xml.dart';
 import 'package:yaml/yaml.dart';
 
-import 'tool/geodata.dart';
-
 const _allTargets = <String, String>{
-  'android': 'apk',
-  'ios': 'ipa',
-  'linux': 'deb,rpm,pacman,appimage,zip',
+  'linux': 'deb,pacman,appimage,zip',
   'macos': 'dmg',
   'windows': 'exe,zip',
 };
 
-const _androidFlutterTarget = {
-  'arm': 'android-arm',
-  'arm64': 'android-arm64',
-  'amd64': 'android-x64',
-};
-
-const _hostPlatform = {
-  'linux': 'linux',
-  'macos': 'macos',
-  'windows': 'windows',
-};
-
 Future<void> main(List<String> args) async {
   final parser = createSetupArgParser();
-
   if (args.contains('--help') || args.contains('-h')) {
     _showHelp(parser);
-    exit(0);
+    return;
   }
-
   final results = parser.parse(args);
-  final rest = results.rest;
-
-  final hostOs = Platform.operatingSystem;
-  final host = _hostPlatform[hostOs];
-  if (host == null) {
-    stderr.writeln('Unsupported host platform: $hostOs');
-    exit(1);
-  }
-
-  final platform = rest.isNotEmpty ? rest.first : host;
-
-  if (platform != host &&
-      platform != 'android' &&
-      !(host == 'macos' && platform == 'ios')) {
-    final allowed = [host, 'android', if (host == 'macos') 'ios'];
-    stderr.writeln(
-      'Cannot build "$platform" on $hostOs. '
-      'Allowed: ${allowed.join(', ')}',
-    );
+  final host = Platform.operatingSystem;
+  final platform = results.rest.isEmpty ? host : results.rest.first;
+  if (!_allTargets.containsKey(platform) || platform != host) {
+    stderr.writeln('Build a desktop package on its matching operating system.');
     _showHelp(parser);
-    exit(1);
+    exitCode = 64;
+    return;
   }
-
-  final env = results['env'] as String;
   final rootDir = Directory.current.path;
   final skipped = packagesNotBuildingAssets(
     File(p.join(rootDir, 'pubspec.yaml')).readAsStringSync(),
   );
   if (skipped.isNotEmpty) {
     stderr.writeln(
-      'pubspec.yaml sets hooks.user_defines.<package>.build_assets: false '
-      'for ${skipped.join(', ')}; a package built this way would ship '
-      'whatever is left in libclash/ and no Rust library. '
-      'Restore "build_assets: true".',
+      'Restore build_assets: true for ${skipped.join(', ')} before packaging.',
     );
-    exit(1);
+    exitCode = 1;
+    return;
   }
-  final targetArch = results['arch'] as String?;
-  final PackageArchitecture packageArch;
+  final PackageArchitecture arch;
   try {
-    packageArch = resolvePackageArchitecture(
+    arch = resolvePackageArchitecture(
       platform: platform,
-      requested: targetArch,
+      requested: results['arch'] as String?,
       hostArch: _detectArch(),
     );
   } on ArgumentError catch (error) {
-    stderr.writeln(error.message ?? error);
-    exit(64);
+    stderr.writeln(error.message);
+    exitCode = 64;
+    return;
   }
-  final targets = createPackageTargets(platform, results['targets']);
-  final androidArch = platform == 'android' ? targetArch : null;
-  final verbose = results['verbose'] as bool;
-  final iosExportMethod = results['ipa-export-method'] as String;
-  final iosExportOptionsPlist = results['ipa-export-options-plist'] as String?;
-  final iosBundleId = results['ios-bundle-id'] as String?;
-  final iosDevelopmentTeam = results['ios-development-team'] as String?;
-  final iosNoSign = results['no-codesign'] as bool;
-  final skipDependencies = results['skip-dependencies'] as bool;
-
-  if (iosNoSign && platform != 'ios') {
-    stderr.writeln('--no-codesign is only supported for iOS builds.');
-    exit(64);
-  }
-
-  final exitCode = await _withGoAmd64UserDefine(
+  exitCode = await _package(
+    platform,
+    results['env'] as String,
+    createPackageTargets(platform, results['targets'] as String?),
     rootDir,
-    packageArch.goamd64,
-    () {
-      return _package(
-        platform,
-        env,
-        targets,
-        rootDir,
-        packageArch,
-        androidArch: androidArch,
-        iosExportMethod: iosExportMethod,
-        iosExportOptionsPlist: iosExportOptionsPlist,
-        iosBundleId: iosBundleId,
-        iosDevelopmentTeam: iosDevelopmentTeam,
-        iosNoSign: iosNoSign,
-        skipDependencies: skipDependencies,
-        verbose: verbose,
-      );
-    },
+    arch,
+    skipDependencies: results['skip-dependencies'] as bool,
+    verbose: results['verbose'] as bool,
   );
-  exit(exitCode);
 }
 
-ArgParser createSetupArgParser() {
-  return ArgParser()
-    ..addOption(
-      'env',
-      defaultsTo: 'pre',
-      allowed: ['dev', 'pre', 'stable'],
-      help: 'Application environment',
-    )
-    ..addOption(
-      'targets',
-      valueHelp: 'exe,zip,dmg,apk,...',
-      help: 'Package targets (default: all for platform)',
-    )
-    ..addOption(
-      'arch',
-      valueHelp: 'arm,arm64,amd64,amd64-v2,amd64-v3',
-      allowed: ['arm', 'arm64', 'amd64', 'amd64-v1', 'amd64-v2', 'amd64-v3'],
-      help:
-          'Target architecture. amd64-v1 is the baseline amd64 package; '
-          'amd64-v2 and amd64-v3 compile the Core with GOAMD64 on desktop',
-    )
-    ..addOption(
-      'ipa-export-method',
-      defaultsTo: 'app-store',
-      allowed: ['app-store', 'ad-hoc', 'development', 'enterprise'],
-      help: 'iOS IPA export method',
-    )
-    ..addOption(
-      'ipa-export-options-plist',
-      valueHelp: 'ios/ExportOptions.plist',
-      help: 'iOS IPA export options plist',
-    )
-    ..addOption(
-      'ios-bundle-id',
-      valueHelp: 'com.example.app',
-      help: 'Override iOS Runner bundle identifier for CI builds',
-    )
-    ..addOption(
-      'ios-development-team',
-      valueHelp: 'XXXXXXXXXX',
-      help: 'Override iOS development team for CI builds',
-    )
-    ..addFlag(
-      'no-codesign',
-      negatable: false,
-      help: 'Build an IPA without Apple provisioning (iOS only)',
-    )
-    ..addFlag(
-      'skip-dependencies',
-      abbr: 's',
-      negatable: false,
-      help: 'Skip installing platform build dependencies',
-    )
-    ..addFlag(
-      'verbose',
-      abbr: 'v',
-      negatable: false,
-      help: 'Enable verbose Flutter build output',
-    );
-}
+ArgParser createSetupArgParser() => ArgParser()
+  ..addOption(
+    'env',
+    defaultsTo: 'pre',
+    allowed: ['dev', 'pre', 'stable'],
+    help: 'Application environment',
+  )
+  ..addOption(
+    'targets',
+    valueHelp: 'exe,zip,dmg,...',
+    help: 'Package targets (default: all for platform)',
+  )
+  ..addOption(
+    'arch',
+    allowed: ['arm64', 'amd64'],
+    help: 'Target desktop architecture',
+  )
+  ..addFlag(
+    'skip-dependencies',
+    abbr: 's',
+    negatable: false,
+    help: 'Skip installing platform build dependencies',
+  )
+  ..addFlag(
+    'verbose',
+    abbr: 'v',
+    negatable: false,
+    help: 'Enable verbose Flutter build output',
+  );
 
 List<String> createFlutterBuildArgs({
   required String platform,
   required bool verbose,
-  String? iosExportMethod,
-  String? iosExportOptionsPlist,
-}) {
-  final flutterBuildArgs = <String>[
-    if (verbose) 'verbose',
-    'dart-define-from-file=env.json',
-  ];
-  switch (platform) {
-    case 'android':
-      flutterBuildArgs.add('split-per-abi');
-    case 'ios':
-      if (iosExportOptionsPlist != null && iosExportOptionsPlist.isNotEmpty) {
-        flutterBuildArgs.add('export-options-plist=$iosExportOptionsPlist');
-      } else {
-        flutterBuildArgs.add('export-method=${iosExportMethod ?? 'app-store'}');
-      }
-  }
-  return flutterBuildArgs;
-}
+}) => [if (verbose) 'verbose', 'dart-define-from-file=env.json'];
 
-Map<String, String> createBuildEnvironment(String env) {
-  return {'APP_ENV': env};
-}
+Map<String, String> createBuildEnvironment(String env) => {'APP_ENV': env};
 
 String createMacosBuildConfig(String arch) {
   final (target, excluded) = switch (arch) {
@@ -227,7 +111,6 @@ String createMacosBuildConfig(String arch) {
   return 'ARCHS = $target\nEXCLUDED_ARCHS = $excluded\n';
 }
 
-/// Packages whose build hook `pubspec.yaml` turns into a no-op.
 List<String> packagesNotBuildingAssets(String pubspec) {
   final document = loadYaml(pubspec);
   if (document is! Map) return const [];
@@ -240,45 +123,32 @@ List<String> packagesNotBuildingAssets(String pubspec) {
 }
 
 String createPackageTargets(String platform, String? customTargets) {
+  if (!_allTargets.containsKey(platform)) {
+    throw ArgumentError.value(platform, 'platform', 'Desktop platforms only');
+  }
+  if (platform == 'linux' &&
+      customTargets?.split(',').any((target) => target.trim() == 'rpm') ==
+          true) {
+    throw ArgumentError.value(
+      customTargets,
+      'targets',
+      'RPM is unavailable: the packager ignores uninstall hooks and Core hash protection',
+    );
+  }
   return customTargets ?? _allTargets[platform]!;
 }
 
 class PackageArchitecture {
-  const PackageArchitecture({
-    required this.name,
-    required this.flutterArch,
-    this.goamd64,
-  });
-
-  /// Suffix passed to flutter_distributor. v1 keeps the historical `amd64` name.
+  const PackageArchitecture({required this.name});
   final String name;
-  final String flutterArch;
-  final String? goamd64;
+  String get flutterArch => name;
 }
 
 PackageArchitecture parsePackageArchitecture(String arch) {
-  switch (arch) {
-    case 'arm':
-    case 'arm64':
-      return PackageArchitecture(name: arch, flutterArch: arch);
-    case 'amd64':
-    case 'amd64-v1':
-      return const PackageArchitecture(name: 'amd64', flutterArch: 'amd64');
-    case 'amd64-v2':
-    case 'amd64-v3':
-      final level = arch.substring('amd64-'.length);
-      return PackageArchitecture(
-        name: arch,
-        flutterArch: 'amd64',
-        goamd64: level,
-      );
-    default:
-      throw ArgumentError.value(
-        arch,
-        'arch',
-        'Expected arm, arm64, amd64, amd64-v1, amd64-v2, or amd64-v3',
-      );
+  if (arch != 'amd64' && arch != 'arm64') {
+    throw ArgumentError.value(arch, 'arch', 'Expected arm64 or amd64');
   }
+  return PackageArchitecture(name: arch);
 }
 
 PackageArchitecture resolvePackageArchitecture({
@@ -286,86 +156,23 @@ PackageArchitecture resolvePackageArchitecture({
   required String? requested,
   required String hostArch,
 }) {
-  if (requested != null && platform == 'ios') {
-    throw ArgumentError('--arch is not used for iOS; the package is arm64.');
+  if (!_allTargets.containsKey(platform)) {
+    throw ArgumentError('Desktop platforms only');
   }
-
   final parsed = parsePackageArchitecture(requested ?? hostArch);
-  final explicitMicroarch = requested != null && requested.startsWith('amd64-');
-  if (explicitMicroarch &&
-      platform != 'linux' &&
-      platform != 'windows' &&
-      platform != 'macos') {
+  if (platform != 'macos' && parsed.name != hostArch) {
     throw ArgumentError(
-      '--arch $requested is only supported for Linux, Windows, and macOS.',
-    );
-  }
-  if (platform == 'macos' && parsed.flutterArch == 'arm') {
-    throw ArgumentError('--arch supports arm64 and amd64 on macOS.');
-  }
-  if ((platform == 'linux' || platform == 'windows') &&
-      parsed.flutterArch != hostArch) {
-    throw ArgumentError(
-      '--arch ${parsed.flutterArch} does not match the $hostArch host. '
-      'Linux and Windows packages are built on a matching machine.',
+      'Build $platform/${parsed.name} on a matching architecture machine.',
     );
   }
   return parsed;
 }
 
-String pubspecWithGoAmd64(String pubspec, String level) {
-  if (!goAmd64Levels.contains(level)) {
-    throw ArgumentError.value(level, 'level', 'Expected v1, v2, or v3');
-  }
-  final usesCrLf = pubspec.contains('\r\n');
-  final normalized = pubspec.replaceAll('\r\n', '\n');
-  if (RegExp(r'^\s*goamd64\s*:', multiLine: true).hasMatch(normalized)) {
-    throw ArgumentError('pubspec.yaml already sets hooks.user_defines goamd64');
-  }
-  final setupAssets = RegExp(
-    r'^([ \t]*setup:[ \t]*\n)([ \t]+)build_assets:[ \t]*true[ \t]*\n',
-    multiLine: true,
-  );
-  final match = setupAssets.firstMatch(normalized);
-  if (match == null) {
-    throw ArgumentError(
-      'pubspec.yaml must keep hooks.user_defines.setup.build_assets: true',
-    );
-  }
-  final patched = normalized.replaceFirst(
-    setupAssets,
-    '${match[1]}${match[2]}build_assets: true\n${match[2]}goamd64: $level\n',
-  );
-  return usesCrLf ? patched.replaceAll('\n', '\r\n') : patched;
-}
-
-const goAmd64Levels = ['v1', 'v2', 'v3'];
-
-Future<T> _withGoAmd64UserDefine<T>(
-  String rootDir,
-  String? level,
-  Future<T> Function() action,
-) async {
-  if (level == null) return action();
-  final file = File(p.join(rootDir, 'pubspec.yaml'));
-  final original = await file.readAsString();
-  await file.writeAsString(pubspecWithGoAmd64(original, level));
-  try {
-    return await action();
-  } finally {
-    await file.writeAsString(original);
-  }
-}
-
 void _showHelp(ArgParser parser) {
-  stderr.writeln('Usage: dart setup.dart [platform] [options]');
-  stderr.writeln(
-    'Platform: current host platform (default), android, or ios (on macOS)',
+  stderr.writeln('Usage: dart setup.dart [windows|linux|macos] [options]');
+  _allTargets.forEach(
+    (platform, targets) => stderr.writeln('  $platform: $targets'),
   );
-  stderr.writeln();
-  stderr.writeln('Default package targets:');
-  _allTargets.forEach((p, t) => stderr.writeln('  $p: $t'));
-  stderr.writeln();
   stderr.writeln(parser.usage);
 }
 
@@ -374,53 +181,17 @@ Future<int> _package(
   String env,
   String targets,
   String rootDir,
-  PackageArchitecture packageArch, {
-  String? androidArch,
-  required String iosExportMethod,
-  String? iosExportOptionsPlist,
-  String? iosBundleId,
-  String? iosDevelopmentTeam,
-  required bool iosNoSign,
+  PackageArchitecture arch, {
   required bool skipDependencies,
   required bool verbose,
 }) async {
-  await ensureGeoData(rootDir: rootDir);
-
-  final file = File(p.join(rootDir, 'env.json'));
-  await file.writeAsString(jsonEncode(createBuildEnvironment(env)));
-  if (platform == 'ios') {
-    await writeIOSGeneratedBundleConfig(
-      rootDir,
-      iosBundleId,
-      iosNoSign ? null : iosDevelopmentTeam,
-    );
-  }
-
-  final flutterBuildArgs = createFlutterBuildArgs(
-    platform: platform,
-    verbose: verbose,
-    iosExportMethod: iosExportMethod,
-    iosExportOptionsPlist: iosExportOptionsPlist,
-  );
-  final descriptionArgs = <String>[];
-  if (platform != 'android') {
-    descriptionArgs.addAll(['--description', packageArch.name]);
-  }
-
+  await File(
+    p.join(rootDir, 'env.json'),
+  ).writeAsString(jsonEncode(createBuildEnvironment(env)));
   if (!skipDependencies) {
-    final depExit = await _ensureDependencies(platform);
-    if (depExit != 0) return depExit;
+    final result = await _ensureDependencies(platform);
+    if (result != 0) return result;
   }
-
-  if (platform == 'ios' && iosNoSign) {
-    return packageIOSNoSign(
-      rootDir: rootDir,
-      appBundleId: iosBundleId ?? 'cc.chenx.flclash',
-      iosDevelopmentTeam: iosDevelopmentTeam,
-      verbose: verbose,
-    );
-  }
-
   final activateResult = await Process.run('dart', [
     'pub',
     'global',
@@ -432,26 +203,20 @@ Future<int> _package(
     'FlClash',
     '--git-path',
     'packages/flutter_distributor',
-  ]);
+  ], runInShell: Platform.isWindows);
   if (activateResult.exitCode != 0) {
     stderr.write(activateResult.stderr);
     return activateResult.exitCode;
   }
-
   final buildEnvironment = <String, String>{};
   if (platform == 'macos') {
     final config = File(
-      p.join(
-        rootDir,
-        '.dart_tool',
-        'macos-${packageArch.flutterArch}.xcconfig',
-      ),
+      p.join(rootDir, '.dart_tool', 'macos-${arch.name}.xcconfig'),
     );
     await config.parent.create(recursive: true);
-    await config.writeAsString(createMacosBuildConfig(packageArch.flutterArch));
+    await config.writeAsString(createMacosBuildConfig(arch.name));
     buildEnvironment['XCODE_XCCONFIG_FILE'] = config.path;
   }
-
   final process = await Process.start(
     'flutter_distributor',
     [
@@ -461,28 +226,21 @@ Future<int> _package(
       platform,
       '--targets',
       targets,
-      if (androidArch != null)
-        '--build-target-platform=${_androidFlutterTarget[androidArch]!}',
-      if (flutterBuildArgs.isNotEmpty)
-        '--flutter-build-args=${flutterBuildArgs.join(',')}',
-      ...descriptionArgs,
+      '--flutter-build-args=${createFlutterBuildArgs(platform: platform, verbose: verbose).join(',')}',
+      '--description',
+      arch.name,
     ],
     includeParentEnvironment: true,
     environment: buildEnvironment,
     runInShell: Platform.isWindows,
   );
-
-  process.stdout.listen((data) {
-    stdout.write(systemEncoding.decode(data));
-  });
-  process.stderr.listen((data) {
-    stderr.write(systemEncoding.decode(data));
-  });
-  final exitCode = await process.exitCode;
-  if (exitCode == 0 && (platform == 'windows' || platform == 'linux')) {
+  process.stdout.listen((data) => stdout.write(systemEncoding.decode(data)));
+  process.stderr.listen((data) => stderr.write(systemEncoding.decode(data)));
+  final result = await process.exitCode;
+  if (result == 0 && (platform == 'windows' || platform == 'linux')) {
     await _injectPortableConfigDir(rootDir);
   }
-  return exitCode;
+  return result;
 }
 
 Future<void> _injectPortableConfigDir(String rootDir) async {
@@ -512,239 +270,6 @@ Future<void> injectPortableConfigDirIntoZip(String zipPath) async {
   final tmp = File('$zipPath.tmp');
   await tmp.writeAsBytes(encoded, flush: true);
   await tmp.rename(zipPath);
-}
-
-Future<int> packageIOSNoSign({
-  required String rootDir,
-  required String appBundleId,
-  String? iosDevelopmentTeam,
-  required bool verbose,
-}) async {
-  final process = await Process.start('flutter', [
-    if (verbose) '--verbose',
-    'build',
-    'ios',
-    '--release',
-    '--no-codesign',
-    '--dart-define-from-file=env.json',
-  ], workingDirectory: rootDir);
-  process.stdout.listen((data) {
-    stdout.write(systemEncoding.decode(data));
-  });
-  process.stderr.listen((data) {
-    stderr.write(systemEncoding.decode(data));
-  });
-  final buildExit = await process.exitCode;
-  if (buildExit != 0) return buildExit;
-
-  final appDir = Directory(
-    p.joinAll([rootDir, 'build', 'ios', 'iphoneos', 'Runner.app']),
-  );
-  if (!await appDir.exists()) {
-    stderr.writeln('iOS app bundle not found: ${appDir.path}');
-    return 1;
-  }
-
-  final tempDir = await Directory.systemTemp.createTemp('flclash_nosign_');
-  try {
-    final signingTargets = createIOSNoSignSigningTargets(
-      rootDir: rootDir,
-      appBundlePath: appDir.path,
-      appBundleId: appBundleId,
-    );
-
-    for (final target in signingTargets) {
-      final profile = File(p.join(target.bundle, 'embedded.mobileprovision'));
-      if (await profile.exists()) {
-        await profile.delete();
-      }
-    }
-
-    final genericSignExit = await _adHocCodesign(appDir.path, deep: true);
-    if (genericSignExit != 0) return genericSignExit;
-
-    for (final target in signingTargets) {
-      final source = File(target.entitlements);
-      if (!await source.exists()) {
-        stderr.writeln('Entitlements file not found: ${source.path}');
-        return 1;
-      }
-      if (!await Directory(target.bundle).exists()) {
-        stderr.writeln('iOS bundle not found: ${target.bundle}');
-        return 1;
-      }
-
-      final output = File(
-        p.join(tempDir.path, '${p.basename(target.bundle)}.entitlements'),
-      );
-      await output.writeAsString(
-        createIOSNoSignEntitlements(
-          source: await source.readAsString(),
-          appBundleId: appBundleId,
-          bundleIdentifier: target.bundleIdentifier,
-          teamIdentifier: iosDevelopmentTeam,
-        ),
-      );
-      final exitCode = await _adHocCodesign(
-        target.bundle,
-        entitlements: output.path,
-      );
-      if (exitCode != 0) return exitCode;
-    }
-    final payloadDir = Directory(p.join(tempDir.path, 'Payload'));
-    await payloadDir.create();
-    final copyResult = await Process.run('ditto', [
-      appDir.path,
-      p.join(payloadDir.path, 'Runner.app'),
-    ]);
-    if (copyResult.exitCode != 0) {
-      stderr.write(copyResult.stderr);
-      return copyResult.exitCode;
-    }
-
-    final pubspec = File(p.join(rootDir, 'pubspec.yaml')).readAsStringSync();
-    final version =
-        RegExp(
-          r'^version:\s*([^\s+]+)',
-          multiLine: true,
-        ).firstMatch(pubspec)?.group(1) ??
-        'unknown';
-    final outputDir = Directory(p.join(rootDir, 'dist'));
-    await outputDir.create(recursive: true);
-    final output = File(
-      p.join(outputDir.path, 'FlClash-$version-ios-arm64-unsigned.ipa'),
-    );
-    if (await output.exists()) {
-      await output.delete();
-    }
-
-    final packageResult = await Process.run('ditto', [
-      '-c',
-      '-k',
-      '--sequesterRsrc',
-      '--keepParent',
-      payloadDir.path,
-      output.path,
-    ]);
-    if (packageResult.exitCode != 0) {
-      stderr.write(packageResult.stderr);
-      return packageResult.exitCode;
-    }
-    stdout.writeln('No-sign IPA: ${output.path}');
-    return 0;
-  } finally {
-    if (await tempDir.exists()) {
-      await tempDir.delete(recursive: true);
-    }
-  }
-}
-
-List<({String bundle, String bundleIdentifier, String entitlements})>
-createIOSNoSignSigningTargets({
-  required String rootDir,
-  required String appBundlePath,
-  required String appBundleId,
-}) {
-  const targetNames = ['NECore', 'Widget', 'Runner'];
-  return [
-    for (final name in targetNames)
-      (
-        bundle: name == 'Runner'
-            ? appBundlePath
-            : p.join(appBundlePath, 'PlugIns', '$name.appex'),
-        bundleIdentifier: '$appBundleId${name == 'Runner' ? '' : '.$name'}',
-        entitlements: p.join(rootDir, 'ios', name, '$name.entitlements'),
-      ),
-  ];
-}
-
-String createIOSNoSignEntitlements({
-  required String source,
-  required String appBundleId,
-  required String bundleIdentifier,
-  String? teamIdentifier,
-}) {
-  final document = XmlDocument.parse(
-    source.replaceAll(r'$(APP_BUNDLE_ID)', appBundleId),
-  );
-  final dictionary = document.rootElement.getElement('dict');
-  if (dictionary == null) {
-    throw const FormatException('Entitlements plist is missing its dictionary');
-  }
-
-  void setString(String key, String value) {
-    final elements = dictionary.childElements.toList();
-    for (var index = 0; index + 1 < elements.length; index++) {
-      final element = elements[index];
-      if (element.name.local == 'key' && element.innerText == key) {
-        elements[index + 1].replace(
-          XmlElement(const XmlName.parts('string'), const [], [XmlText(value)]),
-        );
-        return;
-      }
-    }
-    dictionary.children
-      ..add(XmlElement(const XmlName.parts('key'), const [], [XmlText(key)]))
-      ..add(
-        XmlElement(const XmlName.parts('string'), const [], [XmlText(value)]),
-      );
-  }
-
-  final normalizedTeamIdentifier = teamIdentifier?.trim();
-  final resolvedTeamIdentifier =
-      normalizedTeamIdentifier == null || normalizedTeamIdentifier.isEmpty
-      ? 'UNKNOWN000'
-      : normalizedTeamIdentifier;
-  setString(
-    'application-identifier',
-    '$resolvedTeamIdentifier.$bundleIdentifier',
-  );
-  setString('com.apple.developer.team-identifier', resolvedTeamIdentifier);
-  return document.toXmlString(pretty: true, indent: '\t');
-}
-
-Future<int> _adHocCodesign(
-  String target, {
-  String? entitlements,
-  bool deep = false,
-}) async {
-  final result = await Process.run('codesign', [
-    '--force',
-    if (deep) '--deep',
-    '--sign',
-    '-',
-    '--timestamp=none',
-    if (entitlements != null) ...[
-      '--generate-entitlement-der',
-      '--entitlements',
-      entitlements,
-    ],
-    target,
-  ]);
-  if (result.exitCode != 0) {
-    stderr.write(result.stdout);
-    stderr.write(result.stderr);
-  }
-  return result.exitCode;
-}
-
-Future<void> writeIOSGeneratedBundleConfig(
-  String rootDir,
-  String? iosBundleId,
-  String? developmentTeam,
-) async {
-  final file = File(
-    p.joinAll([rootDir, 'ios', 'Flutter', 'GeneratedBundleConfig.xcconfig']),
-  );
-  await file.parent.create(recursive: true);
-  await file.writeAsString(
-    [
-      '// Generated by setup.dart. Do not edit.',
-      if (iosBundleId != null) 'APP_BUNDLE_ID = $iosBundleId',
-      if (developmentTeam != null) 'DEVELOPMENT_TEAM = $developmentTeam',
-      '',
-    ].join('\n'),
-  );
 }
 
 String _detectArch() {
@@ -796,7 +321,7 @@ Future<int> _ensureLinuxDependencies() async {
     ['libayatana-appindicator3-dev'],
     ['libsecret-1-dev'],
     ['locate'],
-    ['rpm', 'libarchive-tools', 'patchelf'],
+    ['libarchive-tools', 'patchelf'],
     ['libfuse2'],
   ];
 

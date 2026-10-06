@@ -6300,10 +6300,10 @@ class AppLocalizations {
     return Intl.message('MTU', name: 'mtu', desc: '', args: []);
   }
 
-  /// `MTU must be an integer between 1 and 65535`
+  /// `MTU must be an integer between 1280 and 65535`
   String get mtuRangeTip {
     return Intl.message(
-      'MTU must be an integer between 1 and 65535',
+      'MTU must be an integer between 1280 and 65535',
       name: 'mtuRangeTip',
       desc: '',
       args: [],
@@ -7205,6 +7205,126 @@ class AppLocalizations {
     return Intl.message(
       'Unable to read memory. Retrying…',
       name: 'memoryReadFailed',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.`
+  String get meowTunScope {
+    return Intl.message(
+      'Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.',
+      name: 'meowTunScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.`
+  String get meowLinuxTunDnsWarning {
+    return Intl.message(
+      'On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.',
+      name: 'meowLinuxTunDnsWarning',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Fake-IP only`
+  String get meowTunFakeIp {
+    return Intl.message(
+      'Fake-IP only',
+      name: 'meowTunFakeIp',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Global IPv4 (experimental)`
+  String get meowTunGlobal {
+    return Intl.message(
+      'Global IPv4 (experimental)',
+      name: 'meowTunGlobal',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.`
+  String get meowAgeUnsupported {
+    return Intl.message(
+      'AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.',
+      name: 'meowAgeUnsupported',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All traffic; connection snapshots contain TCP only`
+  String get meowStatisticsScope {
+    return Intl.message(
+      'All traffic; connection snapshots contain TCP only',
+      name: 'meowStatisticsScope',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Core capabilities`
+  String get meowCoreCapabilities {
+    return Intl.message(
+      'Core capabilities',
+      name: 'meowCoreCapabilities',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Configuration compatibility`
+  String get meowConfigDiagnostics {
+    return Intl.message(
+      'Configuration compatibility',
+      name: 'meowConfigDiagnostics',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Select a profile before starting.`
+  String get meowNoProfile {
+    return Intl.message(
+      'Select a profile before starting.',
+      name: 'meowNoProfile',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `All traffic`
+  String get meowAllTraffic {
+    return Intl.message(
+      'All traffic',
+      name: 'meowAllTraffic',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `TCP connections`
+  String get meowTcpConnections {
+    return Intl.message(
+      'TCP connections',
+      name: 'meowTcpConnections',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Previous TUN state needs inspection or recovery. Restart with privileged Helper to check DNS and routes before enabling TUN. Ordinary proxy mode remains available.`
+  String get meowRecoveryRequired {
+    return Intl.message(
+      'Previous TUN state needs inspection or recovery. Restart with privileged Helper to check DNS and routes before enabling TUN. Ordinary proxy mode remains available.',
+      name: 'meowRecoveryRequired',
       desc: '',
       args: [],
     );

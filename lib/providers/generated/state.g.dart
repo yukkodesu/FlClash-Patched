@@ -89,7 +89,7 @@ final class TrayStateProvider
   }
 }
 
-String _$trayStateHash() => r'efabd100f77744ce58b6167096b5a24e605f2708';
+String _$trayStateHash() => r'3d8651fa86e2f06e1d79d75bc68eb45a68f6b546';
 
 @ProviderFor(vpnState)
 final vpnStateProvider = VpnStateProvider._();
@@ -348,7 +348,7 @@ final class ShouldPatchSystemDnsProvider
 }
 
 String _$shouldPatchSystemDnsHash() =>
-    r'73e86e60067acc55dd1cce0ea7f2d09899bbf119';
+    r'f992c3fcd6f24b0bf807d92bf0353a0464b77051';
 
 @ProviderFor(sharedState)
 final sharedStateProvider = SharedStateProvider._();
@@ -389,7 +389,7 @@ final class SharedStateProvider
   }
 }
 
-String _$sharedStateHash() => r'23eea64489ef6b8d99897050a0f9d71f54a2700c';
+String _$sharedStateHash() => r'adea416ae158faefe40696447e2f6d034c408333';
 
 @ProviderFor(AccessControlState)
 final accessControlStateProvider = AccessControlStateProvider._();
@@ -1353,7 +1353,7 @@ final class ProxyStateProvider
   }
 }
 
-String _$proxyStateHash() => r'9583a658039310a3190d820d6e2069614e09a74b';
+String _$proxyStateHash() => r'4a9cf824cf8df222fe60be0d4f8fd4520033aa0b';
 
 @ProviderFor(proxiesActionsState)
 final proxiesActionsStateProvider = ProxiesActionsStateProvider._();
@@ -1606,7 +1606,7 @@ final class IsStartProvider extends $FunctionalProvider<bool, bool, bool>
   }
 }
 
-String _$isStartHash() => r'f8bcefa8515c44fbe14876a5fc6676110508e9b2';
+String _$isStartHash() => r'7feb2e37e64dc1693917c5862ac3bedad1253e2d';
 
 @ProviderFor(proxiesTabControllerState)
 final proxiesTabControllerStateProvider = ProxiesTabControllerStateProvider._();
@@ -2487,7 +2487,7 @@ final class NavigationItemsStateProvider
 }
 
 String _$navigationItemsStateHash() =>
-    r'e9cb5ec32dc64c3627b935addfc038530e4e43b5';
+    r'9c49e33801f38de35ffef5fa8cf1aabc636939da';
 
 @ProviderFor(currentNavigationItemsState)
 final currentNavigationItemsStateProvider =
@@ -2619,7 +2619,7 @@ final class DashboardStateProvider
   }
 }
 
-String _$dashboardStateHash() => r'33838f85f2b6a0ab601891aa2f26adc8870302b6';
+String _$dashboardStateHash() => r'3eb3dd7e917c3c96d3321f0dca6f88ac0d2a843a';
 
 @ProviderFor(moreToolsSelectorState)
 final moreToolsSelectorStateProvider = MoreToolsSelectorStateProvider._();

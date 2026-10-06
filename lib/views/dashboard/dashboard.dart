@@ -45,7 +45,10 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
 
   void _syncAddedWidgets(List<DashboardWidget> dashboardWidgets) {
     bool onThisPlatform(DashboardWidget item) =>
-        item.platforms.contains(SupportPlatform.currentPlatform);
+        item.platforms.contains(SupportPlatform.currentPlatform) &&
+        item != DashboardWidget.memoryInfo &&
+        item != DashboardWidget.goroutineInfo &&
+        item != DashboardWidget.vpnButton;
     final shown = dashboardWidgets
         .where(onThisPlatform)
         .map((item) => item.widget)

@@ -978,6 +978,38 @@ class MessageLookup extends MessageLookupByLibrary {
     "memoryTotal": MessageLookupByLibrary.simpleMessage(
       "Использование памяти Go",
     ),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "meow-rs не поддерживает профили с шифрованием AGE. Импортируйте расшифрованный профиль YAML.",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("Весь трафик"),
+    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage(
+      "Совместимость конфигурации",
+    ),
+    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage(
+      "Возможности ядра",
+    ),
+    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
+      "В Linux другие службы DNS могут перезаписать настройки DNS для TUN. Для Fake-IP запросы должны идти к DNS ядра; проверьте системный резолвер, прежде чем полагаться на перехват трафика.",
+    ),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "Выберите профиль перед запуском.",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "Состояние предыдущего сеанса TUN требует проверки или восстановления. Перезапустите приложение через Helper с повышенными правами, чтобы проверить DNS и маршруты перед включением TUN. Обычный режим прокси остаётся доступным.",
+    ),
+    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
+      "Весь трафик; снимки соединений содержат только TCP",
+    ),
+    "meowTcpConnections": MessageLookupByLibrary.simpleMessage(
+      "TCP-соединения",
+    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Только Fake-IP"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage(
+      "Глобальный IPv4 (экспериментальный)",
+    ),
+    "meowTunScope": MessageLookupByLibrary.simpleMessage(
+      "Fake-IP перехватывает только синтетические адреса DNS. Глобальный режим перехватывает IPv4 и является экспериментальным. Для IPv6 требуется явная настройка профиля.",
+    ),
     "messageTest": MessageLookupByLibrary.simpleMessage("Тест сообщения"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("Это сообщение."),
     "min": MessageLookupByLibrary.simpleMessage("Минимальный"),
@@ -999,7 +1031,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "more": MessageLookupByLibrary.simpleMessage("Ещё"),
     "mtu": MessageLookupByLibrary.simpleMessage("MTU"),
     "mtuRangeTip": MessageLookupByLibrary.simpleMessage(
-      "MTU должен быть целым числом от 1 до 65535",
+      "MTU должен быть целым числом от 1280 до 65535",
     ),
     "multipleValuesTip": MessageLookupByLibrary.simpleMessage(
       "Разделяйте несколько значений запятыми",

@@ -298,7 +298,9 @@ _ExternalProvider _$ExternalProviderFromJson(Map<String, dynamic> json) =>
         json['subscription-info'] as Map<String, Object?>?,
       ),
       vehicleType: json['vehicle-type'] as String,
-      updateAt: DateTime.parse(json['update-at'] as String),
+      updateAt: json['update-at'] == null
+          ? null
+          : DateTime.parse(json['update-at'] as String),
     );
 
 Map<String, dynamic> _$ExternalProviderToJson(_ExternalProvider instance) =>
@@ -310,7 +312,7 @@ Map<String, dynamic> _$ExternalProviderToJson(_ExternalProvider instance) =>
       'count': instance.count,
       'subscription-info': instance.subscriptionInfo,
       'vehicle-type': instance.vehicleType,
-      'update-at': instance.updateAt.toIso8601String(),
+      'update-at': instance.updateAt?.toIso8601String(),
     };
 
 _ProxiesData _$ProxiesDataFromJson(Map<String, dynamic> json) => _ProxiesData(

@@ -9,7 +9,7 @@ class CommonAction extends _$CommonAction {
   void build() {}
 
   void toggleRunning() {
-    final running = !ref.read(isStartProvider);
+    final running = !ref.read(requestedRunningProvider);
     unawaited(
       globalState.safeRun(
         () => ref
@@ -47,12 +47,29 @@ class CommonAction extends _$CommonAction {
     }
     _isUpdatingTraffic = true;
     try {
-      final onlyStatisticsProxy = ref.read(
-        appSettingProvider.select((state) => state.onlyStatisticsProxy),
-      );
+      try {
+        final previousFailure = ref.read(runtimeStatusProvider)?.failure;
+        final runtime = await _core.getRuntimeState();
+        ref.read(runtimeStatusProvider.notifier).value = runtime;
+        final failure = runtime.failure;
+        if (failure != null &&
+            failure.isNotEmpty &&
+            failure != previousFailure) {
+          dialogs.showNotifier(
+            failure,
+            level: MessageLevel.error,
+            allowCopy: true,
+          );
+        }
+      } catch (error) {
+        commonPrint.log(
+          'Runtime state refresh failed: $error',
+          logLevel: coreFailureLogLevel(error),
+        );
+      }
       final [traffic, totalTraffic] = await Future.wait([
-        _readTraffic(() => _core.getTraffic(onlyStatisticsProxy)),
-        _readTraffic(() => _core.getTotalTraffic(onlyStatisticsProxy)),
+        _readTraffic(() => _core.getTraffic(false)),
+        _readTraffic(() => _core.getTotalTraffic(false)),
       ]);
       if (traffic != null) {
         ref.read(trafficsProvider.notifier).addTraffic(traffic);

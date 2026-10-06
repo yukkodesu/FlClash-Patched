@@ -37,7 +37,7 @@ ProxyState proxyState(Ref ref) {
     isIOS: system.isIOS,
     suspend: ref.watch(suspendProvider),
   );
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
+  final isStart = ref.watch(isStartProvider);
   final systemProxySelector = ref.watch(
     networkSettingProvider.select(
       (state) => SystemProxySelectorState(
@@ -152,7 +152,8 @@ ProxiesTabState proxiesTabState(Ref ref) {
 
 @riverpod
 bool isStart(Ref ref) {
-  return ref.watch(runTimeProvider.select((state) => state != null));
+  return ref.watch(runtimeStatusProvider)?.running ??
+      ref.watch(runTimeProvider.select((state) => state != null));
 }
 
 @riverpod

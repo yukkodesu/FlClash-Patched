@@ -6,6 +6,28 @@ import 'package:fl_clash/core/desktop/model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'observing native exit releases a direct lease without killing it',
+    () async {
+      final exited = Completer<int>();
+      final process = _FakeProcess(pid: 42, exitCode: exited.future);
+      final lease = DirectCoreLease(
+        sessionId: '0123456789abcdef0123456789abcdef',
+        process: process,
+      );
+      final waiting = lease.waitForExit(const Duration(seconds: 1));
+      expect(process.killed, isFalse);
+      exited.complete(0);
+      expect(await waiting, isTrue);
+
+      expect(
+        await lease.stop(const Duration(seconds: 1)),
+        const CoreProcessStopResult(stopped: false, exitConfirmed: true),
+      );
+      expect(process.killed, isFalse);
+    },
+  );
+
   test('createCoreSessionId returns lowercase 128-bit hex', () {
     expect(createCoreSessionId(), matches(RegExp(r'^[0-9a-f]{32}$')));
   });

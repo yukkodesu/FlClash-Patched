@@ -33,9 +33,12 @@ class RustBuilder {
     final triple = target.rustTriple;
     final args = [
       'build',
+      '--locked',
       '--target',
       triple,
-      if (target.goos == 'windows') ...['--features', 'windows-service'],
+      '--target-dir',
+      p.join(_helperPath, 'target'),
+      if (target.platform == 'windows') ...['--features', 'windows-service'],
       '--release',
     ];
     final env = {
@@ -56,7 +59,7 @@ class RustBuilder {
       '${config.helperName}${target.executableExtension}',
     );
     return cache.run(
-      key: '${target.platformDir}-${target.goarch}-helper-release',
+      key: '${target.platformDir}-${target.arch}-helper-release',
       fingerprint: () => _calculateFingerprint(
         target: target,
         coreSha256: coreSha256,
@@ -91,20 +94,13 @@ class RustBuilder {
     final builder = FingerprintBuilder(rootDir: rootDir)
       ..addValue('cache_schema', BuildCache.schemaVersion)
       ..addValue('kind', 'helper')
-      ..addValue('target', {'goos': target.goos, 'goarch': target.goarch})
+      ..addValue('target', {'platform': target.platform, 'arch': target.arch})
       ..addValue('arguments', args)
       ..addValue('core_sha256', coreSha256)
-      ..addValue('environment', _rustEnvironment())
+      ..addValue('environment', rustEnvironment())
       ..addValue('config', config.toFingerprintMap());
 
-    final cargoVersion = runCommand('cargo', [
-      '--version',
-    ], workingDirectory: _helperPath);
-    builder.addValue('cargo_version', (cargoVersion.stdout as String).trim());
-    final rustVersion = runCommand('rustc', [
-      '-Vv',
-    ], workingDirectory: _helperPath);
-    builder.addValue('rustc_version', (rustVersion.stdout as String).trim());
+    addRustToolchain(builder, workingDirectory: _helperPath);
 
     final inputs = collectFiles(
       _helperPath,
@@ -113,26 +109,57 @@ class RustBuilder {
     builder.addFiles(inputs);
     return builder.finishWithInputs();
   }
+}
 
-  Map<String, String> _rustEnvironment() {
-    const exactKeys = {
-      'CARGO_BUILD_TARGET',
-      'CARGO_ENCODED_RUSTFLAGS',
-      'RUSTFLAGS',
-      'RUSTUP_TOOLCHAIN',
-      'RUSTC_WRAPPER',
-      'RUSTC_WORKSPACE_WRAPPER',
-    };
-    final values = <String, String>{};
-    final entries = Platform.environment.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-    for (final entry in entries) {
-      if (exactKeys.contains(entry.key) ||
-          entry.key.startsWith('CARGO_PROFILE_') ||
-          entry.key.startsWith('CARGO_TARGET_')) {
-        values[entry.key] = entry.value;
-      }
+Map<String, String> rustEnvironment() {
+  const exactKeys = {
+    'CARGO_BUILD_TARGET',
+    'CARGO_ENCODED_RUSTFLAGS',
+    'RUSTFLAGS',
+    'RUSTUP_TOOLCHAIN',
+    'RUSTC_WRAPPER',
+    'RUSTC_WORKSPACE_WRAPPER',
+    'CARGO_TARGET_DIR',
+    'PATH',
+    'CC',
+    'CXX',
+    'AR',
+    'CFLAGS',
+    'CXXFLAGS',
+    'CMAKE_GENERATOR',
+    'CMAKE_TOOLCHAIN_FILE',
+    'LIBCLANG_PATH',
+  };
+  final values = <String, String>{};
+  final entries = Platform.environment.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key));
+  for (final entry in entries) {
+    if (exactKeys.contains(entry.key) ||
+        entry.key.startsWith('CARGO_PROFILE_') ||
+        entry.key.startsWith('CARGO_TARGET_') ||
+        entry.key.startsWith('CMAKE_') ||
+        entry.key.startsWith('BINDGEN_') ||
+        entry.key.startsWith('CC_') ||
+        entry.key.startsWith('CXX_') ||
+        entry.key.startsWith('MEOW_') ||
+        entry.key.startsWith('BORING_')) {
+      values[entry.key] = entry.value;
     }
-    return values;
+  }
+  return values;
+}
+
+void addRustToolchain(
+  FingerprintBuilder builder, {
+  required String workingDirectory,
+  bool nativeDependencies = false,
+}) {
+  for (final (name, args) in [
+    ('cargo', ['--version']),
+    ('rustc', ['-Vv']),
+    if (nativeDependencies) ('cmake', ['--version']),
+  ]) {
+    final result = runCommand(name, args, workingDirectory: workingDirectory);
+    builder.addValue('${name}_version', (result.stdout as String).trim());
   }
 }

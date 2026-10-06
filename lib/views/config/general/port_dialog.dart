@@ -68,14 +68,6 @@ class _PortDialogState extends ConsumerState<_PortDialog> {
         controller: _socksPortController,
         label: (appLocalizations) => appLocalizations.socksPort,
       ),
-      _PortField(
-        controller: _redirPortController,
-        label: (appLocalizations) => appLocalizations.redirPort,
-      ),
-      _PortField(
-        controller: _tProxyPortController,
-        label: (appLocalizations) => appLocalizations.tproxyPort,
-      ),
     ];
   }
 

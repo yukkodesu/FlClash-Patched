@@ -45,7 +45,7 @@ class SystemAction extends _$SystemAction {
   }
 
   @protected
-  Duration get exitWatchdogDuration => const Duration(seconds: 3);
+  Duration get exitWatchdogDuration => const Duration(seconds: 60);
 
   @protected
   Future<void> cleanupExitResources(bool needSave) async {
@@ -62,7 +62,16 @@ class SystemAction extends _$SystemAction {
     await Future.wait([
       ?saveOperation,
       if (systemDnsCoordinator != null) systemDnsCoordinator!.shutdown(),
-      if (proxy != null) proxy!.stopProxy(onlyIfNeeded: true),
+      if (proxy != null)
+        proxy!.close().then((confirmed) {
+          if (!confirmed) {
+            commonPrint.log(
+              'System proxy restoration is unconfirmed',
+              logLevel: LogLevel.error,
+            );
+            throw StateError('System proxy restoration is unconfirmed');
+          }
+        }),
     ]);
   }
 
@@ -104,7 +113,15 @@ class SystemAction extends _$SystemAction {
 
   @protected
   Future<void> closeCore() async {
-    await _core.close();
+    try {
+      await _core.close();
+    } catch (error) {
+      commonPrint.log(
+        'Core resource cleanup failed: ${compactError(error)}',
+        logLevel: LogLevel.error,
+      );
+      rethrow;
+    }
     commonPrint.log('exit');
   }
 

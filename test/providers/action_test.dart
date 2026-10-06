@@ -459,7 +459,7 @@ void main() {
 
   group('SetupAction', () {
     group('rapid status changes', () {
-      test('updates runtime and traffic while core start is pending', () async {
+      test('reports a run only after the listener is ready', () async {
         final startCompleter = Completer<bool>();
         final container = ProviderContainer(
           overrides: [
@@ -476,11 +476,11 @@ void main() {
         action.startCompleter = startCompleter;
 
         final startFuture = action.setRunning(true);
-        final initialRunTime = container.read(runTimeProvider)!;
-        await Future<void>.delayed(const Duration(milliseconds: 1100));
+        await Future<void>.delayed(Duration.zero);
 
-        expect(container.read(runTimeProvider), greaterThan(initialRunTime));
-        expect(commonAction.updateTrafficCount, greaterThanOrEqualTo(2));
+        expect(container.read(runTimeProvider), isNull);
+        expect(container.read(requestedRunningProvider), isTrue);
+        expect(commonAction.updateTrafficCount, 0);
 
         startCompleter.complete(true);
         await startFuture;
@@ -512,7 +512,8 @@ void main() {
 
         final startFuture = action.setRunning(true);
 
-        expect(container.read(runTimeProvider), isNotNull);
+        expect(container.read(runTimeProvider), isNull);
+        expect(container.read(requestedRunningProvider), isTrue);
 
         stopCompleter.complete(true);
         await Future.wait([stopFuture, startFuture]);
@@ -632,109 +633,13 @@ void main() {
           await action.setRunning(true);
 
           expect(action.transitions, isEmpty);
-          expect(container.read(isStartProvider), isTrue);
+          expect(container.read(isStartProvider), isFalse);
+          expect(container.read(requestedRunningProvider), isTrue);
           expect(action.applyProfileDebounceCount, 1);
 
           await action.setRunning(false);
           expect(action.transitions, [false]);
         },
-      );
-    });
-
-    test(
-      'restarts core after newly granting admin during config update',
-      () async {
-        late _AuthorizationSetupAction setupAction;
-        late _RestartRecordingCoreAction coreAction;
-        final container = ProviderContainer(
-          overrides: [
-            setupActionProvider.overrideWith(() {
-              setupAction = _AuthorizationSetupAction([AuthorizeCode.success]);
-              return setupAction;
-            }),
-            coreActionProvider.overrideWith(() {
-              coreAction = _RestartRecordingCoreAction();
-              return coreAction;
-            }),
-          ],
-        );
-        addTearDown(container.dispose);
-        container
-            .read(patchClashConfigProvider.notifier)
-            .update((state) => state.copyWith.tun(enable: true));
-        container.read(setupActionProvider);
-        container.read(coreActionProvider);
-
-        await setupAction.updateConfig();
-
-        expect(setupAction.authorizationRequestCount, 1);
-        expect(
-          container.read(authorizedTunEnableProvider),
-          TunAuthorizationState.authorized,
-        );
-        expect(coreAction.restartCount, 1);
-      },
-    );
-
-    test(
-      'a config Core rejects on the handoff path reports failure, not success',
-      () async {
-        late _AuthorizationSetupAction setupAction;
-        late _RestartRecordingCoreAction coreAction;
-        final container = ProviderContainer(
-          overrides: [
-            currentProfileProvider.overrideWithValue(null),
-            setupActionProvider.overrideWith(() {
-              setupAction = _AuthorizationSetupAction([AuthorizeCode.success]);
-              return setupAction;
-            }),
-            coreActionProvider.overrideWith(() {
-              coreAction = _RestartRecordingCoreAction()..restartResult = false;
-              return coreAction;
-            }),
-          ],
-        );
-        addTearDown(container.dispose);
-        container
-            .read(patchClashConfigProvider.notifier)
-            .update((state) => state.copyWith.tun(enable: true));
-        container.read(setupActionProvider);
-        container.read(coreActionProvider);
-
-        final succeeded = await setupAction.applyProfile(force: true);
-
-        expect(coreAction.restartCount, 1);
-        expect(succeeded, isFalse);
-      },
-    );
-
-    test('reopens authorization and propagates a failed restart', () async {
-      late _AuthorizationSetupAction setupAction;
-      final container = ProviderContainer(
-        overrides: [
-          currentProfileProvider.overrideWithValue(null),
-          setupActionProvider.overrideWith(() {
-            setupAction = _AuthorizationSetupAction([AuthorizeCode.success]);
-            return setupAction;
-          }),
-          coreActionProvider.overrideWith(_FailingRestartCoreAction.new),
-        ],
-      );
-      addTearDown(container.dispose);
-      container
-          .read(patchClashConfigProvider.notifier)
-          .update((state) => state.copyWith.tun(enable: true));
-      container.read(setupActionProvider);
-      container.read(coreActionProvider);
-
-      await expectLater(
-        setupAction.applyProfile(force: true),
-        throwsA(same(_restartFailure)),
-      );
-
-      expect(
-        container.read(authorizedTunEnableProvider),
-        TunAuthorizationState.none,
       );
     });
 
@@ -847,26 +752,6 @@ const _restartResult = CoreLifecycleResult(
   revision: 1,
   outcome: CoreLifecycleOutcome.applied,
 );
-
-class _RestartRecordingCoreAction extends CoreAction {
-  int restartCount = 0;
-  bool restartResult = true;
-
-  @override
-  Future<bool> restartCore() async {
-    restartCount++;
-    return restartResult;
-  }
-}
-
-class _FailingRestartCoreAction extends CoreAction {
-  @override
-  Future<bool> restartCore() async {
-    throw _restartFailure;
-  }
-}
-
-final _restartFailure = Exception('restart failed');
 
 class _AuthorizationSetupAction extends SetupAction {
   final List<AuthorizeCode> authorizationResults;

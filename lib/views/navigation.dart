@@ -38,39 +38,11 @@ class Navigation implements NavigationPort {
             const ProfilesView(key: GlobalObjectKey(PageLabel.profiles)),
       ),
       NavigationItem(
-        icon: const Icon(Symbols.dns),
-        label: PageLabel.dnsQueries,
-        builder: (_) =>
-            const DnsQueriesView(key: GlobalObjectKey(PageLabel.dnsQueries)),
-        modes: [NavigationItemMode.more],
-      ),
-      NavigationItem(
-        icon: const Icon(Symbols.view_timeline),
-        label: PageLabel.requests,
-        builder: (_) =>
-            const RequestsView(key: GlobalObjectKey(PageLabel.requests)),
-        modes: [NavigationItemMode.desktop, NavigationItemMode.more],
-      ),
-      NavigationItem(
         icon: const Icon(Symbols.ballot),
         label: PageLabel.connections,
         builder: (_) =>
             const ConnectionsView(key: GlobalObjectKey(PageLabel.connections)),
         modes: [NavigationItemMode.desktop, NavigationItemMode.more],
-      ),
-      NavigationItem(
-        icon: const Icon(Symbols.home_storage),
-        label: PageLabel.resources,
-        builder: (_) =>
-            const ResourcesView(key: GlobalObjectKey(PageLabel.resources)),
-        modes: [NavigationItemMode.more],
-      ),
-      NavigationItem(
-        icon: const Icon(Symbols.hub),
-        label: PageLabel.networking,
-        builder: (_) =>
-            const NetworkingView(key: GlobalObjectKey(PageLabel.networking)),
-        modes: hasNetworking ? [NavigationItemMode.more] : [],
       ),
       NavigationItem(
         icon: const Icon(Symbols.adb),

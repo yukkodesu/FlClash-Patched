@@ -175,6 +175,7 @@ final class FakeProcessLease implements CoreProcessLease {
 
   CoreProcessStopResult stopResult;
   Completer<void>? stopGate;
+  Completer<bool>? exitGate;
   final Completer<void> _stopStarted = Completer<void>();
   int stopCount = 0;
 
@@ -189,6 +190,10 @@ final class FakeProcessLease implements CoreProcessLease {
   });
 
   Future<void> get stopStarted => _stopStarted.future;
+
+  @override
+  Future<bool> waitForExit(Duration timeout) async =>
+      await exitGate?.future ?? stopResult.exitConfirmed;
 
   @override
   Future<CoreProcessStopResult> stop(Duration timeout) async {

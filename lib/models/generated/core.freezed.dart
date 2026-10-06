@@ -3460,7 +3460,7 @@ as int,
 /// @nodoc
 mixin _$ExternalProvider {
 
- String get name; String get type; String? get format; String? get path; int get count;@JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) SubscriptionInfo? get subscriptionInfo;@JsonKey(name: 'vehicle-type') String get vehicleType;@JsonKey(name: 'update-at') DateTime get updateAt;
+ String get name; String get type; String? get format; String? get path; int get count;@JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) SubscriptionInfo? get subscriptionInfo;@JsonKey(name: 'vehicle-type') String get vehicleType;@JsonKey(name: 'update-at') DateTime? get updateAt;
 /// Create a copy of ExternalProvider
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3498,7 +3498,7 @@ abstract mixin class $ExternalProviderCopyWith<$Res>  {
   factory $ExternalProviderCopyWith(ExternalProvider value, $Res Function(ExternalProvider) _then) = _$ExternalProviderCopyWithImpl;
 @useResult
 $Res call({
- String name, String type, String? format, String? path, int count,@JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) SubscriptionInfo? subscriptionInfo,@JsonKey(name: 'vehicle-type') String vehicleType,@JsonKey(name: 'update-at') DateTime updateAt
+ String name, String type, String? format, String? path, int count,@JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) SubscriptionInfo? subscriptionInfo,@JsonKey(name: 'vehicle-type') String vehicleType,@JsonKey(name: 'update-at') DateTime? updateAt
 });
 
 
@@ -3515,7 +3515,7 @@ class _$ExternalProviderCopyWithImpl<$Res>
 
 /// Create a copy of ExternalProvider
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? type = null,Object? format = freezed,Object? path = freezed,Object? count = null,Object? subscriptionInfo = freezed,Object? vehicleType = null,Object? updateAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? type = null,Object? format = freezed,Object? path = freezed,Object? count = null,Object? subscriptionInfo = freezed,Object? vehicleType = null,Object? updateAt = freezed,}) {
   return _then(ExternalProvider(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -3524,8 +3524,8 @@ as String?,path: freezed == path ? _self.path : path // ignore: cast_nullable_to
 as String?,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
 as int,subscriptionInfo: freezed == subscriptionInfo ? _self.subscriptionInfo : subscriptionInfo // ignore: cast_nullable_to_non_nullable
 as SubscriptionInfo?,vehicleType: null == vehicleType ? _self.vehicleType : vehicleType // ignore: cast_nullable_to_non_nullable
-as String,updateAt: null == updateAt ? _self.updateAt : updateAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as String,updateAt: freezed == updateAt ? _self.updateAt : updateAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 /// Create a copy of ExternalProvider
@@ -3622,7 +3622,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String type,  String? format,  String? path,  int count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)  SubscriptionInfo? subscriptionInfo, @JsonKey(name: 'vehicle-type')  String vehicleType, @JsonKey(name: 'update-at')  DateTime updateAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String type,  String? format,  String? path,  int count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)  SubscriptionInfo? subscriptionInfo, @JsonKey(name: 'vehicle-type')  String vehicleType, @JsonKey(name: 'update-at')  DateTime? updateAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ExternalProvider() when $default != null:
 return $default(_that.name,_that.type,_that.format,_that.path,_that.count,_that.subscriptionInfo,_that.vehicleType,_that.updateAt);case _:
@@ -3643,7 +3643,7 @@ return $default(_that.name,_that.type,_that.format,_that.path,_that.count,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String type,  String? format,  String? path,  int count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)  SubscriptionInfo? subscriptionInfo, @JsonKey(name: 'vehicle-type')  String vehicleType, @JsonKey(name: 'update-at')  DateTime updateAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String type,  String? format,  String? path,  int count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)  SubscriptionInfo? subscriptionInfo, @JsonKey(name: 'vehicle-type')  String vehicleType, @JsonKey(name: 'update-at')  DateTime? updateAt)  $default,) {final _that = this;
 switch (_that) {
 case _ExternalProvider():
 return $default(_that.name,_that.type,_that.format,_that.path,_that.count,_that.subscriptionInfo,_that.vehicleType,_that.updateAt);case _:
@@ -3663,7 +3663,7 @@ return $default(_that.name,_that.type,_that.format,_that.path,_that.count,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String type,  String? format,  String? path,  int count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)  SubscriptionInfo? subscriptionInfo, @JsonKey(name: 'vehicle-type')  String vehicleType, @JsonKey(name: 'update-at')  DateTime updateAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String type,  String? format,  String? path,  int count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore)  SubscriptionInfo? subscriptionInfo, @JsonKey(name: 'vehicle-type')  String vehicleType, @JsonKey(name: 'update-at')  DateTime? updateAt)?  $default,) {final _that = this;
 switch (_that) {
 case _ExternalProvider() when $default != null:
 return $default(_that.name,_that.type,_that.format,_that.path,_that.count,_that.subscriptionInfo,_that.vehicleType,_that.updateAt);case _:
@@ -3678,7 +3678,7 @@ return $default(_that.name,_that.type,_that.format,_that.path,_that.count,_that.
 @JsonSerializable()
 
 class _ExternalProvider implements ExternalProvider {
-  const _ExternalProvider({required this.name, required this.type, this.format, this.path, required this.count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) this.subscriptionInfo, @JsonKey(name: 'vehicle-type') required this.vehicleType, @JsonKey(name: 'update-at') required this.updateAt});
+  const _ExternalProvider({required this.name, required this.type, this.format, this.path, required this.count, @JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) this.subscriptionInfo, @JsonKey(name: 'vehicle-type') required this.vehicleType, @JsonKey(name: 'update-at') this.updateAt});
   factory _ExternalProvider.fromJson(Map<String, dynamic> json) => _$ExternalProviderFromJson(json);
 
 @override final  String name;
@@ -3688,7 +3688,7 @@ class _ExternalProvider implements ExternalProvider {
 @override final  int count;
 @override@JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) final  SubscriptionInfo? subscriptionInfo;
 @override@JsonKey(name: 'vehicle-type') final  String vehicleType;
-@override@JsonKey(name: 'update-at') final  DateTime updateAt;
+@override@JsonKey(name: 'update-at') final  DateTime? updateAt;
 
 /// Create a copy of ExternalProvider
 /// with the given fields replaced by the non-null parameter values.
@@ -3725,7 +3725,7 @@ abstract mixin class _$ExternalProviderCopyWith<$Res> implements $ExternalProvid
   factory _$ExternalProviderCopyWith(_ExternalProvider value, $Res Function(_ExternalProvider) _then) = __$ExternalProviderCopyWithImpl;
 @override @useResult
 $Res call({
- String name, String type, String? format, String? path, int count,@JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) SubscriptionInfo? subscriptionInfo,@JsonKey(name: 'vehicle-type') String vehicleType,@JsonKey(name: 'update-at') DateTime updateAt
+ String name, String type, String? format, String? path, int count,@JsonKey(name: 'subscription-info', fromJson: subscriptionInfoFormCore) SubscriptionInfo? subscriptionInfo,@JsonKey(name: 'vehicle-type') String vehicleType,@JsonKey(name: 'update-at') DateTime? updateAt
 });
 
 
@@ -3742,7 +3742,7 @@ class __$ExternalProviderCopyWithImpl<$Res>
 
 /// Create a copy of ExternalProvider
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? type = null,Object? format = freezed,Object? path = freezed,Object? count = null,Object? subscriptionInfo = freezed,Object? vehicleType = null,Object? updateAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? type = null,Object? format = freezed,Object? path = freezed,Object? count = null,Object? subscriptionInfo = freezed,Object? vehicleType = null,Object? updateAt = freezed,}) {
   return _then(_ExternalProvider(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
@@ -3751,8 +3751,8 @@ as String?,path: freezed == path ? _self.path : path // ignore: cast_nullable_to
 as String?,count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
 as int,subscriptionInfo: freezed == subscriptionInfo ? _self.subscriptionInfo : subscriptionInfo // ignore: cast_nullable_to_non_nullable
 as SubscriptionInfo?,vehicleType: null == vehicleType ? _self.vehicleType : vehicleType // ignore: cast_nullable_to_non_nullable
-as String,updateAt: null == updateAt ? _self.updateAt : updateAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as String,updateAt: freezed == updateAt ? _self.updateAt : updateAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 

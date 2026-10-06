@@ -36,17 +36,15 @@ UpdateParams updateParams(Ref ref) {
 
 @riverpod
 TrayState trayState(Ref ref) {
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
+  final isStart = ref.watch(isStartProvider);
   final systemProxy = ref.watch(
     networkSettingProvider.select((state) => state.systemProxy),
   );
+  final tunActive = ref.watch(runtimeStatusProvider)?.tunActive ?? false;
   final clashConfig = ref.watch(
     patchClashConfigProvider.select(
-      (state) => (
-        mode: state.mode,
-        mixedPort: state.mixedPort,
-        tunEnable: state.tun.enable,
-      ),
+      (state) =>
+          (mode: state.mode, mixedPort: state.mixedPort, tunEnable: tunActive),
     ),
   );
   final autoLaunch = ref.watch(
@@ -142,14 +140,7 @@ bool shouldPatchSystemDns(Ref ref) {
   if (!autoSetSystemDns) {
     return false;
   }
-  final isStart = ref.watch(runTimeProvider.select((state) => state != null));
-  final tunEnable = ref.watch(
-    patchClashConfigProvider.select((state) => state.tun.enable),
-  );
-  final authorizationState = ref.watch(authorizedTunEnableProvider);
-  return isStart &&
-      tunEnable &&
-      authorizationState == TunAuthorizationState.authorized;
+  return ref.watch(runtimeStatusProvider)?.tunActive ?? false;
 }
 
 @riverpod
@@ -166,7 +157,7 @@ SharedState sharedState(Ref ref) {
   final appSetting = ref.watch(
     appSettingProvider.select(
       (state) => (
-        onlyStatisticsProxy: state.onlyStatisticsProxy,
+        onlyStatisticsProxy: false,
         showStopAction: state.showNotificationStopAction,
         testUrl: state.testUrl,
         collapseQuickSettingsPanel: state.collapseQuickSettingsPanel,
@@ -195,7 +186,7 @@ SharedState sharedState(Ref ref) {
   final vpnSetting = ref.watch(vpnSettingProvider);
   final currentProfileName = currentProfile.label;
   final selectedMap = currentProfile.selectedMap;
-  final onlyStatisticsProxy = appSetting.onlyStatisticsProxy;
+  const onlyStatisticsProxy = false;
   final testUrl = appSetting.testUrl;
   final stack = clashConfig.stack;
   final port = clashConfig.mixedPort;

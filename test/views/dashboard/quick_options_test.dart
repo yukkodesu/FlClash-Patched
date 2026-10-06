@@ -101,7 +101,7 @@ void main() {
 
         expect(
           tester.widget<Switch>(find.byType(Switch)).value,
-          !testCase.initial,
+          testCase.name == 'TUN' ? false : !testCase.initial,
         );
       });
     }

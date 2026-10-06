@@ -14,7 +14,7 @@ typedef CoreBuildFunction = Future<BuildReport> Function(BuildRequest request);
 
 final _log = Logger('setup_hooks');
 
-/// CI sets `build_assets: false` for `flutter test`; no test loads the Core.
+/// Native CI builds the host explicitly before running CoreController tests.
 bool buildsAssets(BuildInput input) =>
     input.userDefines['build_assets'] != false;
 
@@ -91,36 +91,30 @@ final class CoreBuilder implements Builder {
   BuildRequest? requestFor(BuildInput input) {
     if (!input.config.buildCodeAssets) return null;
     final code = input.config.code;
-    if (code.targetOS == OS.iOS && code.iOS.targetSdk != IOSSdk.iPhoneOS) {
-      throw BuildException('The iOS VPN Core requires an arm64 device build');
-    }
     final platform = switch (code.targetOS) {
-      OS.android => 'android',
-      OS.iOS => 'ios',
       OS.linux => 'linux',
       OS.macOS => 'macos',
       OS.windows => 'windows',
       _ => null,
     };
-    if (platform == null) return null;
-    final goarch = switch (code.targetArchitecture) {
-      Architecture.arm => 'arm',
+    if (platform == null) {
+      throw BuildException('FlClash-Meow supports desktop platforms only');
+    }
+    final arch = switch (code.targetArchitecture) {
       Architecture.arm64 => 'arm64',
       Architecture.x64 => 'amd64',
       final other => throw BuildException('No Core build for $platform $other'),
     };
     final rootDir = repositoryRoot(input);
-    final target = Target.resolve(
-      platform: platform,
-      goarch: goarch,
-    ).withGoAmd64UserDefine(input.userDefines['goamd64']);
+    final target = Target.resolve(platform: platform, arch: arch);
     return BuildRequest(
       rootDir: rootDir,
       harnessDir: p.join(p.fromUri(input.packageRoot), 'setup_hooks'),
       target: target,
-      androidToolchain: code.targetOS == OS.android
-          ? _androidToolchain(code)
+      macOSDeploymentTarget: platform == 'macos'
+          ? '${code.macOS.targetVersion}.0'
           : null,
+      macOSCompiler: platform == 'macos' ? code.cCompiler?.compiler : null,
     );
   }
 
@@ -136,20 +130,5 @@ final class CoreBuilder implements Builder {
       );
     }
     return rootDir;
-  }
-
-  AndroidToolchain _androidToolchain(CodeConfig code) {
-    final compiler = code.cCompiler?.compiler;
-    if (compiler == null) {
-      throw InfraError(
-        message:
-            'Flutter passed no NDK C compiler to the setup build hook; '
-            'install the NDK version android/gradle/libs.versions.toml names',
-      );
-    }
-    return AndroidToolchain(
-      clangDirectory: p.dirname(p.fromUri(compiler)),
-      apiLevel: code.android.targetNdkApi,
-    );
   }
 }

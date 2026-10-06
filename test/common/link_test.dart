@@ -34,7 +34,7 @@ void main() {
   test('an install-config link reports its url', () async {
     await listen();
 
-    await emit('flclash://install-config?url=https://example.com/a.yaml');
+    await emit('flclash-meow://install-config?url=https://example.com/a.yaml');
 
     expect(received, ['https://example.com/a.yaml']);
   });
@@ -42,15 +42,21 @@ void main() {
   test('an install-config link without a url is ignored', () async {
     await listen();
 
-    await emit('flclash://install-config');
+    await emit('flclash-meow://install-config');
 
+    expect(received, isEmpty);
+  });
+
+  test('the original product scheme is ignored', () async {
+    await listen();
+    await emit('flclash://install-config?url=https://example.com/a.yaml');
     expect(received, isEmpty);
   });
 
   test('a link for another host is ignored', () async {
     await listen();
 
-    await emit('flclash://open-profile?url=https://example.com/a.yaml');
+    await emit('flclash-meow://open-profile?url=https://example.com/a.yaml');
 
     expect(received, isEmpty);
   });
@@ -63,7 +69,7 @@ void main() {
 
     expect(linkManager.subscription, isNot(same(first)));
 
-    await emit('flclash://install-config?url=https://example.com/a.yaml');
+    await emit('flclash-meow://install-config?url=https://example.com/a.yaml');
 
     expect(received, ['https://example.com/a.yaml']);
   });
@@ -73,7 +79,7 @@ void main() {
     () async {
       linkManager.seedInitialLink([
         '--verbose',
-        'flclash://install-config?url=https://example.com/a.yaml',
+        'flclash-meow://install-config?url=https://example.com/a.yaml',
       ]);
 
       expect(received, isEmpty);
@@ -101,7 +107,7 @@ void main() {
 
     linkManager.destroy();
     linkManager.destroy();
-    await emit('flclash://install-config?url=https://example.com/a.yaml');
+    await emit('flclash-meow://install-config?url=https://example.com/a.yaml');
 
     expect(linkManager.subscription, isNull);
     expect(received, isEmpty);

@@ -769,6 +769,30 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "memoryStacks": MessageLookupByLibrary.simpleMessage("スタック"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage("Go メモリ使用量"),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "meow-rs は AGE 暗号化設定に対応していません。復号した YAML 設定をインポートしてください。",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("全トラフィック"),
+    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage("設定の互換性"),
+    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage("コアの機能"),
+    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
+      "Linux では他の DNS 管理プログラムが TUN の DNS 設定を上書きする場合があります。Fake-IP にはコアの DNS を使った名前解決が必要です。トラフィックの取得に頼る前に、システムの DNS 設定を確認してください。",
+    ),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "開始する前にプロファイルを選択してください。",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "前回の TUN 状態の確認または復元が必要です。権限を持つ Helper で再起動し、DNS とルートを確認してから TUN を有効にしてください。通常のプロキシモードは引き続き利用できます。",
+    ),
+    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
+      "全トラフィックを集計。接続スナップショットは TCP のみ",
+    ),
+    "meowTcpConnections": MessageLookupByLibrary.simpleMessage("TCP 接続"),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP のみ"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage("全体 IPv4（実験的）"),
+    "meowTunScope": MessageLookupByLibrary.simpleMessage(
+      "Fake-IP は DNS 合成アドレスのみを対象にします。全体モードは IPv4 を対象とする実験機能です。IPv6 の取得には設定で明示的に指定してください。",
+    ),
     "messageTest": MessageLookupByLibrary.simpleMessage("メッセージテスト"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("これはメッセージです。"),
     "min": MessageLookupByLibrary.simpleMessage("最小"),
@@ -786,7 +810,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "more": MessageLookupByLibrary.simpleMessage("その他"),
     "mtu": MessageLookupByLibrary.simpleMessage("MTU"),
     "mtuRangeTip": MessageLookupByLibrary.simpleMessage(
-      "MTU は 1 から 65535 までの整数である必要があります",
+      "MTU は 1280 から 65535 までの整数である必要があります",
     ),
     "multipleValuesTip": MessageLookupByLibrary.simpleMessage(
       "複数の値はカンマで区切ってください",

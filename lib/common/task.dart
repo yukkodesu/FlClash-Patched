@@ -45,14 +45,6 @@ Future<String> _encodeMD5<T>(String content) async {
   return content.toMd5();
 }
 
-@visibleForTesting
-GeositeMatcher effectiveGeositeMatcher({
-  required GeositeMatcher configured,
-  required bool isIOS,
-}) {
-  return isIOS ? GeositeMatcher.succinct : configured;
-}
-
 Future<List<Group>> toGroupsTask(ComputeGroupsState data) async {
   return compute<ComputeGroupsState, List<Group>>(buildGroups, data);
 }
@@ -122,10 +114,8 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
   final profilesPath = data.profilesPath;
   final profileId = data.profileId;
   final overrideDns = data.overrideDns;
-  final overrideNtp = data.overrideNtp;
   final addedRules = data.addedRules;
   final appendSystemDns = data.appendSystemDns;
-  final defaultUA = data.defaultUA;
   String getProvidersFilePathInner(String type, String key) {
     return join(
       profilesPath,
@@ -143,7 +133,7 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
     }
     for (final name in providers.keys) {
       final provider = providers[name];
-      if (provider is! Map || provider['type'] == 'inline') {
+      if (provider is! Map || provider['type'] != 'http') {
         continue;
       }
       // Two providers may share a URL and differ only by header.
@@ -163,66 +153,26 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
     }
   }
 
-  rawConfig['external-controller'] = realPatchConfig.externalController.value;
-  rawConfig['external-ui'] = '';
-  switch (realPatchConfig.interfaceNameMode) {
-    case InterfaceNameMode.clear:
-      rawConfig['interface-name'] = '';
-    case InterfaceNameMode.follow:
-      break;
-    case InterfaceNameMode.custom:
-      rawConfig['interface-name'] = realPatchConfig.interfaceName;
-  }
-  rawConfig['external-ui-url'] = '';
-  rawConfig['tcp-concurrent'] = realPatchConfig.tcpConcurrent;
-  rawConfig['unified-delay'] = realPatchConfig.unifiedDelay;
-  rawConfig['ipv6'] = realPatchConfig.ipv6;
-  rawConfig['log-level'] = realPatchConfig.logLevel.name;
-  rawConfig['port'] = 0;
-  rawConfig['socks-port'] = 0;
-  rawConfig['keep-alive-interval'] = realPatchConfig.keepAliveInterval;
-  rawConfig['mixed-port'] = realPatchConfig.mixedPort;
-  rawConfig['port'] = realPatchConfig.port;
-  rawConfig['socks-port'] = realPatchConfig.socksPort;
-  rawConfig['redir-port'] = realPatchConfig.redirPort;
-  rawConfig['tproxy-port'] = realPatchConfig.tproxyPort;
-  rawConfig['find-process-mode'] = realPatchConfig.findProcessMode.name;
-  rawConfig['allow-lan'] = realPatchConfig.allowLan;
-  // The app owns local inbound authentication; a profile-provided
-  // skip-auth-prefixes could silently exempt loopback and defeat it.
-  rawConfig['authentication'] = data.authentication;
-  rawConfig['skip-auth-prefixes'] = [];
-  rawConfig['mode'] = realPatchConfig.mode.name;
+  rawConfig.addAll({
+    'strict': true,
+    'external-controller': realPatchConfig.externalController,
+    'secret': realPatchConfig.secret,
+    'ipv6': realPatchConfig.ipv6,
+    'log-level': realPatchConfig.logLevel.name,
+    'mixed-port': realPatchConfig.mixedPort,
+    'port': realPatchConfig.port,
+    'socks-port': realPatchConfig.socksPort,
+    'allow-lan': realPatchConfig.allowLan,
+    'authentication': data.authentication,
+    'skip-auth-prefixes': <String>[],
+    'mode': realPatchConfig.mode.name,
+  });
   final rawTun = rawConfig['tun'] is Map
       ? Map<String, dynamic>.from(rawConfig['tun'] as Map)
       : <String, dynamic>{};
-  rawConfig['tun'] = {...rawTun, ...realPatchConfig.tun.toJson()};
-  rawConfig['geodata-loader'] = realPatchConfig.geodataLoader.name;
-  rawConfig['geosite-matcher'] = effectiveGeositeMatcher(
-    configured: realPatchConfig.geositeMatcher,
-    isIOS: system.isIOS,
-  ).name;
-  rawConfig['geo-auto-update'] = realPatchConfig.geoAutoUpdate;
-  rawConfig['geo-update-interval'] = realPatchConfig.geoUpdateInterval;
-  if (rawConfig['sniffer']?['sniff'] != null) {
-    for (final value in (rawConfig['sniffer']?['sniff'] as Map).values) {
-      if (value['ports'] != null && value['ports'] is List) {
-        value['ports'] =
-            value['ports']?.map((item) => item.toString()).toList() ?? [];
-      }
-    }
-  }
-  if (rawConfig['profile'] == null) {
-    rawConfig['profile'] = {};
-  }
+  rawConfig['tun'] = {...rawTun, ...realPatchConfig.tun.meowConfig};
   confineProviders('proxy-providers', proxiesProviderDirectoryName);
   confineProviders('rule-providers', rulesProviderDirectoryName);
-  rawConfig['profile']['store-selected'] = false;
-  rawConfig['geox-url'] = realPatchConfig.geoXUrl.raw;
-  rawConfig['global-ua'] = realPatchConfig.globalUa ?? defaultUA;
-  rawConfig['external-controller'] = realPatchConfig.externalController;
-  rawConfig['secret'] = realPatchConfig.secret;
-  rawConfig['external-ui'] = '';
   if (rawConfig['hosts'] == null) {
     rawConfig['hosts'] = {};
   }
@@ -241,25 +191,11 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
     for (final entry in dns.nameserverPolicy.entries) {
       nameserverPolicy[entry.key] = entry.value.splitByMultipleSeparators;
     }
-    final proxyServerNameserverPolicy = <String, dynamic>{};
-    for (final entry in dns.proxyServerNameserverPolicy.entries) {
-      proxyServerNameserverPolicy[entry.key] =
-          entry.value.splitByMultipleSeparators;
-    }
-    // Merged, not assigned: the model only covers the keys FlClash can edit.
     rawConfig['dns'] = {
       ...rawDns,
-      ...dns.toJson(),
+      ...dns.meowConfig,
       'nameserver-policy': nameserverPolicy,
-      'proxy-server-nameserver-policy': proxyServerNameserverPolicy,
     };
-  }
-  if (overrideNtp) {
-    final rawNtp = rawConfig['ntp'] is Map
-        ? Map<String, dynamic>.from(rawConfig['ntp'] as Map)
-        : <String, dynamic>{};
-    // Merged, not assigned: keys this model does not edit stay in the profile.
-    rawConfig['ntp'] = {...rawNtp, ...realPatchConfig.ntp.toJson()};
   }
   if (appendSystemDns) {
     final List<String> nameserver = List<String>.from(

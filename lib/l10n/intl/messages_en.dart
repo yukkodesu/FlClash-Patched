@@ -928,6 +928,38 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "memoryStacks": MessageLookupByLibrary.simpleMessage("Stacks"),
     "memoryTotal": MessageLookupByLibrary.simpleMessage("Go memory usage"),
+    "meowAgeUnsupported": MessageLookupByLibrary.simpleMessage(
+      "AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.",
+    ),
+    "meowAllTraffic": MessageLookupByLibrary.simpleMessage("All traffic"),
+    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage(
+      "Configuration compatibility",
+    ),
+    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage(
+      "Core capabilities",
+    ),
+    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
+      "On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.",
+    ),
+    "meowNoProfile": MessageLookupByLibrary.simpleMessage(
+      "Select a profile before starting.",
+    ),
+    "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
+      "Previous TUN state needs inspection or recovery. Restart with privileged Helper to check DNS and routes before enabling TUN. Ordinary proxy mode remains available.",
+    ),
+    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
+      "All traffic; connection snapshots contain TCP only",
+    ),
+    "meowTcpConnections": MessageLookupByLibrary.simpleMessage(
+      "TCP connections",
+    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP only"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage(
+      "Global IPv4 (experimental)",
+    ),
+    "meowTunScope": MessageLookupByLibrary.simpleMessage(
+      "Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.",
+    ),
     "messageTest": MessageLookupByLibrary.simpleMessage("Message test"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage(
       "This is a message.",
@@ -949,7 +981,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "more": MessageLookupByLibrary.simpleMessage("More"),
     "mtu": MessageLookupByLibrary.simpleMessage("MTU"),
     "mtuRangeTip": MessageLookupByLibrary.simpleMessage(
-      "MTU must be an integer between 1 and 65535",
+      "MTU must be an integer between 1280 and 65535",
     ),
     "multipleValuesTip": MessageLookupByLibrary.simpleMessage(
       "Separate multiple values with commas",

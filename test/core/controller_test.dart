@@ -130,13 +130,14 @@ void main() {
       expect(result, 'ok');
     });
 
-    test('setupConfig waits for asynchronous preload', () async {
+    test('listeners wait for configuration and asynchronous preload', () async {
       const params = SetupParams(selectedMap: {}, testUrl: 'http://x.com');
+      final setupCompleter = Completer<String>();
       final preloadCompleter = Completer<void>();
       final events = <String>[];
       when(() => mock.setupConfig(params)).thenAnswer((_) {
         events.add('setup');
-        return Future.value('ok');
+        return setupCompleter.future;
       });
 
       final setupFuture = controller.setupConfig(
@@ -150,11 +151,16 @@ void main() {
       unawaited(setupFuture.then((_) => completed = true));
       await Future<void>.delayed(Duration.zero);
 
+      expect(events, ['setup']);
+      expect(completed, isFalse);
+
+      setupCompleter.complete('');
+      await Future<void>.delayed(Duration.zero);
       expect(events, ['setup', 'preload']);
       expect(completed, isFalse);
 
       preloadCompleter.complete();
-      expect(await setupFuture, 'ok');
+      expect(await setupFuture, '');
     });
   });
 

@@ -8,7 +8,6 @@ import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/core.dart';
-import 'package:fl_clash/providers/state.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,7 +42,17 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         unawaited(ref.read(setupActionProvider.notifier).fullSetup());
       });
     });
-    ref.listenManual(updateParamsProvider, (prev, next) {
+    ref.listenManual(
+      networkSettingProvider.select((state) => state.authentication),
+      (prev, next) {
+        if (prev != next) {
+          ref
+              .read(setupActionProvider.notifier)
+              .applyProfileDebounce(force: true);
+        }
+      },
+    );
+    ref.listenManual(patchClashConfigProvider, (prev, next) {
       if (prev != next) {
         ref.read(setupActionProvider.notifier).updateConfigDebounce();
       }
@@ -58,7 +67,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   Future<void> onDelay(Delay delay) async {
-    super.onDelay(delay);
     final proxiesAction = ref.read(proxiesActionProvider.notifier);
     proxiesAction.setDelay(delay);
     debouncer.call(FunctionTag.updateDelay, () async {
@@ -77,19 +85,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         fire: true,
       );
     }
-    super.onLog(log);
-  }
-
-  @override
-  void onRequest(TrackerInfo trackerInfo) async {
-    ref.read(requestsProvider.notifier).addRequest(trackerInfo);
-    super.onRequest(trackerInfo);
-  }
-
-  @override
-  void onDns(DnsQuery dnsQuery) {
-    ref.read(dnsQueriesProvider.notifier).addQuery(dnsQuery);
-    super.onDns(dnsQuery);
   }
 
   @override
@@ -105,26 +100,18 @@ class _CoreContainerState extends ConsumerState<CoreManager>
       }
       ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
     }, duration: const Duration(milliseconds: 5000));
-    super.onLoaded(providerName);
   }
 
   @override
   Future<void> onCrash(String message) async {
-    if (ref.read(coreStatusProvider) != CoreStatus.connected) {
+    if (ref.read(coreStatusProvider) == CoreStatus.disconnected) {
       return;
     }
     ref.read(coreStatusProvider.notifier).value = CoreStatus.disconnected;
+    ref.read(runtimeStatusProvider.notifier).value = null;
+    ref.read(setupActionProvider.notifier).syncRunningState(false);
     if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
       context.showNotifier(message, level: MessageLevel.error);
     }
-    super.onCrash(message);
-  }
-
-  @override
-  void onGeoUpdate(String geoType, bool updating, bool skipped, String? error) {
-    ref
-        .read(geoResourceActionProvider.notifier)
-        .handleCoreUpdate(geoType, updating, skipped, error);
-    super.onGeoUpdate(geoType, updating, skipped, error);
   }
 }

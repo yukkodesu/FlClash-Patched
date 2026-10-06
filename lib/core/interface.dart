@@ -4,9 +4,16 @@ import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/models/models.dart';
 
 import 'desktop/model.dart';
+import 'info.dart';
 import 'method.dart';
 
 mixin CoreInterface {
+  Future<CoreInfo> getCoreInfo();
+
+  Future<CoreRuntimeState> getRuntimeState();
+
+  Future<ConfigCheck> checkConfig(String yaml);
+
   Future<CoreLifecycleResult> start();
 
   Future<CoreLifecycleResult> restart();
@@ -121,9 +128,7 @@ abstract class CoreHandlerInterface with CoreInterface {
   }) async {
     return await handleWatch(
       onStart: () {
-        commonPrint.log(
-          'Invoke method ${method.name} ${DateTime.now()} $arguments',
-        );
+        commonPrint.log('Invoke method ${method.name} ${DateTime.now()}');
       },
       function: () async {
         return invokeMethod<T>(
@@ -145,6 +150,37 @@ abstract class CoreHandlerInterface with CoreInterface {
     Object? arguments,
     Duration? timeout,
   });
+
+  Future<Map<String, dynamic>> _requiredObject({
+    required CoreMethod method,
+    Object? arguments,
+  }) async {
+    final result = await _invokeMethod<Map<String, dynamic>>(
+      method: method,
+      arguments: arguments,
+    );
+    if (result == null) {
+      throw CoreMethodException(
+        code: 'no_response',
+        message: 'Core did not answer ${method.name}',
+      );
+    }
+    return result;
+  }
+
+  @override
+  Future<CoreInfo> getCoreInfo() async =>
+      CoreInfo.fromJson(await _requiredObject(method: CoreMethod.getCoreInfo));
+
+  @override
+  Future<CoreRuntimeState> getRuntimeState() async => CoreRuntimeState.fromJson(
+    await _requiredObject(method: CoreMethod.getRuntimeState),
+  );
+
+  @override
+  Future<ConfigCheck> checkConfig(String yaml) async => ConfigCheck.fromJson(
+    await _requiredObject(method: CoreMethod.checkConfig, arguments: yaml),
+  );
 
   Future<String> _invokeMessage({
     required CoreMethod method,
@@ -201,7 +237,10 @@ abstract class CoreHandlerInterface with CoreInterface {
   Future<String> updateConfig(UpdateParams updateParams) async {
     return _invokeMessage(
       method: CoreMethod.updateConfig,
-      arguments: updateParams.toJson(),
+      arguments: {
+        'mode': updateParams.mode.name,
+        'log-level': updateParams.logLevel.name,
+      },
     );
   }
 
@@ -264,13 +303,18 @@ abstract class CoreHandlerInterface with CoreInterface {
     ChangeProxyParams changeProxyParams, {
     bool closeConnections = false,
   }) async {
-    return _invokeMessage(
-      method: CoreMethod.changeProxy,
+    final unfix = changeProxyParams.proxyName.isEmpty;
+    final result = await _invokeMessage(
+      method: unfix ? CoreMethod.unfixProxy : CoreMethod.changeProxy,
       arguments: {
         ...changeProxyParams.toJson(),
         'close-connections': closeConnections,
       },
     );
+    if (unfix && closeConnections && result.isEmpty) {
+      await this.closeConnections();
+    }
+    return result;
   }
 
   @override
@@ -529,7 +573,11 @@ abstract class CoreHandlerInterface with CoreInterface {
 
   @override
   Future<bool> startListener() async {
-    return await _invokeMethod<bool>(method: CoreMethod.startListener) ?? false;
+    return await _invokeMethod<bool>(
+          method: CoreMethod.startListener,
+          timeout: const Duration(minutes: 6),
+        ) ??
+        false;
   }
 
   @override

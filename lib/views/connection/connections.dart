@@ -212,7 +212,7 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView>
   Widget build(BuildContext context) {
     final appLocalizations = context.appLocalizations;
     return CommonScaffold(
-      title: appLocalizations.connections,
+      title: appLocalizations.meowTcpConnections,
       onKeywordsUpdate: _listController.updateKeywords,
       searchState: AppBarSearchState(
         onSearch: _listController.search,

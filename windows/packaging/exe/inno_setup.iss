@@ -20,13 +20,24 @@ ArchitecturesAllowed={{ARCH}}
 ArchitecturesInstallIn64BitMode={{ARCH}}
 
 [Code]
+const
+  TaskCleanupScript =
+    'param([string]$Executable)'#13#10 +
+    '$ErrorActionPreference = ''Stop'''#13#10 +
+    'Import-Module (Join-Path ([Environment]::SystemDirectory) ''WindowsPowerShell\v1.0\Modules\ScheduledTasks\ScheduledTasks.psd1'') -Force'#13#10 +
+    '$task = Get-ScheduledTask -TaskPath ''\'' -TaskName ''FlClash-Meow'' -ErrorAction SilentlyContinue'#13#10 +
+    'if ($null -eq $task) { exit 0 }'#13#10 +
+    '$actions = @($task.Actions)'#13#10 +
+    'if ($actions.Count -ne 1 -or -not [StringComparer]::OrdinalIgnoreCase.Equals($actions[0].Execute, $Executable) -or -not [String]::IsNullOrEmpty($actions[0].Arguments)) { exit 0 }'#13#10 +
+    'Unregister-ScheduledTask -TaskPath ''\'' -TaskName ''FlClash-Meow'' -Confirm:$false';
+
 procedure KillProcesses;
 var
   Processes: TArrayOfString;
   i: Integer;
   ResultCode: Integer;
 begin
-  Processes := ['FlClash.exe', 'FlClashCore.exe', 'FlClashHelperService.exe'];
+  Processes := ['FlClashMeow.exe', 'FlClashMeowCore.exe', 'FlClashMeowHelperService.exe'];
 
   for i := 0 to GetArrayLength(Processes)-1 do
   begin
@@ -39,11 +50,45 @@ var
   HelperPath: String;
   ResultCode: Integer;
 begin
-  HelperPath := ExpandConstant('{app}\\FlClashHelperService.exe');
+  HelperPath := ExpandConstant('{app}\\FlClashMeowHelperService.exe');
   if FileExists(HelperPath) then
   begin
     Exec(HelperPath, 'uninstall', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
+end;
+
+procedure UnregisterProduct;
+var
+  Executable, Command, TaskScript: String;
+  ProtocolKey, RunKey: String;
+  ResultCode: Integer;
+begin
+  Executable := ExpandConstant('{app}\FlClashMeow.exe');
+  ProtocolKey := 'Software\Classes\flclash-meow';
+  RunKey := 'Software\Microsoft\Windows\CurrentVersion\Run';
+  if RegQueryStringValue(HKCU, ProtocolKey + '\shell\open\command', '', Command) and
+     (CompareText(Command, '"' + Executable + '" "%1"') = 0) then
+    RegDeleteKeyIncludingSubkeys(HKCU, ProtocolKey);
+  if RegQueryStringValue(HKCU, RunKey, 'FlClash-Meow', Command) and
+     (CompareText(Command, Executable) = 0) then
+  begin
+    RegDeleteValue(HKCU, RunKey, 'FlClash-Meow');
+    RegDeleteValue(HKCU,
+      'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run',
+      'FlClash-Meow');
+  end;
+  TaskScript := ExpandConstant('{tmp}\flclash-meow-unregister-task.ps1');
+  if SaveStringToFile(TaskScript, TaskCleanupScript, False) then
+  begin
+    if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+      '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + TaskScript +
+      '" -Executable "' + Executable + '"', '', SW_HIDE, ewWaitUntilTerminated,
+      ResultCode) or (ResultCode <> 0) then
+      Log('FlClash-Meow scheduled-task cleanup could not be confirmed');
+    DeleteFile(TaskScript);
+  end
+  else
+    Log('FlClash-Meow scheduled-task cleanup script could not be written');
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -57,6 +102,7 @@ function InitializeUninstall(): Boolean;
 begin
   UnregisterHelperService;
   KillProcesses;
+  UnregisterProduct;
   Result := True;
 end;
 
