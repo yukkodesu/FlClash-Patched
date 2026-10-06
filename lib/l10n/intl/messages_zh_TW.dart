@@ -342,7 +342,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "deleteMultipTip": m3,
     "deleteTip": m4,
     "desc": MessageLookupByLibrary.simpleMessage(
-      "以 mihomo 為基礎的多平台代理用戶端，簡單易用，開放原始碼且無廣告。",
+      "基於 meow-rs 的多平台代理用戶端，簡單易用，開源無廣告。",
     ),
     "descending": MessageLookupByLibrary.simpleMessage("遞減"),
     "destination": MessageLookupByLibrary.simpleMessage("目標位址"),
@@ -698,24 +698,13 @@ class MessageLookup extends MessageLookupByLibrary {
       "meow-rs 不支援 AGE 加密設定，請匯入解密後的 YAML 設定。",
     ),
     "meowAllTraffic": MessageLookupByLibrary.simpleMessage("全部流量"),
-    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage("設定相容性"),
-    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage("核心能力"),
-    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
-      "Linux 的其他 DNS 管理程式可能覆寫 TUN 的 DNS 設定。Fake-IP 需要使用核心 DNS 解析，請確認系統解析器實際指向核心後再依賴流量擷取。",
-    ),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage("請先選擇設定再啟動。"),
     "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
       "需要檢查或復原上次執行的 TUN 狀態。請透過特權 Helper 重新啟動，檢查 DNS 和路由後再開啟 TUN。一般代理模式仍可使用。",
     ),
-    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
-      "統計全部流量；連線快照僅包含 TCP",
-    ),
-    "meowTcpConnections": MessageLookupByLibrary.simpleMessage("TCP 連線"),
-    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("僅 Fake-IP"),
-    "meowTunGlobal": MessageLookupByLibrary.simpleMessage("全域 IPv4（實驗性）"),
-    "meowTunScope": MessageLookupByLibrary.simpleMessage(
-      "Fake-IP 僅擷取 DNS 合成位址。全域模式擷取 IPv4，屬於實驗功能；擷取 IPv6 需要在設定中明確指定。",
-    ),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP"),
+    "meowTunGlobal": MessageLookupByLibrary.simpleMessage("全域（實驗性）"),
+    "meowTunIpv6": MessageLookupByLibrary.simpleMessage("擷取 IPv6"),
     "messageTest": MessageLookupByLibrary.simpleMessage("訊息測試"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("這是一則訊息。"),
     "min": MessageLookupByLibrary.simpleMessage("最小"),

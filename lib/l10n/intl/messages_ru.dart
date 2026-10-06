@@ -476,7 +476,7 @@ class MessageLookup extends MessageLookupByLibrary {
     "deleteMultipTip": m3,
     "deleteTip": m4,
     "desc": MessageLookupByLibrary.simpleMessage(
-      "Многоплатформенный прокси-клиент на основе mihomo, простой и удобный в использовании, с открытым исходным кодом и без рекламы.",
+      "Мультиплатформенный прокси-клиент на основе meow-rs: простой, удобный, с открытым исходным кодом и без рекламы.",
     ),
     "descending": MessageLookupByLibrary.simpleMessage("По убыванию"),
     "destination": MessageLookupByLibrary.simpleMessage("Назначение"),
@@ -983,34 +983,17 @@ class MessageLookup extends MessageLookupByLibrary {
       "meow-rs не поддерживает профили с шифрованием AGE. Импортируйте расшифрованный профиль YAML.",
     ),
     "meowAllTraffic": MessageLookupByLibrary.simpleMessage("Весь трафик"),
-    "meowConfigDiagnostics": MessageLookupByLibrary.simpleMessage(
-      "Совместимость конфигурации",
-    ),
-    "meowCoreCapabilities": MessageLookupByLibrary.simpleMessage(
-      "Возможности ядра",
-    ),
-    "meowLinuxTunDnsWarning": MessageLookupByLibrary.simpleMessage(
-      "В Linux другие службы DNS могут перезаписать настройки DNS для TUN. Для Fake-IP запросы должны идти к DNS ядра; проверьте системный резолвер, прежде чем полагаться на перехват трафика.",
-    ),
     "meowNoProfile": MessageLookupByLibrary.simpleMessage(
       "Выберите профиль перед запуском.",
     ),
     "meowRecoveryRequired": MessageLookupByLibrary.simpleMessage(
       "Состояние предыдущего сеанса TUN требует проверки или восстановления. Перезапустите приложение через Helper с повышенными правами, чтобы проверить DNS и маршруты перед включением TUN. Обычный режим прокси остаётся доступным.",
     ),
-    "meowStatisticsScope": MessageLookupByLibrary.simpleMessage(
-      "Весь трафик; снимки соединений содержат только TCP",
-    ),
-    "meowTcpConnections": MessageLookupByLibrary.simpleMessage(
-      "TCP-соединения",
-    ),
-    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Только Fake-IP"),
+    "meowTunFakeIp": MessageLookupByLibrary.simpleMessage("Fake-IP"),
     "meowTunGlobal": MessageLookupByLibrary.simpleMessage(
-      "Глобальный IPv4 (экспериментальный)",
+      "Глобальный (экспериментальный)",
     ),
-    "meowTunScope": MessageLookupByLibrary.simpleMessage(
-      "Fake-IP перехватывает только синтетические адреса DNS. Глобальный режим перехватывает IPv4 и является экспериментальным. Для IPv6 требуется явная настройка профиля.",
-    ),
+    "meowTunIpv6": MessageLookupByLibrary.simpleMessage("Перехват IPv6"),
     "messageTest": MessageLookupByLibrary.simpleMessage("Тест сообщения"),
     "messageTestTip": MessageLookupByLibrary.simpleMessage("Это сообщение."),
     "min": MessageLookupByLibrary.simpleMessage("Минимальный"),

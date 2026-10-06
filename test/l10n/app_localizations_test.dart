@@ -15,7 +15,7 @@ void main() {
       expect(appLocalizations.hoursCount(2), contains('2'));
       expect(appLocalizations.secondsCount(30), contains('30'));
       expect(appLocalizations.geoUpdated('geoip'), contains('geoip'));
-      expect(appLocalizations.desc.toLowerCase(), contains('mihomo'));
+      expect(appLocalizations.desc.toLowerCase(), contains('meow-rs'));
       expect(appLocalizations.highPriorityAutoLaunch, isNotEmpty);
       expect(appLocalizations.monochromeTrayIcon, isNotEmpty);
       expect(appLocalizations.promptCloseConnections, isNotEmpty);

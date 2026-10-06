@@ -49,14 +49,13 @@ class AboutView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final appLocalizations = context.appLocalizations;
     final identity = ref.watch(coreIdentityProvider);
-    final recovery = ref.watch(runtimeStatusProvider)?.recovery;
-    final failure = ref.watch(runtimeStatusProvider)?.failure;
     return CommonScaffold(
       title: appLocalizations.about,
       body: ListView(
         padding: sectionPagePadding,
         children: [
           _AboutHero(
+            coreVersion: identity?.version,
             onEnterDeveloperMode: () {
               ref
                   .read(appSettingProvider.notifier)
@@ -68,44 +67,6 @@ class AboutView extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 8),
-          generateSectionV3(
-            title: appLocalizations.meowCoreCapabilities,
-            items: [
-              ListItem(
-                title: Text(
-                  'meow-rs ${identity?.version ?? appLocalizations.loading}',
-                ),
-                subtitle: Text(
-                  identity == null
-                      ? appLocalizations.loading
-                      : '${identity.commit}\n${identity.hostVersion} / IPC ${identity.protocolVersion}\n${appLocalizations.meowStatisticsScope}\n${identity.capabilities.join(', ')}',
-                ),
-              ),
-              if (ref.watch(configurationDiagnosticsProvider).isNotEmpty)
-                ListItem(
-                  title: Text(appLocalizations.meowConfigDiagnostics),
-                  subtitle: Text(
-                    ref
-                        .watch(configurationDiagnosticsProvider)
-                        .map(
-                          (item) =>
-                              '${item.path}: ${item.reason} ${item.suggestion}',
-                        )
-                        .join('\n'),
-                  ),
-                ),
-              if (recovery?.requiresAttention == true)
-                ListItem(
-                  title: Text(appLocalizations.meowRecoveryRequired),
-                  subtitle: Text(recovery!.details.join('\n')),
-                ),
-              if (failure?.isNotEmpty == true)
-                ListItem(
-                  title: Text(appLocalizations.error),
-                  subtitle: Text(failure!),
-                ),
-            ],
-          ),
           generateSectionV3(
             isFirst: true,
             title: appLocalizations.update,
@@ -151,9 +112,10 @@ class AboutView extends ConsumerWidget {
 }
 
 class _AboutHero extends StatelessWidget {
+  final String? coreVersion;
   final VoidCallback onEnterDeveloperMode;
 
-  const _AboutHero({required this.onEnterDeveloperMode});
+  const _AboutHero({required this.onEnterDeveloperMode, this.coreVersion});
 
   static const _logoSize = 96.0;
   static const _logoInset = 14.0;
@@ -214,6 +176,12 @@ class _AboutHero extends StatelessWidget {
                 color: colorScheme.surfaceContainerHighest,
                 foregroundColor: colorScheme.onSurfaceVariant,
               ),
+              if (coreVersion != null)
+                _Pill(
+                  label: 'meow-rs $coreVersion',
+                  color: colorScheme.surfaceContainerHighest,
+                  foregroundColor: colorScheme.onSurfaceVariant,
+                ),
             ],
           ),
           const SizedBox(height: 16),

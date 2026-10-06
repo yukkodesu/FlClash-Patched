@@ -255,6 +255,7 @@ abstract class Tun with _$Tun {
     @Default(TunRouteMode.fakeIp)
     @JsonKey(unknownEnumValue: TunRouteMode.fakeIp)
     TunRouteMode routeMode,
+    @Default(false) bool captureIpv6,
     @JsonKey(name: 'auto-route') @Default(false) bool autoRoute,
     @Default(TunStack.mips)
     @JsonKey(unknownEnumValue: TunStack.mips)
@@ -301,6 +302,9 @@ extension TunExt on Tun {
       TunRouteMode.globalExperimental => 'global',
     },
     'dns-hijack': dnsHijack,
+    'inet6-address': routeMode == TunRouteMode.globalExperimental && captureIpv6
+        ? 'fdfe:dcba:9876::1/126'
+        : null,
     if (!system.isMacOS) 'device': device,
   };
 

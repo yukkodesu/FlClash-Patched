@@ -831,48 +831,36 @@ void main() {
     );
 
     testWidgets(
-      'compatibility warnings are reviewed before any configuration write or restart',
+      'compatibility warnings do not require confirmation before applying',
       (tester) async {
         final core = _MockCoreHandlerInterface();
-        final authorizing = _AuthorizingProfileSetupAction()
-          ..authorizationGate = Completer<AuthorizeCode>();
-        var setupStarted = false;
         when(() => core.checkConfig(any())).thenAnswer(
           (_) async => ConfigCheck.fromJson({
             'valid': true,
             'diagnostics': [
               {
                 'severity': 'warning',
-                'path': 'authentication',
-                'reason':
-                    'fixture warning: local callers bypass authentication',
-                'suggestion': 'Review before applying.',
+                'path': 'profile',
+                'reason': 'Ignored field',
+                'suggestion': '',
               },
             ],
           }),
         );
-        when(() => core.setupConfig(any())).thenAnswer((_) async {
-          setupStarted = true;
-          return '';
-        });
+        when(() => core.setupConfig(any())).thenAnswer((_) async => '');
+        when(
+          () => core.getProxies(),
+        ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+        when(() => core.getExternalProviders()).thenAnswer((_) async => []);
         final scoped = ProviderContainer(
           overrides: [
             currentProfileProvider.overrideWithValue(null),
             setupStateProvider.overrideWith((_, _) => nullProfileSetupState),
             coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
-            setupActionProvider.overrideWith(() => authorizing),
+            setupActionProvider.overrideWith(_ProfileSetupAction.new),
           ],
         );
         addTearDown(scoped.dispose);
-        scoped
-            .read(patchClashConfigProvider.notifier)
-            .update((state) => state.copyWith.tun(enable: true));
-        late File configFile;
-        scoped.read(viewSizeProvider.notifier).value = const Size(800, 600);
-        await tester.runAsync(() async {
-          configFile = File(await appPath.configFilePath);
-          await configFile.safeWriteAsString('previous configuration');
-        });
         await tester.pumpWidget(
           UncontrolledProviderScope(
             container: scoped,
@@ -883,63 +871,23 @@ void main() {
             ),
           ),
         );
-        late Future<bool> apply;
-        await tester.runAsync(() async {
-          apply = scoped
-              .read(setupActionProvider.notifier)
-              .applyProfile(force: true);
-          final deadline = DateTime.now().add(const Duration(seconds: 5));
-          while (!setupStarted &&
-              authorizing.authorizeCalls == 0 &&
-              find
-                  .textContaining('fixture warning', findRichText: true)
-                  .evaluate()
-                  .isEmpty &&
-              DateTime.now().isBefore(deadline)) {
-            await tester.pump();
-            await Future<void>.delayed(const Duration(milliseconds: 5));
-          }
-          if (setupStarted) await apply;
-        });
-        try {
-          await tester.pumpAndSettle();
-          expect(authorizing.authorizeCalls, 0);
-          expect(
-            scoped.read(authorizedTunEnableProvider),
-            TunAuthorizationState.none,
-          );
-          expect(
-            find.textContaining('fixture warning', findRichText: true),
-            findsOneWidget,
-          );
-          verifyNever(() => core.setupConfig(any()));
-          verifyNever(() => core.restart());
-          expect(
-            await tester.runAsync(configFile.readAsString),
-            'previous configuration',
-          );
-        } finally {
-          authorizing.authorizationGate!.complete(AuthorizeCode.error);
-          await tester.runAsync(() async {
-            final deadline = DateTime.now().add(const Duration(seconds: 5));
-            while (find
-                    .textContaining('fixture warning', findRichText: true)
-                    .evaluate()
-                    .isEmpty &&
-                DateTime.now().isBefore(deadline)) {
-              await tester.pump();
-              await Future<void>.delayed(const Duration(milliseconds: 5));
-            }
-          });
-          await tester.pumpAndSettle();
-          await tester.tap(find.text(currentAppLocalizations.cancel));
-          await tester.pumpAndSettle();
-          expect(await tester.runAsync(() => apply), isFalse);
-        }
-        expect(authorizing.authorizeCalls, 0);
-        verifyNever(() => core.setupConfig(any()));
-        verifyNever(() => core.restart());
-        await tester.pumpWidget(const SizedBox());
+        expect(
+          await tester.runAsync(
+            () => scoped
+                .read(setupActionProvider.notifier)
+                .applyProfile(force: true),
+          ),
+          isTrue,
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(AlertDialog), findsNothing);
+        verify(() => core.setupConfig(any())).called(1);
+        expect(
+          await tester.runAsync(
+            () async => File(await appPath.configFilePath).readAsString(),
+          ),
+          'rules: ["MATCH,DIRECT"]',
+        );
       },
     );
 

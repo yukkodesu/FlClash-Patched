@@ -151,6 +151,32 @@ void main() {
   );
 
   group('option pickers', () {
+    testWidgets('TUN route mode shows the selection and global IPv6 control', (
+      tester,
+    ) async {
+      await pumpItem(
+        tester,
+        Column(children: networkOptionsItems(isDesktop: true, isMacOS: false)),
+      );
+      expect(find.text('Fake-IP'), findsOneWidget);
+      expect(find.text('Capture IPv6'), findsNothing);
+      await tester.tap(find.text('Route mode'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Global (experimental)').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Global (experimental)'), findsOneWidget);
+      expect(find.text('Capture IPv6'), findsOneWidget);
+      final ipv6Tile = find.ancestor(
+        of: find.text('Capture IPv6'),
+        matching: find.byType(ListTile),
+      );
+      await tester.tap(
+        find.descendant(of: ipv6Tile, matching: find.byType(Switch)),
+      );
+      await tester.pumpAndSettle();
+      expect(container.read(patchClashConfigProvider).tun.captureIpv6, isTrue);
+    });
+
     testWidgets(
       'MTU below the core minimum is rejected before updating settings',
       (tester) async {

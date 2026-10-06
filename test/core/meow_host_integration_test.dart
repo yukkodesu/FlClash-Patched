@@ -124,7 +124,7 @@ void main() {
         }
         final nodes = pluginOptions != null
             ? 'proxies: [{name: edge, type: ss, server: localhost, port: 443, cipher: aes-128-gcm, password: fixture, plugin: v2ray-plugin, plugin-opts: $pluginOptions}]\n'
-            : "proxies: [{name: edge, type: http, server: localhost, port: 80${unsafe ? ", tls: 'true'" : ''}}]\n";
+            : "proxies: [{name: edge, type: http, server: localhost, port: ${unsafe ? 'invalid' : '80'}, client-fingerprint: chrome}]\n";
         request.response.write(
           request.uri.path == '/rules' ? "payload: ['example.com']\n" : nodes,
         );
@@ -135,6 +135,7 @@ void main() {
           final address = 'http://127.0.0.1:${server.port}';
           final yaml =
               '''
+strict: true
 proxy-providers:
   remote: {type: http, url: '$address/nodes', path: nodes.yaml}
 proxy-groups: [{name: route, type: select, use: [remote]}]
@@ -150,54 +151,11 @@ rules: ['RULE-SET,domains,DIRECT', 'MATCH,route']
           final rejected = await controller.checkConfig(yaml);
           expect(rejected.valid, isFalse);
           expect(
-            rejected.diagnostics.any((item) => item.reason.contains('tls')),
+            rejected.diagnostics.any((item) => item.reason.contains('port')),
             isTrue,
           );
           expect((await controller.getRuntimeState()).configured, isFalse);
           unsafe = false;
-          for (final options in [
-            '{tls: typo}',
-            '{tls: {enabled: true}}',
-            "'tls=typo'",
-            "'unknown=true'",
-          ]) {
-            pluginOptions = options;
-            final providerCheck = await controller.checkConfig(yaml);
-            expect(providerCheck.valid, isFalse, reason: options);
-            expect(
-              providerCheck.diagnostics.any(
-                (item) => item.reason.contains('plugin-opts.'),
-              ),
-              isTrue,
-            );
-            final inline =
-                'proxies: [{name: edge, type: ss, server: localhost, port: 443, cipher: aes-128-gcm, password: fixture, plugin: v2ray-plugin, plugin-opts: $options}]\nrules: ["MATCH,DIRECT"]\n';
-            final checked = await controller.checkConfig(inline);
-            expect(checked.valid, isFalse, reason: options);
-            expect(
-              checked.diagnostics.any(
-                (item) => item.path.startsWith('proxies[0].plugin-opts.'),
-              ),
-              isTrue,
-            );
-            await File(await appPath.configFilePath).writeAsString(yaml);
-            await expectLater(
-              controller.setupConfig(
-                params: const SetupParams(selectedMap: {}, testUrl: ''),
-              ),
-              throwsA(
-                isA<CoreMethodException>()
-                    .having((error) => error.code, 'code', 'invalid_config')
-                    .having(
-                      (error) => error.message,
-                      'message',
-                      contains('plugin-opts.'),
-                    ),
-              ),
-            );
-            expect((await controller.getRuntimeState()).configured, isFalse);
-            expect(await File('$home/nodes.yaml').exists(), isFalse);
-          }
           final certificate = await controller.checkConfig(
             'proxies: [{name: edge, type: ss, server: localhost, port: 443, cipher: aes-128-gcm, password: fixture, plugin: gost-plugin, plugin-opts: {certificate: /outside/cert.pem}}]\nrules: ["MATCH,DIRECT"]\n',
           );
@@ -640,31 +598,27 @@ rules: ['MATCH,route']
         expect(idle.configured, isFalse);
         expect(idle.running, isFalse);
 
+        final compatibility = await controller.checkConfig(
+          'dns: {cache-algorithm: arc, ipv6: true, prefer-h3: true}\netag-support: true\nprofile: {store-selected: true}\nrules: ["MATCH,DIRECT"]\n',
+        );
+        expect(compatibility.valid, isTrue);
+        expect(
+          compatibility.diagnostics.every((item) => item.severity == 'warning'),
+          isTrue,
+        );
         final rejected = await controller.checkConfig(
-          'proxies:\n  - name: unsupported\n    type: tuic\n',
+          'strict: true\nproxies:\n  - name: unsupported\n    type: tuic\n',
         );
         expect(rejected.valid, isFalse);
-        expect(rejected.diagnostics.single.path, 'proxies[0].type');
+        expect(rejected.diagnostics.single.severity, 'error');
         expect(rejected.diagnostics.single.reason, contains('tuic'));
         expect(rejected.diagnostics.single.suggestion, isNotEmpty);
         expect((await controller.getRuntimeState()).configured, isFalse);
-        for (final options in [
-          'username: 123, password: 456',
-          "tls: 'true'",
-          "skip-cert-verify: 'false'",
-          'headers: {Authorization: 123}',
-        ]) {
-          final check = await controller.checkConfig(
-            'proxies: [{name: edge, type: http, server: localhost, port: 443, $options}]\nrules: ["MATCH,DIRECT"]\n',
-          );
-          expect(check.valid, isFalse);
-          expect(
-            check.diagnostics.any(
-              (item) => item.path.startsWith('proxies[0].'),
-            ),
-            isTrue,
-          );
-        }
+        final invalidPort = await controller.checkConfig(
+          'strict: true\nproxies: [{name: edge, type: http, server: localhost, port: invalid}]\nrules: ["MATCH,DIRECT"]\n',
+        );
+        expect(invalidPort.valid, isFalse);
+        expect(invalidPort.diagnostics.single.reason, contains('port'));
         final mtu = await controller.checkConfig(
           'tun: {mtu: 1200}\nrules: ["MATCH,DIRECT"]\n',
         );
@@ -674,6 +628,8 @@ rules: ['MATCH,route']
         final yaml =
             '''
 strict: true
+etag-support: true
+profile: {store-selected: true}
 mixed-port: $proxyPort
 allow-lan: true
 bind-address: $proxyHost

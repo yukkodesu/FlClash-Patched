@@ -23,8 +23,8 @@ Legacy mobile sources are outside this desktop migration and are not built or re
 ## Listener Exposure
 
 The desktop profile adapter preserves imported YAML and derives a runtime configuration using the pinned host's
-capability contract. Unsupported fields/protocols fail validation before Runtime starts. Retaining a Flutter model field
-does not imply meow implements it; configuration rejection must be actionable and visible.
+capability contract. Configuration compatibility follows meow-rs, including the profile's optional `strict` setting.
+Ignored fields produce warning logs; native configuration errors and host authority violations prevent application.
 
 System proxy follows the effective running listener endpoint. Loopback binding limits exposure to the local machine but
 does not authenticate other local programs. TUN requires a privileged launch; a requested TUN start must not silently

@@ -585,7 +585,36 @@ List<Widget> networkOptionsItems({
   required bool isDesktop,
   required bool isMacOS,
   bool isIOS = false,
-}) => const [TUNItem(), TunRouteModeItem(), TunDnsHijackItem(), TunMtuItem()];
+}) => const [
+  TUNItem(),
+  TunRouteModeItem(),
+  TunIpv6Item(),
+  TunDnsHijackItem(),
+  TunMtuItem(),
+];
+
+class TunIpv6Item extends ConsumerWidget {
+  const TunIpv6Item({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final routeMode = ref.watch(
+      patchClashConfigProvider.select((state) => state.tun.routeMode),
+    );
+    if (routeMode != TunRouteMode.globalExperimental) {
+      return const SizedBox.shrink();
+    }
+    return ConfigToggleItem(
+      title: (l) => l.meowTunIpv6,
+      selector: patchClashConfigProvider.select(
+        (state) => state.tun.captureIpv6,
+      ),
+      onChanged: _tunWriter(
+        (state, value) => state.copyWith.tun(captureIpv6: value),
+      ),
+    );
+  }
+}
 
 class TunRouteModeItem extends ConsumerWidget {
   const TunRouteModeItem({super.key});
@@ -594,9 +623,6 @@ class TunRouteModeItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return ConfigOptionsItem<TunRouteMode>(
       title: (l) => l.routeMode,
-      subtitle: (l) => system.isLinux
-          ? '${l.meowTunScope}\n${l.meowLinuxTunDnsWarning}'
-          : l.meowTunScope,
       options: TunRouteMode.values,
       textBuilder: (mode) => switch (mode) {
         TunRouteMode.fakeIp => context.appLocalizations.meowTunFakeIp,

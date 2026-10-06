@@ -154,7 +154,6 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
   }
 
   rawConfig.addAll({
-    'strict': true,
     'external-controller': realPatchConfig.externalController,
     'secret': realPatchConfig.secret,
     'ipv6': realPatchConfig.ipv6,
@@ -171,6 +170,14 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
       ? Map<String, dynamic>.from(rawConfig['tun'] as Map)
       : <String, dynamic>{};
   rawConfig['tun'] = {...rawTun, ...realPatchConfig.tun.meowConfig};
+  if (realPatchConfig.tun.routeMode == TunRouteMode.globalExperimental &&
+      realPatchConfig.tun.captureIpv6 &&
+      rawTun['inet6-address'] != null) {
+    rawConfig['tun']['inet6-address'] = rawTun['inet6-address'];
+  }
+  if (rawConfig['tun']['inet6-address'] == null) {
+    (rawConfig['tun'] as Map).remove('inet6-address');
+  }
   confineProviders('proxy-providers', proxiesProviderDirectoryName);
   confineProviders('rule-providers', rulesProviderDirectoryName);
   if (rawConfig['hosts'] == null) {

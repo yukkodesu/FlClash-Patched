@@ -1055,10 +1055,10 @@ class AppLocalizations {
     );
   }
 
-  /// `A multi-platform proxy client based on mihomo, simple and easy to use, open-source and ad-free.`
+  /// `A multi-platform proxy client based on meow-rs, simple and easy to use, open-source and ad-free.`
   String get desc {
     return Intl.message(
-      'A multi-platform proxy client based on mihomo, simple and easy to use, open-source and ad-free.',
+      'A multi-platform proxy client based on meow-rs, simple and easy to use, open-source and ad-free.',
       name: 'desc',
       desc: '',
       args: [],
@@ -7220,40 +7220,15 @@ class AppLocalizations {
     );
   }
 
-  /// `Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.`
-  String get meowTunScope {
-    return Intl.message(
-      'Fake-IP captures synthetic DNS destinations. Global mode captures IPv4 and is experimental; IPv6 capture requires an explicit profile configuration.',
-      name: 'meowTunScope',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.`
-  String get meowLinuxTunDnsWarning {
-    return Intl.message(
-      'On Linux, other DNS managers may overwrite TUN DNS settings. Fake-IP needs queries to use core DNS; verify your system resolver before relying on capture.',
-      name: 'meowLinuxTunDnsWarning',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Fake-IP only`
+  /// `Fake-IP`
   String get meowTunFakeIp {
-    return Intl.message(
-      'Fake-IP only',
-      name: 'meowTunFakeIp',
-      desc: '',
-      args: [],
-    );
+    return Intl.message('Fake-IP', name: 'meowTunFakeIp', desc: '', args: []);
   }
 
-  /// `Global IPv4 (experimental)`
+  /// `Global (experimental)`
   String get meowTunGlobal {
     return Intl.message(
-      'Global IPv4 (experimental)',
+      'Global (experimental)',
       name: 'meowTunGlobal',
       desc: '',
       args: [],
@@ -7265,36 +7240,6 @@ class AppLocalizations {
     return Intl.message(
       'AGE encrypted profiles are not supported by meow-rs. Import a decrypted YAML profile.',
       name: 'meowAgeUnsupported',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `All traffic; connection snapshots contain TCP only`
-  String get meowStatisticsScope {
-    return Intl.message(
-      'All traffic; connection snapshots contain TCP only',
-      name: 'meowStatisticsScope',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Core capabilities`
-  String get meowCoreCapabilities {
-    return Intl.message(
-      'Core capabilities',
-      name: 'meowCoreCapabilities',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Configuration compatibility`
-  String get meowConfigDiagnostics {
-    return Intl.message(
-      'Configuration compatibility',
-      name: 'meowConfigDiagnostics',
       desc: '',
       args: [],
     );
@@ -7315,16 +7260,6 @@ class AppLocalizations {
     return Intl.message(
       'All traffic',
       name: 'meowAllTraffic',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `TCP connections`
-  String get meowTcpConnections {
-    return Intl.message(
-      'TCP connections',
-      name: 'meowTcpConnections',
       desc: '',
       args: [],
     );
@@ -7355,6 +7290,16 @@ class AppLocalizations {
     return Intl.message(
       'Add a fallback DNS server to the system',
       name: 'autoSetSystemDnsDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Capture IPv6`
+  String get meowTunIpv6 {
+    return Intl.message(
+      'Capture IPv6',
+      name: 'meowTunIpv6',
       desc: '',
       args: [],
     );

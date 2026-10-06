@@ -536,7 +536,8 @@ class SetupAction extends _$SetupAction {
     if (!checked.valid) {
       dialogs.showNotifier(
         checked.diagnostics
-            .map((item) => '${item.path}: ${item.reason} ${item.suggestion}')
+            .where((item) => item.severity == 'error')
+            .map((item) => '${item.path}: ${item.reason}')
             .join('\n'),
         level: MessageLevel.error,
         allowCopy: true,
@@ -545,21 +546,6 @@ class SetupAction extends _$SetupAction {
     }
     if (yamlMd5 == globalState.lastConfigMd5 && !force && !needsAuthorization) {
       return _SetupTaskResult.completed;
-    }
-    final warnings = checked.diagnostics
-        .where((item) => item.severity == 'warning')
-        .toList();
-    if (warnings.isNotEmpty) {
-      final accepted = await dialogs.showMessage(
-        title: currentAppLocalizations.meowConfigDiagnostics,
-        message: TextSpan(
-          text: warnings
-              .map((item) => '${item.path}: ${item.reason} ${item.suggestion}')
-              .join('\n'),
-        ),
-      );
-      if (revision != _profileRevision) return _SetupTaskResult.completed;
-      if (accepted != true) return _SetupTaskResult.failed;
     }
     final restartAfterAuthorization = !await requestAdmin(
       patchConfig.tun.enable,

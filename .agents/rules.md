@@ -128,8 +128,8 @@ FlClash-Meow ships one desktop engine: the pinned `core/meow-rs` fork. These rul
   suitable for upstream from changes coupled to this client. Do not expand meow capabilities to match mihomo.
 - Use `CoreController`/`CoreHandlerInterface` for application behavior. Negotiate `getCoreInfo` identity/protocol and
   capabilities before engine initialization. Keep host protocol 1 distinct from Helper HTTP protocol 6.
-- `config.rs` validates imported fields, protocols and provider nodes before preparation. Preserve imported YAML and
-  visible diagnostics; a retained Flutter option does not authorize silently ignoring an unsupported engine setting.
+- Delegate configuration compatibility to meow-rs, including its native warning/error policy and the profile's `strict`
+  setting. Preserve imported YAML, log ignored fields at warning level, and retain host file/executable authority checks.
 - Keep `CoreMethodCall`/`CoreMethodResponse` arguments, results and event batches as structured JSON across Dart and the
   Rust host. `protocol.rs` and `plugins/rust_api/rust/src/ipc/` own the four-byte little-endian framing; do not double-encode.
 - Host `ipc.rs` bounds concurrent requests and retained payload bytes and separates response, state and bulk delivery.

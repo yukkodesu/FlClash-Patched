@@ -175,6 +175,7 @@ _Tun _$TunFromJson(Map<String, dynamic> json) => _Tun(
         unknownValue: TunRouteMode.fakeIp,
       ) ??
       TunRouteMode.fakeIp,
+  captureIpv6: json['captureIpv6'] as bool? ?? false,
   autoRoute: json['auto-route'] as bool? ?? false,
   stack:
       $enumDecodeNullable(
@@ -212,6 +213,7 @@ Map<String, dynamic> _$TunToJson(_Tun instance) => <String, dynamic>{
   'device': instance.device,
   'mtu': instance.mtu,
   'routeMode': _$TunRouteModeEnumMap[instance.routeMode]!,
+  'captureIpv6': instance.captureIpv6,
   'auto-route': instance.autoRoute,
   'stack': _$TunStackEnumMap[instance.stack]!,
   'recvmsgx': instance.recvMsgX,

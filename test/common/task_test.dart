@@ -256,6 +256,11 @@ void main() {
           congestionController: TunCongestionController.bbr,
         ),
         const Tun(),
+        const Tun(routeMode: TunRouteMode.globalExperimental),
+        const Tun(
+          routeMode: TunRouteMode.globalExperimental,
+          captureIpv6: true,
+        ),
       ]) {
         final result = await makeRealProfileTask(
           MakeRealProfileState(
@@ -269,6 +274,7 @@ void main() {
                 'disable-icmp-forwarding': !tun.disableIcmpForwarding,
                 'endpoint-independent-nat': !tun.endpointIndependentNat,
                 'route-exclude-address': ['192.168.0.0/16'],
+                'inet6-address': ['fd00:1234::1/126'],
               },
             },
             realPatchConfig: PatchClashConfig(tun: tun),
@@ -281,7 +287,15 @@ void main() {
           ),
         );
         final config = loadYaml(result.yaml) as YamlMap;
-        expect(config['tun']['auto-route'], 'fake-ip');
+        expect(config.containsKey('strict'), isFalse);
+        expect(
+          config['tun']['auto-route'],
+          tun.routeMode == TunRouteMode.fakeIp ? 'fake-ip' : 'global',
+        );
+        expect(
+          config['tun']['inet6-address'],
+          tun.captureIpv6 ? ['fd00:1234::1/126'] : null,
+        );
         expect(config['tun']['route-exclude-address'], ['192.168.0.0/16']);
         expect(config['tun']['strict-route'], !tun.strictRoute);
         expect(config['tun'].containsKey('stack'), isFalse);
