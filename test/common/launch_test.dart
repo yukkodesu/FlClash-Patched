@@ -39,6 +39,7 @@ class _FakeLauncher implements LaunchAtStartup {
 }
 
 void main() {
+  final originalLauncher = AutoLaunch.launcher;
   late _FakeLauncher launcher;
   late AutoLaunch autoLaunch;
 
@@ -50,7 +51,7 @@ void main() {
   });
 
   tearDownAll(() {
-    AutoLaunch.launcher = launchAtStartup;
+    AutoLaunch.launcher = originalLauncher;
   });
 
   test('AutoLaunch is a singleton', () {

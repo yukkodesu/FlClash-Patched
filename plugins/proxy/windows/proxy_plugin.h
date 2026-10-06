@@ -1,21 +1,55 @@
 #ifndef FLUTTER_PLUGIN_PROXY_PLUGIN_H_
 #define FLUTTER_PLUGIN_PROXY_PLUGIN_H_
 
-#include <windows.h>
-
+#include <flutter/encodable_value.h>
 #include <flutter/method_channel.h>
 #include <flutter/plugin_registrar_windows.h>
+#include <windows.h>
 
 #include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 
-namespace proxy {
+namespace proxy
+{
 
-class ProxyPlugin : public flutter::Plugin {
+struct ProxySettings
+{
+  DWORD flags = 0;
+  std::wstring server;
+  std::wstring bypass;
+};
+
+enum ProxyFields : unsigned
+{
+  kFlags = 1,
+  kServer = 2,
+  kBypass = 4
+};
+
+class ProxySettingsBackend
+{
  public:
-  static void RegisterWithRegistrar(flutter::PluginRegistrarWindows *registrar);
+  virtual ~ProxySettingsBackend() = default;
+  virtual bool Connections(std::vector<std::wstring>& connections) = 0;
+  virtual bool Read(const std::wstring& connection,
+                    ProxySettings& settings) = 0;
+  virtual bool Write(const std::wstring& connection,
+                     const ProxySettings& settings, unsigned fields) = 0;
+  virtual bool Notify() = 0;
+};
 
-  ProxyPlugin() = default;
+std::unique_ptr<ProxySettingsBackend> CreateProxySettingsBackend();
+
+class ProxyPlugin : public flutter::Plugin
+{
+ public:
+  static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
+
+  ProxyPlugin();
+
+  explicit ProxyPlugin(std::unique_ptr<ProxySettingsBackend> backend);
 
   explicit ProxyPlugin(flutter::PluginRegistrarWindows* registrar);
 
@@ -25,19 +59,31 @@ class ProxyPlugin : public flutter::Plugin {
   ProxyPlugin& operator=(const ProxyPlugin&) = delete;
 
   void HandleMethodCall(
-      const flutter::MethodCall<flutter::EncodableValue> &method_call,
+      const flutter::MethodCall<flutter::EncodableValue>& method_call,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
   static bool IsSessionEnding(UINT message, WPARAM wparam);
 
-  std::optional<LRESULT> HandleWindowProc(
-      HWND window, UINT message, WPARAM wparam, LPARAM lparam);
+  std::optional<LRESULT> HandleWindowProc(HWND window, UINT message,
+                                          WPARAM wparam, LPARAM lparam);
 
  private:
   flutter::PluginRegistrarWindows* registrar_ = nullptr;
   int window_proc_id_ = -1;
-  // A failed setup or cleanup can leave proxy settings applied.
-  bool proxy_applied_ = false;
+  struct OwnedConnection
+  {
+    std::wstring name;
+    ProxySettings before;
+    ProxySettings installed;
+    unsigned pending;
+    bool server_restored = false;
+  };
+  std::unique_ptr<ProxySettingsBackend> backend_;
+  std::vector<OwnedConnection> owned_;
+  bool notification_pending_ = false;
+  bool session_ending_ = false;
+  bool Start(int port, const flutter::EncodableList& bypass);
+  bool Stop();
 };
 
 }  // namespace proxy

@@ -5,6 +5,7 @@ import 'package:launch_at_startup/launch_at_startup.dart';
 
 import 'constant.dart';
 import 'system.dart';
+import 'windows_auto_launch.dart';
 
 class AutoLaunch {
   static AutoLaunch? _instance;
@@ -19,7 +20,9 @@ class AutoLaunch {
   }
 
   @visibleForTesting
-  static LaunchAtStartup launcher = launchAtStartup;
+  static LaunchAtStartup launcher = system.isWindows
+      ? WindowsAutoLaunch()
+      : launchAtStartup;
 
   Future<bool> get isEnable async {
     return launcher.isEnabled();
