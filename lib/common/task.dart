@@ -12,6 +12,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
+import 'package:yaml/yaml.dart' as yaml_parser;
 
 Future<T> decodeJSONTask<T>(String data) async {
   return compute<String, T>(_decodeJSON, data);
@@ -35,6 +36,31 @@ Future<String> encodeYamlTask<T>(T data) async {
 
 Future<String> _encodeYaml<T>(T content) async {
   return yaml.encode(content);
+}
+
+Future<({String yaml, String md5})> patchProfileTask(
+  String source,
+  Map<String, Object?> fields,
+) => compute(_patchProfile, (source: source, fields: fields));
+
+({String yaml, String md5}) _patchProfile(
+  ({String source, Map<String, Object?> fields}) data,
+) {
+  final config = Map<String, dynamic>.from(
+    yaml_parser.loadYaml(data.source) as Map,
+  );
+  for (final entry in data.fields.entries) {
+    if (entry.key == 'tun' && config['tun'] is Map) {
+      config['tun'] = {
+        ...Map<String, dynamic>.from(config['tun'] as Map),
+        ...entry.value as Map<String, Object?>,
+      };
+    } else {
+      config[entry.key] = entry.value;
+    }
+  }
+  final content = yaml.encode(config);
+  return (yaml: content, md5: content.toMd5());
 }
 
 Future<String> encodeMD5Task(String data) async {

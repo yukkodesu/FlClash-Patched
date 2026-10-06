@@ -45,6 +45,8 @@ class _MockCoreHandlerInterface extends Mock implements CoreHandlerInterface {
   }
 }
 
+class _FakeUpdateParams extends Fake implements UpdateParams {}
+
 // checkAndUpdateAndCopy checks the file system before it refreshes, so its
 // failure tests need appPath to resolve to a real, writable directory.
 class _FakePathProvider extends PathProviderPlatform {
@@ -204,6 +206,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const SetupParams(selectedMap: {}, testUrl: ''));
     registerFallbackValue(const InitParams(homeDir: '', version: 0));
+    registerFallbackValue(_FakeUpdateParams());
   });
 
   late TestSetupAction action;
@@ -1013,6 +1016,46 @@ void main() {
         expect(accepted, isFalse);
         expect(listenerStarted, isFalse);
         verifyNever(() => core.setupConfig(any()));
+      },
+    );
+
+    test(
+      'authorized TUN toggles apply without rebuilding the profile',
+      () async {
+        final core = _MockCoreHandlerInterface();
+        when(() => core.setupConfig(any())).thenAnswer((_) async => '');
+        when(() => core.updateConfig(any())).thenAnswer((_) async => '');
+        when(
+          () => core.getProxies(),
+        ).thenAnswer((_) async => const ProxiesData(proxies: {}, all: []));
+        when(() => core.getExternalProviders()).thenAnswer((_) async => []);
+        final scoped = ProviderContainer(
+          overrides: [
+            currentProfileProvider.overrideWithValue(null),
+            setupStateProvider.overrideWith((_, _) => nullProfileSetupState),
+            coreHandlerProvider.overrideWithValue(CoreController.scoped(core)),
+            setupActionProvider.overrideWith(_TransactionSetupAction.new),
+          ],
+        );
+        addTearDown(scoped.dispose);
+        final setup = scoped.read(setupActionProvider.notifier);
+        expect(await setup.applyProfile(force: true), isTrue);
+        scoped.read(authorizedTunEnableProvider.notifier).value =
+            TunAuthorizationState.authorized;
+        for (final enable in [true, false]) {
+          scoped
+              .read(patchClashConfigProvider.notifier)
+              .update((state) => state.copyWith.tun(enable: enable));
+          await setup.updateConfig();
+          expect(
+            await File(await appPath.configFilePath).readAsString(),
+            contains('enable: $enable'),
+          );
+        }
+        verify(() => core.setupConfig(any())).called(1);
+        verify(() => core.checkConfig(any())).called(1);
+        verify(() => core.updateConfig(any())).called(2);
+        verifyNever(() => core.restart());
       },
     );
 

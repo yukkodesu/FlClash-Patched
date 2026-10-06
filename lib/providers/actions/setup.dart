@@ -261,28 +261,45 @@ class SetupAction extends _$SetupAction {
         final patch = ref.read(patchClashConfigProvider);
         final applied = _appliedPatch;
         if (applied == null ||
-            applied.copyWith(mode: patch.mode, logLevel: patch.logLevel) !=
+            applied.copyWith(
+                  mode: patch.mode,
+                  logLevel: patch.logLevel,
+                  tun: patch.tun,
+                ) !=
                 patch) {
           return false;
         }
-        final message = await _core.updateConfig(
-          ref.read(updateParamsProvider),
-        );
-        if (message.isNotEmpty) throw MessageException(message);
-        final previous = _lastGoodConfig;
-        if (previous != null) {
-          final config = Map<String, dynamic>.from(
-            yaml_parser.loadYaml(previous.yaml) as Map,
-          );
-          config['mode'] = patch.mode.name;
-          config['log-level'] = patch.logLevel.name;
-          final yaml = await encodeYamlTask(config);
-          final md5 = yaml.toMd5();
-          await File(await appPath.configFilePath).safeWriteAsString(yaml);
-          _lastGoodConfig = (yaml: yaml, md5: md5, params: previous.params);
-          globalState.lastConfigMd5 = md5;
+        if (patch.tun.enable &&
+            ref.read(authorizedTunEnableProvider) !=
+                TunAuthorizationState.authorized) {
+          return false;
         }
+        final previous = _lastGoodConfig;
+        if (previous == null) return false;
+        final params = ref.read(updateParamsProvider);
+        final next = await patchProfileTask(previous.yaml, {
+          'mode': params.mode.name,
+          'log-level': params.logLevel.name,
+          'tun': params.tun.meowConfig,
+        });
+        final file = File(await appPath.configFilePath);
+        await file.safeWriteAsString(next.yaml);
+        try {
+          final message = await _core.updateConfig(params);
+          if (message.isNotEmpty) throw MessageException(message);
+        } catch (_) {
+          await file.safeWriteAsString(previous.yaml);
+          rethrow;
+        }
+        _lastGoodConfig = (
+          yaml: next.yaml,
+          md5: next.md5,
+          params: previous.params,
+        );
+        globalState.lastConfigMd5 = next.md5;
         _appliedPatch = patch;
+        ref.read(runtimeStatusProvider.notifier).value = await _core
+            .getRuntimeState();
         ref.read(checkIpNumProvider.notifier).add();
         return true;
       });

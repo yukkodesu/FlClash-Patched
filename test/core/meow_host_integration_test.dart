@@ -1002,6 +1002,30 @@ rules:
               connection.metadata.destinationPort == echo.port.toString(),
         );
         expect(held.metadata.sourcePort, isNotEmpty);
+        final beforeTun = await controller.getRuntimeState();
+        final beforeTraffic = await controller.getTotalTraffic(false);
+        final patch = UpdateParams.fromJson(
+          jsonDecode(
+                await File('test/fixtures/config_patch.json').readAsString(),
+              )
+              as Map<String, dynamic>,
+        ).copyWith(tun: const Tun(enable: false, mtu: 1400));
+        expect(await controller.updateConfig(patch), isEmpty);
+        final afterTraffic = await controller.getTotalTraffic(false);
+        expect(afterTraffic.up, greaterThanOrEqualTo(beforeTraffic.up));
+        expect(afterTraffic.down, greaterThanOrEqualTo(beforeTraffic.down));
+        expect(
+          (await controller.getRuntimeState()).listeners.map(
+            (item) => (item.name, item.type, item.address),
+          ),
+          beforeTun.listeners.map(
+            (item) => (item.name, item.type, item.address),
+          ),
+        );
+        expect(
+          (await controller.getConnections()).map((item) => item.id),
+          contains(held.id),
+        );
         await controller.closeConnection(held.id);
         await closed.future.timeout(const Duration(seconds: 5));
         expect(

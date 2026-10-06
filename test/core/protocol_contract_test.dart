@@ -212,7 +212,7 @@ class _EmptyConfigCoreHandler extends _RecordingCoreHandler {
 }
 
 void main() {
-  test('hot updates send only the supported mode and log level', () async {
+  test('hot updates send mode, log level and native TUN settings', () async {
     final fixture =
         jsonDecode(await File('test/fixtures/config_patch.json').readAsString())
             as Map<String, dynamic>;
@@ -222,6 +222,7 @@ void main() {
     expect(handler.calls[CoreMethod.updateConfig], {
       'mode': 'rule',
       'log-level': 'info',
+      'tun': params.tun.meowConfig,
     });
   });
 

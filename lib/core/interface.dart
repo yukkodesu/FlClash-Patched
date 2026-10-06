@@ -242,6 +242,7 @@ abstract class CoreHandlerInterface with CoreInterface {
       arguments: {
         'mode': updateParams.mode.name,
         'log-level': updateParams.logLevel.name,
+        'tun': updateParams.tun.meowConfig,
       },
     );
   }
