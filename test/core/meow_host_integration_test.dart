@@ -17,6 +17,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_api/rust_api.dart';
+import 'package:yaml/yaml.dart';
 
 import '../helpers/test_profiles.dart';
 
@@ -224,6 +225,107 @@ rules: ['GEOSITE,local,DIRECT', 'MATCH,DIRECT']
             isEmpty,
           );
           expect(await File('$home/sites.dat').readAsBytes(), geosite);
+          final generated = await makeRealProfileTask(
+            MakeRealProfileState(
+              profilesPath: await appPath.profilesPath,
+              profileId: 7,
+              rawConfig: {
+                'dns': {
+                  'enable': true,
+                  'listen': '127.0.0.1:0',
+                  'nameserver': ['rcode://success'],
+                  'default-nameserver': [
+                    '1.1.1.1',
+                    '2402:4e00::',
+                    'system',
+                    'system://',
+                  ],
+                },
+                'proxy-providers': {
+                  'remote': {'type': 'http', 'url': '$address/nodes'},
+                },
+                'proxy-groups': [
+                  {
+                    'name': 'route',
+                    'type': 'select',
+                    'use': ['remote'],
+                  },
+                ],
+                'rule-providers': {
+                  'domains': {
+                    'type': 'http',
+                    'url': '$address/rules',
+                    'behavior': 'domain',
+                  },
+                },
+                'rules': ['RULE-SET,domains,DIRECT', 'MATCH,route'],
+              },
+              realPatchConfig: const PatchClashConfig(
+                mixedPort: 0,
+                port: 0,
+                socksPort: 0,
+              ),
+              overrideDns: false,
+              appendSystemDns: false,
+              proxyGroups: const [],
+              rules: const [],
+              addedRules: const [],
+              defaultUA: 'FlClash-Meow-Test',
+            ),
+          );
+          final checked = await controller.checkConfig(generated.yaml);
+          expect(
+            checked.valid,
+            isTrue,
+            reason: checked.diagnostics.map((item) => item.reason).join('\n'),
+          );
+          expect(
+            checked.diagnostics.any(
+              (item) =>
+                  item.severity == 'warning' &&
+                  item.path == 'dns.default-nameserver' &&
+                  item.reason.contains('system'),
+            ),
+            isTrue,
+          );
+          expect(
+            (await controller.checkConfig(
+              'strict: true\n${generated.yaml}',
+            )).valid,
+            isFalse,
+          );
+          final onlySystem = Map<String, dynamic>.from(
+            jsonDecode(jsonEncode(loadYaml(generated.yaml))) as Map,
+          );
+          onlySystem['dns']['default-nameserver'] = ['system', 'system://'];
+          expect(
+            (await controller.checkConfig(
+              await encodeYamlTask(onlySystem),
+            )).valid,
+            isFalse,
+          );
+          final configFile = File(await appPath.configFilePath);
+          await configFile.writeAsString(generated.yaml);
+          expect(
+            await controller.setupConfig(
+              params: const SetupParams(selectedMap: {}, testUrl: ''),
+            ),
+            isEmpty,
+          );
+          expect(await controller.startListener(), isTrue);
+          expect(await controller.stopListener(), isTrue);
+          expect(await configFile.readAsString(), generated.yaml);
+          final logs = await controller.startLogNotify();
+          controller.stopLogNotify();
+          expect(
+            logs.where(
+              (log) =>
+                  log.logLevel == LogLevel.warning &&
+                  log.payload.contains('dns.default-nameserver') &&
+                  log.payload.contains('system'),
+            ),
+            hasLength(1),
+          );
         });
       } finally {
         await requests.cancel();

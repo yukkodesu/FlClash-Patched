@@ -149,7 +149,7 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
           newPath: path,
         );
       }
-      provider['path'] = path;
+      provider['path'] = relative(path, from: dirname(profilesPath));
     }
   }
 

@@ -222,12 +222,13 @@ void main() {
       expect(config['sniffer']['sniff']['HTTP']['ports'], [80, '443']);
       expect(
         config['proxy-providers']['remote']['path'],
-        startsWith(join('/profiles', 'providers', '7', 'proxies')),
+        startsWith(join('profiles', 'providers', '7', 'proxies')),
       );
       expect(
         config['rule-providers']['remote']['path'],
-        startsWith(join('/profiles', 'providers', '7', 'rules')),
+        startsWith(join('profiles', 'providers', '7', 'rules')),
       );
+      expect(config['proxy-providers']['file']['path'], './local.yaml');
       expect(config['rules'], [
         'DOMAIN-SUFFIX,added.example,Original',
         'DOMAIN,existing.example,DIRECT',
@@ -508,7 +509,10 @@ void main() {
         ),
       );
       final config = loadYaml(result.yaml) as YamlMap;
-      expect(config['proxy-providers'][name]['path'], newPath);
+      expect(
+        config['proxy-providers'][name]['path'],
+        relative(newPath, from: dirname(tempDir.path)),
+      );
       return (legacyPath: legacyPath, newPath: newPath);
     }
 
