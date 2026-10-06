@@ -27,6 +27,13 @@ class _ProviderLoadedEvents with CoreEventListener {
   void onLoaded(String name) => names.add(name);
 }
 
+class _NativeLogEvents with CoreEventListener {
+  final logs = <Log>[];
+
+  @override
+  void onLog(Log log) => logs.add(log);
+}
+
 class _DirectHost implements DesktopCoreLauncherResolver {
   final DirectCoreLauncher launcher;
 
@@ -566,6 +573,13 @@ rules: ['MATCH,route']
       final client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 3)
         ..findProxy = (_) => 'PROXY $proxyHost:$proxyPort';
+      final nativeEvents = _NativeLogEvents();
+      coreEventManager.addListener(nativeEvents);
+      final appOutput = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) {
+        if (message != null) appOutput.add(message);
+      };
       try {
         await controller.start();
         final info = await controller.getCoreInfo();
@@ -669,6 +683,30 @@ rules:
           isEmpty,
         );
         expect((await controller.getRuntimeState()).running, isFalse);
+        expect(
+          nativeEvents.logs.where(
+            (log) => log.payload.contains('etag-support'),
+          ),
+          isEmpty,
+          reason: 'Unsubscribed startup logs must stay in Core history.',
+        );
+        final startupLogs = await controller.startLogNotify();
+        final warnings = startupLogs.where(
+          (log) => log.payload.contains('etag-support'),
+        );
+        expect(warnings, hasLength(1));
+        expect(warnings.single.logLevel, LogLevel.warning);
+        expect(warnings.single.source, LogSource.core);
+        expect(warnings.single.payload, isNot(contains('\u001b')));
+        expect(
+          appOutput.where(
+            (line) => line.contains('Unknown configuration field'),
+          ),
+          isEmpty,
+          reason: 'Core warnings must use structured logs, not the app logger.',
+        );
+        expect(appOutput.join(), isNot(contains('\u001b')));
+        controller.stopLogNotify();
         final groups = await controller.getProxiesGroups(
           sortType: ProxiesSortType.none,
           delayMap: const {},
@@ -866,6 +904,8 @@ rules:
         expect(restarted.configured, isFalse);
         expect(restarted.running, isFalse);
       } finally {
+        debugPrint = originalDebugPrint;
+        coreEventManager.removeListener(nativeEvents);
         client.close(force: true);
         tunnel?.destroy();
         socks?.destroy();

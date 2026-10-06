@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/core/event.dart';
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/models/models.dart';
 
 import 'model.dart';
 
@@ -36,12 +38,22 @@ final class DirectCoreLauncher implements CoreProcessLauncher {
   }) async {
     final process = await _startProcess(corePath, [address]);
     process.stdout.listen((_) {});
-    process.stderr.listen((data) {
-      final error = utf8.decode(data);
-      if (error.isNotEmpty) {
-        commonPrint.log(error, logLevel: LogLevel.warning);
-      }
-    });
+    process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .transform(const LineSplitter())
+        .listen((line) {
+          final error = line
+              .replaceAll(RegExp(r'\x1b\[[0-?]*[ -/]*[@-~]'), '')
+              .trim();
+          if (error.isNotEmpty) {
+            coreEventManager.sendEvent(
+              CoreEvent(
+                type: CoreEventType.log,
+                data: {'LogLevel': LogLevel.error.name, 'Payload': error},
+              ),
+            );
+          }
+        });
     return DirectCoreLease(sessionId: sessionId, process: process);
   }
 }

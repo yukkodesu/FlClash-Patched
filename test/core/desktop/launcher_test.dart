@@ -1,11 +1,43 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fl_clash/core/desktop/launcher.dart';
 import 'package:fl_clash/core/desktop/model.dart';
+import 'package:fl_clash/core/event.dart';
+import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/models/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('native startup stderr is decoded as a plain Core error', () async {
+    final bytes = utf8.encode(
+      '\u001b[31mError: 内核 initialization failed\u001b[0m\n',
+    );
+    final process = _FakeProcess(
+      pid: 42,
+      exitCode: Future.value(1),
+      stderr: Stream.fromIterable([bytes.sublist(0, 14), bytes.sublist(14)]),
+    );
+    final listener = _LogEvents();
+    coreEventManager.addListener(listener);
+    try {
+      final launcher = DirectCoreLauncher(
+        startProcess: (_, _) async => process,
+        corePath: 'FlClashMeowCore',
+      );
+      await launcher.start(sessionId: 'session', address: 'address');
+      final log = await listener.first.future.timeout(
+        const Duration(seconds: 1),
+      );
+      expect(log.source, LogSource.core);
+      expect(log.logLevel, LogLevel.error);
+      expect(log.payload, 'Error: 内核 initialization failed');
+    } finally {
+      coreEventManager.removeListener(listener);
+    }
+  });
+
   test(
     'observing native exit releases a direct lease without killing it',
     () async {
@@ -111,11 +143,15 @@ class _FakeProcess implements Process {
   final Stream<List<int>> stdout = const Stream.empty();
 
   @override
-  final Stream<List<int>> stderr = const Stream.empty();
+  final Stream<List<int>> stderr;
 
   bool killed = false;
 
-  _FakeProcess({required this.pid, required this.exitCode});
+  _FakeProcess({
+    required this.pid,
+    required this.exitCode,
+    this.stderr = const Stream.empty(),
+  });
 
   @override
   bool kill([ProcessSignal signal = ProcessSignal.sigterm]) {
@@ -126,5 +162,14 @@ class _FakeProcess implements Process {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     return super.noSuchMethod(invocation);
+  }
+}
+
+class _LogEvents with CoreEventListener {
+  final first = Completer<Log>();
+
+  @override
+  void onLog(Log log) {
+    if (!first.isCompleted) first.complete(log);
   }
 }
