@@ -1,6 +1,16 @@
 name: build
 
 on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: Build desktop installation packages after validation
+        type: boolean
+        default: true
+      acceptance_build_run:
+        description: Accept existing desktop package artifacts from this build run ID; empty runs normal validation/build
+        type: string
+        default: ''
   push:
     branches:
       - '**'
@@ -14,11 +24,10 @@ concurrency:
 env:
   IS_STABLE: ${{ !contains(github.ref, '-') }}
   FLUTTER_VERSION: '3.47.6'
-  GO_VERSION: '1.26.8'
-  NDK_VERSION: r30
 
 jobs:
   dart-checks:
+    if: inputs.acceptance_build_run == ''
     name: Dart checks
     runs-on: ubuntu-latest
     steps:
@@ -32,6 +41,9 @@ jobs:
 
       - name: Test comment density hook
         run: bash tool/check_comment_density_test.sh
+
+      - name: Test product uninstall commands
+        run: python3 tool/product_uninstall_test.py
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -50,6 +62,7 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
   dart-tests:
+    if: inputs.acceptance_build_run == ''
     name: Dart tests (${{ matrix.shard }})
     needs: rust
     runs-on: ubuntu-latest
@@ -92,6 +105,7 @@ jobs:
           --shard-index=${{ matrix.shard }}
 
   plugins:
+    if: inputs.acceptance_build_run == ''
     name: Plugins
     runs-on: ubuntu-latest
     steps:
@@ -115,108 +129,262 @@ jobs:
           dart analyze
           dart test
 
-  go:
-    name: Go core
-    runs-on: ubuntu-latest
+  standalone-regression:
+    if: inputs.acceptance_build_run == ''
+    name: Standalone meow regression
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: core/meow-rs
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: dtolnay/rust-toolchain@1.98.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: core/go.sum
-
-      - name: Validate Go core wrapper
-        working-directory: core
-        env:
-          CGO_ENABLED: 0
-        run: |
-          if ! compgen -G '*_test.go' > /dev/null; then
-            echo 'No Go tests found in core/; the test step would pass vacuously.' >&2
-            exit 1
-          fi
-          test -z "$(gofmt -l ./*.go ./platform ./tun)" || {
-            gofmt -l ./*.go ./platform ./tun >&2
-            exit 1
-          }
-          go test -count=1 .
-          go vet .
-          GOOS=linux go vet ./platform
-
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        id: ndk
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
         with:
-          ndk-version: ${{ env.NDK_VERSION }}
-
-      - name: Validate the Android core library
-        working-directory: core
-        env:
-          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          workspaces: core/meow-rs
+          key: standalone-linux-amd64
+          cache-on-failure: true
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: linux
+          triple: x86_64-unknown-linux-gnu
+      - name: Verify pinned source
         run: |
-          # Nothing else compiles the `android && cgo` files before a `v*` tag.
-          CC="$(echo "$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin/aarch64-linux-android21-clang)"
-          test -x "$CC" || { echo "NDK clang not found at $CC" >&2; exit 1; }
-          tags="$(sed -n 's/^tags: *//p' ../build_config.yaml)"
-          test -n "$tags" || { echo 'Could not read tags from build_config.yaml' >&2; exit 1; }
-          export CGO_ENABLED=1 GOOS=android GOARCH=arm64 CC
-          go vet "-tags=$tags" . ./tun ./platform
+          CORE_SHA="$(git rev-parse HEAD)"
+          CLIENT_SHA="$(git -C ../.. rev-parse HEAD)"
+          PIN="$(git -C ../.. rev-parse HEAD:core/meow-rs)"
+          test "$CORE_SHA" = "$PIN"
+          printf 'client=%s\ncore=%s\n' "$CLIENT_SHA" "$CORE_SHA"
+      - name: Formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy (default features)
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Clippy (no default features)
+        run: cargo clippy --locked --all-targets --no-default-features -- -D warnings
+      - name: Clippy (all features)
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Minimal standalone CLI features
+        run: cargo clippy --locked -p meow-app --all-targets --no-default-features -- -D warnings
+      - name: Workspace documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --workspace --no-deps
+      - name: UDP port 53 listener regression
+        run: cargo test --locked -p meow-listener --all-features --lib udp_port_53
+      - name: Cache local Shadowsocks test peer
+        id: standalone-ssserver
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/meow-test-peers/bin/ssserver
+          key: standalone-ssserver-linux-amd64-1.24.0-stream-aead2022-rust1.98.1
+      - name: Build pinned local Shadowsocks test peer
+        if: steps.standalone-ssserver.outputs.cache-hit != 'true'
+        run: >-
+          cargo install shadowsocks-rust --version 1.24.0 --locked --force
+          --bin ssserver --features "stream-cipher aead-cipher-2022"
+          --root "$RUNNER_TEMP/meow-test-peers"
+      - name: Prepare verified local plugin peer
+        run: |
+          sudo apt-get install -y --no-install-recommends shadowsocks-v2ray-plugin=1.3.1-4
+          dpkg-query -W -f='${Version}\n' shadowsocks-v2ray-plugin | grep -Fx '1.3.1-4'
+          PEER_BIN="$RUNNER_TEMP/meow-test-peers/bin"
+          mkdir -p "$PEER_BIN"
+          ln -s /usr/bin/ss-v2ray-plugin "$PEER_BIN/v2ray-plugin"
+          "$PEER_BIN/ssserver" --version | grep -F '1.24.0'
+          "$PEER_BIN/v2ray-plugin" -version
+          echo "$PEER_BIN" >> "$GITHUB_PATH"
+      - name: Curated standalone unit and integration tests
+        run: |
+          cargo test --locked --lib --bin meow \
+            --test socks5_udp_user \
+            --test common_test --test dns_cache_test --test config_test \
+            --test statistics_test --test rules_test --test api_test \
+            --test raii_guard_test --test http_connection_close \
+            --test config_persistence_test --test systemd_config_test \
+            --test trojan_integration --test vless_config_test --test vless_integration \
+            --test v2ray_plugin_integration --test pre_resolve_test \
+            --test tls_test --test boring_tls_test --test ws_test --test crate_invariants_test \
+            --test crate_publish_metadata_test -- --nocapture
+      - name: Isolated configuration and background ownership regressions
+        run: |
+          cargo test --locked -p meow-config --test offline_validation -- --nocapture
+          cargo test --locked -p meow-tunnel --test background_lifetime -- --nocapture
+      - name: Standalone API without TUN feature unification
+        run: cargo test --locked -p meow-api --test api_test -- --nocapture
 
-  android:
-    name: Android unit tests
-    runs-on: ubuntu-latest
+  meow-host:
+    if: inputs.acceptance_build_run == ''
+    name: Meow host (${{ matrix.platform }}/${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows, arch: amd64, os: windows-2022, triple: x86_64-pc-windows-msvc }
+          - { platform: windows, arch: arm64, os: windows-11-arm, triple: aarch64-pc-windows-msvc }
+          - { platform: linux, arch: amd64, os: ubuntu-22.04, triple: x86_64-unknown-linux-gnu }
+          - { platform: linux, arch: arm64, os: ubuntu-22.04-arm, triple: aarch64-unknown-linux-gnu }
+          - { platform: macos, arch: amd64, os: macos-26-intel, triple: x86_64-apple-darwin }
+          - { platform: macos, arch: arm64, os: macos-26, triple: aarch64-apple-darwin }
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          targets: ${{ matrix.triple }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core/meow-rs
+          key: meow-${{ matrix.triple }}
+          cache-on-failure: true
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: ${{ matrix.platform }}
+          triple: ${{ matrix.triple }}
+      - name: Validate host
+        working-directory: core/meow-rs
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked -p flclash-meow-host -p meow-common --all-targets -- -D warnings
+          cargo test --locked -p flclash-meow-host -p meow-common
+          cargo build --locked --release -p flclash-meow-host --target ${{ matrix.triple }}
+      - name: Elevated Windows caller storage boundary
+        if: matrix.platform == 'windows'
+        working-directory: core/meow-rs
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Storage ownership acceptance requires a disposable GitHub-hosted runner.' }
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+          if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'The runner must already have an elevated token.' }
+          cargo test --locked -p meow-common --test managed_files_windows elevated_exact_owner_is_accepted_but_ordinary_caller_rejects_admin_owned_home -- --ignored --exact --nocapture
+      - name: Build native rust_api library
+        working-directory: plugins/rust_api/rust
+        run: cargo build --locked --release --target ${{ matrix.triple }}
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: master
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Setup NDK
-        uses: nttld/setup-ndk@v1
-        id: ndk
-        with:
-          ndk-version: ${{ env.NDK_VERSION }}
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Run Android unit tests
-        working-directory: android
-        env:
-          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+      - name: Prepare real host integration test
+        shell: bash
         run: |
-          {
-            echo "flutter.sdk=$FLUTTER_ROOT"
-            echo "sdk.dir=$ANDROID_HOME"
-          } > local.properties
-          wrapper="$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper"
-          test -d "$wrapper" || flutter precache
-          cp -R "$wrapper/." .
-          chmod +x gradlew
-          # `:core` only calls System.loadLibrary; the excluded Flutter tasks would run
-          # the native build hooks for every debug ABI, which no JVM unit test consumes.
-          ./gradlew :common:testDebugUnitTest :service:testDebugUnitTest :app:testDebugUnitTest \
-            -x :app:compileFlutterBuildDebug -x :app:copyFlutterAssetsDebug
-
+          flutter pub get
+          python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
+      - name: Mandatory CoreController integration test
+        id: core-e2e
+        shell: bash
+        env:
+          FLCLASH_MEOW_HOST: ${{ github.workspace }}/core/meow-rs/target/${{ matrix.triple }}/release/flclash-meow-host${{ matrix.platform == 'windows' && '.exe' || '' }}
+          FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR: ${{ github.workspace }}/plugins/rust_api/rust/target/${{ matrix.triple }}/release
+        run: |
+          test -n "$FLCLASH_MEOW_HOST" && test -f "$FLCLASH_MEOW_HOST"
+          test -f "$FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR/${{ matrix.platform == 'windows' && 'rust_api.dll' || (matrix.platform == 'linux' && 'librust_api.so' || 'librust_api.dylib') }}"
+          "$FLCLASH_MEOW_HOST" --version
+          flutter test test/core/meow_host_integration_test.dart --reporter expanded
+      - name: Prepare native Unix system proxy acceptance
+        id: proxy-unix-prepare
+        if: always() && matrix.platform != 'windows' && steps.core-e2e.outcome != 'skipped'
+        working-directory: plugins/proxy
+        shell: bash
+        run: |
+          test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted
+          if [[ '${{ matrix.platform }}' == linux ]]; then
+            sudo apt-get install -y dbus-x11 dconf-cli dconf-service gsettings-desktop-schemas
+          fi
+          flutter pub get
+      - name: Actual Unix system proxy ownership acceptance
+        if: always() && steps.proxy-unix-prepare.outcome == 'success'
+        working-directory: plugins/proxy
+        shell: bash
+        env:
+          FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE: '1'
+          FLCLASH_MEOW_PROXY_EVIDENCE_PATH: ${{ github.workspace }}/build/native-proxy/${{ matrix.platform }}-${{ matrix.arch }}.json
+        run: |
+          test "$GITHUB_ACTIONS" = true && test "$RUNNER_ENVIRONMENT" = github-hosted
+          mkdir -p "$GITHUB_WORKSPACE/build/native-proxy"
+          if [[ '${{ matrix.platform }}' == linux ]]; then
+            dbus-run-session -- dart run tool/native_proxy_acceptance.dart
+          else
+            sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" \
+              FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE="$FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE" \
+              FLCLASH_MEOW_PROXY_EVIDENCE_PATH="$FLCLASH_MEOW_PROXY_EVIDENCE_PATH" \
+              "${FLUTTER_ROOT:?}/bin/cache/dart-sdk/bin/dart" run tool/native_proxy_acceptance.dart
+          fi
+          python -c "import json, os; assert json.load(open(os.environ['FLCLASH_MEOW_PROXY_EVIDENCE_PATH']))['outcome'] == 'passed'"
+      - name: Actual Windows system proxy ownership acceptance
+        if: always() && matrix.platform == 'windows' && steps.core-e2e.outcome != 'skipped'
+        shell: pwsh
+        env:
+          FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE: '1'
+          FLCLASH_MEOW_PROXY_EVIDENCE_PATH: ${{ github.workspace }}/build/native-proxy/${{ matrix.platform }}-${{ matrix.arch }}.json
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Native system proxy acceptance requires an opted-in disposable GitHub-hosted runner.' }
+          New-Item -ItemType Directory -Force build/native-proxy | Out-Null
+          flutter precache --windows
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $architecture = '${{ matrix.arch }}' -eq 'arm64' ? 'ARM64' : 'x64'
+          $engineArchitecture = '${{ matrix.arch }}' -eq 'arm64' ? 'arm64' : 'x64'
+          $engine = Join-Path $env:FLUTTER_ROOT "bin/cache/artifacts/engine/windows-$engineArchitecture"
+          $proxySource = Join-Path $env:GITHUB_WORKSPACE 'plugins/proxy/windows'
+          cmake -S tool/native_proxy_windows -B build/native-proxy/windows -A $architecture "-DCMAKE_POLICY_VERSION_MINIMUM=3.5" "-DFLUTTER_ENGINE_DIR=$engine" "-DPROXY_SOURCE_DIR=$proxySource"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build/native-proxy/windows --config Release --target proxy_test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build/native-proxy/windows/proxy/Release/proxy_test.exe '--gtest_filter=ProxyNativeAcceptance.*'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $evidence = Get-Content -Raw -LiteralPath $env:FLCLASH_MEOW_PROXY_EVIDENCE_PATH | ConvertFrom-Json -AsHashtable
+          if ($evidence.outcome -ne 'passed') { throw 'Native system proxy acceptance did not record a passing OS result.' }
+      - name: Upload system proxy ownership evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: proxy-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/native-proxy/*.json
+          if-no-files-found: warn
+      - name: Native TUN ownership and crash recovery
+        if: always() && steps.core-e2e.outcome == 'success'
+        run: python tool/native_desktop_acceptance.py --log build/native-acceptance/${{ matrix.platform }}-${{ matrix.arch }}.log
+      - name: Upload native acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-acceptance-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/native-acceptance
+          if-no-files-found: ignore
+      - name: Stage hash-coupled production Core and Helper
+        id: helper-stage
+        if: always() && steps.core-e2e.outcome == 'success' && matrix.platform != 'macos'
+        working-directory: plugins/setup/setup_hooks
+        shell: bash
+        run: |
+          dart pub get
+          dart run bin/build_desktop.dart ${{ matrix.platform }} ${{ matrix.arch }}
+      - name: Actual privileged Helper lifetime acceptance
+        if: always() && steps.helper-stage.outcome == 'success' && matrix.platform != 'macos'
+        shell: bash
+        env:
+          FRB_DART_LOAD_EXTERNAL_LIBRARY_NATIVE_LIB_DIR: ${{ github.workspace }}/plugins/rust_api/rust/target/${{ matrix.triple }}/release
+        run: |
+          python tool/privileged_helper_acceptance.py \
+            --bundle libclash/${{ matrix.platform }} \
+            --log .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
+      - name: Upload Helper lifetime evidence
+        if: always() && matrix.platform != 'macos'
+        uses: actions/upload-artifact@v7
+        with:
+          name: helper-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: .dart_tool/native-evidence/helper-${{ matrix.platform }}-${{ matrix.arch }}.log
+          if-no-files-found: warn
   rust:
+    if: inputs.acceptance_build_run == ''
     name: Rust
     runs-on: ubuntu-latest
     steps:
@@ -253,6 +421,7 @@ jobs:
           if-no-files-found: error
 
   windows-helper-test:
+    if: inputs.acceptance_build_run == ''
     name: Windows helper test
     runs-on: windows-2022
     steps:
@@ -271,41 +440,18 @@ jobs:
         run: cargo test --manifest-path services/helper/Cargo.toml --features windows-service
 
   build:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [ dart-checks, dart-tests, plugins, go, android, rust, windows-helper-test ]
+    if: inputs.acceptance_build_run == '' && ((github.event_name == 'workflow_dispatch' && inputs.packages) || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
+    needs: [ dart-checks, dart-tests, plugins, standalone-regression, meow-host, rust, windows-helper-test ]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - platform: android
-            os: ubuntu-latest
-          - platform: windows
-            os: Windows-2022
-            arch: amd64
-          - platform: windows
-            os: Windows-2022
-            arch: amd64-v3
-          - platform: linux
-            os: ubuntu-22.04
-            arch: amd64
-          - platform: linux
-            os: ubuntu-22.04
-            arch: amd64-v3
-          - platform: macos
-            os: macos-26
-            arch: amd64-v3
-          - platform: macos
-            os: macos-26
-            arch: arm64
-          - platform: ios
-            os: macos-26
-            arch: arm64
-          - platform: windows
-            os: windows-11-arm
-            arch: arm64
-          - platform: linux
-            os: ubuntu-22.04-arm
-            arch: arm64
+          - { platform: windows, os: windows-2022, arch: amd64, triple: x86_64-pc-windows-msvc }
+          - { platform: windows, os: windows-11-arm, arch: arm64, triple: aarch64-pc-windows-msvc }
+          - { platform: linux, os: ubuntu-22.04, arch: amd64, triple: x86_64-unknown-linux-gnu }
+          - { platform: linux, os: ubuntu-22.04-arm, arch: arm64, triple: aarch64-unknown-linux-gnu }
+          - { platform: macos, os: macos-26-intel, arch: amd64, triple: x86_64-apple-darwin }
+          - { platform: macos, os: macos-26, arch: arm64, triple: aarch64-apple-darwin }
       fail-fast: false
 
     steps:
@@ -323,32 +469,24 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Android Signing
-        if: startsWith(matrix.platform,'android')
-        run: |
-          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/keystore.jks
-          {
-            echo "keyAlias=${{ secrets.KEY_ALIAS }}"
-            echo "storePassword=${{ secrets.STORE_PASSWORD }}"
-            echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
-          } >> android/local.properties
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
+      - name: Setup host Rust toolchain
+        uses: dtolnay/rust-toolchain@1.98.1
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: core/go.sum
-
+          targets: ${{ matrix.triple }}
+      - uses: ./.github/actions/desktop-native
+        with:
+          platform: ${{ matrix.platform }}
+          triple: ${{ matrix.triple }}
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.platform }}-${{ matrix.arch || 'all' }}
-          workspaces: services/helper
+          cache-on-failure: true
+          workspaces: |
+            services/helper
+            core/meow-rs
+            plugins/rust_api/rust
           cache-directories: .dart_tool/hooks_runner
-
-      - name: Setup Gradle
-        if: startsWith(matrix.platform,'android')
-        uses: gradle/actions/setup-gradle@v6
 
       - name: Enable git long paths (Windows)
         if: startsWith(matrix.os, 'windows')
@@ -369,25 +507,18 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.3.app || sudo xcode-select -s /Applications/Xcode_26.2.app
           xcodebuild -version
 
-      - name: Setup NDK
-        if: startsWith(matrix.platform,'android')
-        uses: nttld/setup-ndk@v1
-        id: build-ndk
-        with:
-          ndk-version: ${{ env.NDK_VERSION }}
-          add-to-path: true
-          link-to-sdk: true
-
       - name: Get Flutter Dependency
         run: |
           flutter --version
           flutter pub get
 
       - name: Setup
-        env:
-          ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
-        run: dart setup.dart ${{ matrix.platform }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} ${{ matrix.platform == 'ios' && '--no-codesign' || '' }} ${{ (matrix.platform == 'macos' || matrix.platform == 'linux' || matrix.platform == 'windows') && format('--arch {0}', matrix.arch) || '' }} -v
-
+        run: dart setup.dart ${{ matrix.platform }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} --arch ${{ matrix.arch }} -v
+      - name: Smoke staged core
+        shell: bash
+        run: |
+          test -d dist && test -n "$(find dist -type f -print -quit)"
+          "libclash/${{ matrix.platform }}/FlClashMeowCore${{ matrix.platform == 'windows' && '.exe' || '' }}" --version
       - name: Upload
         uses: actions/upload-artifact@v7
         with:
@@ -395,7 +526,121 @@ jobs:
           path: ./dist
           overwrite: true
 
+  package-acceptance:
+    name: Installed package (${{ matrix.platform }}/${{ matrix.arch }})
+    if: github.event_name == 'workflow_dispatch' && inputs.acceptance_build_run != ''
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: windows, os: windows-2022, arch: amd64 }
+          - { platform: windows, os: windows-11-arm, arch: arm64 }
+          - { platform: linux, os: ubuntu-22.04, arch: amd64 }
+          - { platform: linux, os: ubuntu-22.04-arm, arch: arm64 }
+          - { platform: macos, os: macos-26-intel, arch: amd64 }
+          - { platform: macos, os: macos-26, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify artifact build provenance
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.acceptance_build_run }}
+        run: |
+          [[ "$RUNNER_ENVIRONMENT" == github-hosted ]]
+          [[ "$BUILD_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          mkdir -p build/package-acceptance
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" > build/package-acceptance/build-run.json
+          BUILD_CLIENT_SHA="$(python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          metadata = json.loads(Path('build/package-acceptance/build-run.json').read_text())
+          repository = os.environ['GITHUB_REPOSITORY']
+          if (str(metadata['id']) != os.environ['BUILD_RUN_ID']
+              or metadata['repository']['full_name'] != repository
+              or metadata['head_repository']['full_name'] != repository
+              or metadata['path'] != '.github/workflows/build.yaml'
+              or metadata['event'] not in ('push', 'workflow_dispatch')
+              or metadata['status'] != 'completed'
+              or not re.fullmatch('[0-9a-f]{40}', metadata['head_sha'])):
+              raise SystemExit('Rejecting an incomplete, foreign or unexpected artifact build source')
+          print(metadata['head_sha'])
+          PY
+          )"
+          git fetch --no-tags origin "$BUILD_CLIENT_SHA"
+          test "$(git rev-parse --verify "$BUILD_CLIENT_SHA^{commit}")" = "$BUILD_CLIENT_SHA"
+          BUILD_CORE_SHA="$(git rev-parse "$BUILD_CLIENT_SHA:core/meow-rs")"
+          [[ "$BUILD_CORE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git ls-tree "$BUILD_CLIENT_SHA" core/meow-rs | cut -d ' ' -f 1)" = 160000
+          echo "BUILD_CLIENT_SHA=$BUILD_CLIENT_SHA" >> "$GITHUB_ENV"
+          echo "BUILD_CORE_SHA=$BUILD_CORE_SHA" >> "$GITHUB_ENV"
+          echo "BUILD_RUN_ID=$BUILD_RUN_ID" >> "$GITHUB_ENV"
+      - name: Download the verified build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: artifact-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist
+          run-id: ${{ inputs.acceptance_build_run }}
+          github-token: ${{ github.token }}
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Prepare installed-library CoreController test
+        shell: bash
+        run: |
+          flutter pub get
+          python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
+      - name: Prepare disposable Linux desktop
+        if: matrix.platform == 'linux'
+        run: sudo apt-get install -y xvfb openbox xfce4-panel xfconf xdotool scrot dbus-x11 python3-gi xdg-utils libgtk-3-0 libayatana-appindicator3-1 libegl1 libgl1 libgles2 libgl1-mesa-dri
+      - name: Install and accept actual artifact
+        shell: bash
+        env:
+          PACKAGE_PLATFORM: ${{ matrix.platform }}
+          PACKAGE_ARCH: ${{ matrix.arch }}
+        run: |
+          if [[ "$PACKAGE_PLATFORM" == linux ]]; then
+            dbus-run-session -- xvfb-run -a --server-args="-screen 0 1280x1024x24" bash -c '
+              set -euo pipefail
+              export LIBGL_ALWAYS_SOFTWARE=1
+              mkdir -p build/package-acceptance
+              trap "jobs -pr | xargs -r kill" EXIT
+              openbox > build/package-acceptance/openbox.log 2>&1 &
+              xfconf-query -c xfce4-panel -p /panels -n -a -t int -s 1
+              xfconf-query -c xfce4-panel -p /panels/panel-1/plugin-ids -n -a -t int -s 1
+              xfconf-query -c xfce4-panel -p /panels/panel-1/position -n -t string -s "p=10;x=640;y=16"
+              xfconf-query -c xfce4-panel -p /panels/panel-1/position-locked -n -t bool -s true
+              xfconf-query -c xfce4-panel -p /panels/panel-1/size -n -t int -s 32
+              xfconf-query -c xfce4-panel -p /panels/panel-1/length -n -t int -s 100
+              xfconf-query -c xfce4-panel -p /panels/panel-1/length-adjust -n -t bool -s false
+              xfconf-query -c xfce4-panel -p /panels/panel-1/autohide-behavior -n -t int -s 0
+              xfconf-query -c xfce4-panel -p /plugins/plugin-1 -n -t string -s systray
+              xfce4-panel --disable-wm-check > build/package-acceptance/xfce-panel.log 2>&1 &
+              export MEOW_PACKAGE_PANEL_PID=$!
+              /usr/bin/python3 tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl
+            '
+          else
+            python tool/desktop_package_acceptance.py --dist dist --arch "$PACKAGE_ARCH" --source-client "$BUILD_CLIENT_SHA" --source-core "$BUILD_CORE_SHA" --build-run-id "$BUILD_RUN_ID" --log build/package-acceptance/acceptance.jsonl
+          fi
+      - name: Upload native package evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: build/package-acceptance
+          if-no-files-found: warn
+
   upload:
+    if: inputs.acceptance_build_run == '' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     needs: [ build ]
