@@ -1,4 +1,5 @@
 import 'package:fl_clash/common/system.dart';
+import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
@@ -205,7 +206,7 @@ void main() {
         'Stop button in notification',
       ],
       if (system.isAndroid || system.isMacOS) 'Show real-time network speed',
-      'Requests',
+      AppLocalizations.current.requests,
       'User-Agent',
       'Verify TLS certificates',
       'Inbound',
