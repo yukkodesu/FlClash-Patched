@@ -304,7 +304,12 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
   Future<_LifecycleAchievement> _reconcile(_LifecycleIntent intent) async {
     final cleanupFailure = _cleanupFailure;
     if (cleanupFailure != null && intent.target != _LifecycleTarget.closed) {
-      throw cleanupFailure;
+      if (intent.target != _LifecycleTarget.restarted ||
+          _session != null ||
+          _unconfirmedLease != null) {
+        throw cleanupFailure;
+      }
+      _cleanupFailure = null;
     }
     final unconfirmedLease = _unconfirmedLease;
     if (unconfirmedLease != null && intent.target != _LifecycleTarget.closed) {
@@ -587,18 +592,25 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
           ).timeout(timeouts.gracefulShutdown);
           await session.lease.waitForExit(timeouts.processExit);
         } catch (error, stackTrace) {
-          cleanupFailure = _failure(
-            code: 'resources_release_unconfirmed',
-            phase: DesktopCorePhase.stopping,
-            revision: revision,
-            session: session,
-            cause: error,
-            stackTrace: stackTrace,
-          );
-          if (!forceCleanupOnFailure &&
+          final exitedAfterDisconnect =
               error is CoreMethodException &&
-              error.code == 'resources_release_unconfirmed') {
-            throw cleanupFailure;
+              error.code == 'transport_disconnected' &&
+              await session.lease.waitForExit(timeouts.processExit);
+          // Native journal recovery gates network resources after a confirmed host exit.
+          if (!exitedAfterDisconnect) {
+            cleanupFailure = _failure(
+              code: 'resources_release_unconfirmed',
+              phase: DesktopCorePhase.stopping,
+              revision: revision,
+              session: session,
+              cause: error,
+              stackTrace: stackTrace,
+            );
+            if (!forceCleanupOnFailure &&
+                error is CoreMethodException &&
+                error.code == 'resources_release_unconfirmed') {
+              throw cleanupFailure;
+            }
           }
         }
       }

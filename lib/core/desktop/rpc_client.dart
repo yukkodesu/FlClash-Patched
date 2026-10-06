@@ -198,7 +198,10 @@ final class CoreRpcClient implements CoreRpcChannel {
     try {
       await (() async {
         if (transport.state != DesktopTransportState.connected) {
-          throw StateError('Core session is no longer connected');
+          throw const CoreMethodException(
+            code: 'transport_disconnected',
+            message: 'Core session is no longer connected',
+          );
         }
         final connection = await transport.waitUntilConnected(timeout);
         if (!identical(_shutdownResponse, response) ||

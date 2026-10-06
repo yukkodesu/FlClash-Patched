@@ -77,14 +77,6 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   void onLog(Log log) {
     ref.read(logsProvider.notifier).add(log);
-    if (log.logLevel == LogLevel.error) {
-      throttler.call(
-        FunctionTag.coreErrorNotifier,
-        () => dialogs.showNotifier(log.payload, level: MessageLevel.error),
-        duration: const Duration(seconds: 3),
-        fire: true,
-      );
-    }
   }
 
   @override
@@ -109,7 +101,7 @@ class _CoreContainerState extends ConsumerState<CoreManager>
     }
     ref.read(coreStatusProvider.notifier).value = CoreStatus.disconnected;
     ref.read(runtimeStatusProvider.notifier).value = null;
-    ref.read(setupActionProvider.notifier).syncRunningState(false);
+    ref.read(setupActionProvider.notifier).onCoreDisconnected();
     if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
       context.showNotifier(message, level: MessageLevel.error);
     }

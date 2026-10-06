@@ -30,7 +30,7 @@ final class DesktopCoreTimeouts {
     this.ready = const Duration(seconds: 10),
     this.connection = const Duration(seconds: 10),
     this.disconnection = const Duration(seconds: 10),
-    this.gracefulShutdown = const Duration(seconds: 30),
+    this.gracefulShutdown = const Duration(minutes: 2),
     this.processExit = const Duration(seconds: 2),
   });
 }

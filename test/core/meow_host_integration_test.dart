@@ -106,6 +106,25 @@ void main() {
   _HostBinding();
 
   test(
+    'CoreController restarts after its host is externally terminated',
+    () async {
+      await _withRealHost(executable!, (controller) async {
+        for (var attempt = 0; attempt < 3; attempt++) {
+          final session = (await controller.start()).session!;
+          expect(Process.killPid(session.pid), isTrue);
+          final restarted = await controller.restart();
+          expect(restarted.session!.pid, isNot(session.pid));
+          expect(await controller.init(1), isTrue);
+          expect((await controller.getRuntimeState()).initialized, isTrue);
+        }
+      });
+    },
+    skip: executable == null
+        ? 'Set FLCLASH_MEOW_HOST to a built Rust host.'
+        : false,
+  );
+
+  test(
     'CoreController seeds missing geodata and preserves existing files',
     () async {
       await _withRealHost(executable!, (controller) async {

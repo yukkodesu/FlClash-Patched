@@ -184,6 +184,8 @@ void main() {
       ),
     );
     container.read(coreStatusProvider.notifier).value = CoreStatus.connected;
+    container.read(requestedRunningProvider.notifier).value = true;
+    container.read(runTimeProvider.notifier).value = 0;
     final transitions = <CoreStatus>[];
     final subscription = container.listen<CoreStatus>(
       coreStatusProvider,
@@ -198,6 +200,8 @@ void main() {
 
     expect(container.read(coreStatusProvider), CoreStatus.disconnected);
     expect(transitions, [CoreStatus.disconnected]);
+    expect(container.read(requestedRunningProvider), isTrue);
+    expect(container.read(isStartProvider), isFalse);
     verifyNever(() => coreInterface.stop());
 
     await tester.pumpWidget(const SizedBox());
@@ -300,11 +304,11 @@ void main() {
     },
   );
 
-  testWidgets('non-geo Core errors retain global notifications', (
+  testWidgets('connection errors stay in logs without a global notification', (
     tester,
   ) async {
     final coreInterface = _coreInterface();
-    await _pumpCoreManager(tester, coreInterface);
+    final container = await _pumpCoreManager(tester, coreInterface);
 
     try {
       coreEventManager.sendEvent(
@@ -315,9 +319,12 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('core failure'), findsOneWidget);
+      expect(find.text('core failure'), findsNothing);
+      expect(
+        container.read(logsProvider).list.map((log) => log.payload),
+        contains('core failure'),
+      );
     } finally {
-      throttler.cancel(FunctionTag.coreErrorNotifier);
       await tester.pumpWidget(const SizedBox.shrink());
     }
   });

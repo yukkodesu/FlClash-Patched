@@ -73,6 +73,10 @@ class SetupAction extends _$SetupAction {
     }
   }
 
+  void onCoreDisconnected() {
+    _setLocalRunning(false);
+  }
+
   void _setLocalRunning(bool running) {
     foregroundTicker.unregister(_updateTickerTag);
     if (!running) {
@@ -568,10 +572,7 @@ class SetupAction extends _$SetupAction {
         try {
           final configFilePath = await appPath.configFilePath;
           final previous = _lastGoodConfig;
-          final runtime = await _core.getRuntimeState();
-          final shouldRestart =
-              restartAfterAuthorization ||
-              (runtime.configured && yamlMd5 != globalState.lastConfigMd5);
+          final shouldRestart = restartAfterAuthorization;
           if (revision != _profileRevision) return;
           try {
             await File(configFilePath).safeWriteAsString(yamlString);
@@ -620,12 +621,17 @@ class SetupAction extends _$SetupAction {
             if (previous != null && revision == _profileRevision) {
               await File(configFilePath).safeWriteAsString(previous.yaml);
               if (_latestRunRequest?.running == false) rethrow;
-              final restored = await _listenerScheduler.run(_core.restart);
-              if (restored.outcome != CoreLifecycleOutcome.superseded &&
-                  revision == _profileRevision) {
+              if (shouldRestart) {
+                final restored = await _listenerScheduler.run(_core.restart);
+                if (restored.outcome == CoreLifecycleOutcome.superseded ||
+                    revision != _profileRevision) {
+                  rethrow;
+                }
                 if (!await _core.init(ref.read(versionProvider))) {
                   throw StateError('Previous core initialization failed.');
                 }
+              }
+              if (revision == _profileRevision) {
                 final restoreMessage = await _core.setupConfig(
                   params: previous.params,
                 );

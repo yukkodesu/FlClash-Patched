@@ -262,7 +262,7 @@ abstract class Tun with _$Tun {
     TunStack stack,
     @JsonKey(name: 'recvmsgx') @Default(true) bool recvMsgX,
     @JsonKey(name: 'sendmsgx') @Default(true) bool sendMsgX,
-    @JsonKey(name: 'dns-hijack') @Default([]) List<String> dnsHijack,
+    @JsonKey(name: 'dns-hijack') @Default(['any:53']) List<String> dnsHijack,
     @JsonKey(name: 'route-address') @Default([]) List<String> routeAddress,
     @JsonKey(name: 'strict-route') @Default(false) bool strictRoute,
     @JsonKey(name: 'disable-icmp-forwarding')

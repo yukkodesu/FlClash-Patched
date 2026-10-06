@@ -12,6 +12,41 @@ const _sessionId = '0123456789abcdef0123456789abcdef';
 
 void main() {
   test(
+    'an explicit restart can recover after a timed-out host has exited',
+    () async {
+      final transport = FakeDesktopCoreTransport();
+      final first = FakeLauncher(owner: CoreProcessOwner.direct, pid: 42);
+      final replacement = FakeLauncher(owner: CoreProcessOwner.direct, pid: 84);
+      final resolver = MutableLauncherResolver(first);
+      final lifecycle = DesktopCoreLifecycle(
+        transportFactory: () => transport,
+        launcherResolver: resolver,
+        sessionIdFactory: () => _sessionId,
+        timeouts: const DesktopCoreTimeouts(
+          gracefulShutdown: Duration(milliseconds: 10),
+        ),
+        shutdownSession: (session, _) =>
+            session.pid == 42 ? Completer<void>().future : Future<void>.value(),
+      );
+      await _startConnected(lifecycle, transport, first, pid: 42);
+      final stopping = lifecycle.stop();
+      final failure = expectLater(
+        stopping,
+        throwsA(_hasCode('resources_release_unconfirmed')),
+      );
+      await first.lease.stopStarted;
+      transport.disconnect(1);
+      await failure;
+      resolver.launcher = replacement;
+      final restarting = lifecycle.restart();
+      await replacement.started.timeout(const Duration(seconds: 1));
+      transport.connect(pid: 84, generation: 2);
+      expect((await restarting).session?.pid, 84);
+      await _closeRunning(lifecycle, transport, replacement.lease, 2);
+    },
+  );
+
+  test(
     'a cleanup timeout forces exit but cannot authorize a replacement',
     () async {
       final transport = FakeDesktopCoreTransport();

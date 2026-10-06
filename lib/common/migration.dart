@@ -72,7 +72,7 @@ class Migration {
     : _store = store,
       _migrateV0 = migrateV0 ?? oldToNowTask;
 
-  static const currentVersion = 2;
+  static const currentVersion = 3;
 
   Future<Config> run() async {
     final configMap = await _store.getConfigMap();
@@ -128,6 +128,9 @@ class Migration {
     }
 
     config = Config.realFromJson(data.configMap);
+    if (oldVersion < 3 && config.patchClashConfig.tun.dnsHijack.isEmpty) {
+      config = config.copyWith.patchClashConfig.tun(dnsHijack: ['any:53']);
+    }
     await _store.restore(data);
     if (!await _store.saveConfig(config)) {
       // An unopenable store is reported later by the corrupt-cache dialog,

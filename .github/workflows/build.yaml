@@ -298,7 +298,12 @@ jobs:
           if-no-files-found: warn
       - name: Native TUN ownership and crash recovery
         if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && (!cancelled() && steps.core-e2e.outcome == 'success')
-        run: python tool/native_desktop_acceptance.py --log build/native-acceptance/${{ matrix.platform }}-${{ matrix.arch }}.log
+        shell: bash
+        run: |
+          python tool/native_desktop_acceptance.py --log build/native-acceptance/${{ matrix.platform }}-${{ matrix.arch }}.log
+          if [ '${{ matrix.platform }}' = windows ]; then
+            python tool/native_desktop_acceptance.py --mode global --log build/native-acceptance/windows-x64-global.log
+          fi
       - name: Upload native acceptance evidence
         if: github.event_name == 'workflow_dispatch' && inputs.native_acceptance && always()
         uses: actions/upload-artifact@v7

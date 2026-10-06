@@ -1100,7 +1100,7 @@ void main() {
             applied.first,
           );
           expect(globalState.lastConfigMd5, 'first');
-          verify(() => core.restart()).called(stopDuringFailure ? 1 : 2);
+          verifyNever(() => core.restart());
         },
       );
     }

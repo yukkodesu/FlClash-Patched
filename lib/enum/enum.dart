@@ -381,7 +381,6 @@ enum FunctionTag {
   saveSharedFile,
   removeProxy,
   suspend,
-  coreErrorNotifier,
   handleBack,
   foreground,
   background,
