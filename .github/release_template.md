@@ -3,7 +3,7 @@ FlClash-Meow VERSION uses an embedded meow-rs core for Windows, macOS and Linux.
 ## Upstream Base
 
 - **FlClash-Patched:** [0.9.2 at `6adae513`](https://github.com/chenx-dust/FlClash-Patched/commit/6adae513).
-- **meow-rs:** [0.22.0 with the fork's desktop host at `b580cbeb`](https://github.com/yukkodesu/meow-rs/commit/b580cbeb).
+- **meow-rs:** [v0.22.0](https://github.com/meow-rs/meow-rs/releases/tag/v0.22.0).
 
 ## What's Changed
 
