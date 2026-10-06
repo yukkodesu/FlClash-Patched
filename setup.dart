@@ -6,6 +6,8 @@ import 'package:args/args.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'tool/geodata.dart';
+
 const _allTargets = <String, String>{
   'linux': 'deb,pacman,appimage,zip',
   'macos': 'dmg',
@@ -187,6 +189,7 @@ Future<int> _package(
   required bool skipDependencies,
   required bool verbose,
 }) async {
+  await ensureGeoData(rootDir: rootDir);
   await File(
     p.join(rootDir, 'env.json'),
   ).writeAsString(jsonEncode(createBuildEnvironment(env)));

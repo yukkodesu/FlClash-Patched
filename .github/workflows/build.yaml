@@ -119,6 +119,7 @@ jobs:
       - name: Skip native build hooks
         run: |
           yq -i '.hooks.user_defines.setup.build_assets = false | .hooks.user_defines.rust_api.build_assets = false' pubspec.yaml
+          dart tool/geodata.dart
 
       - name: Run tests
         env:
@@ -223,6 +224,7 @@ jobs:
         run: |
           flutter pub get
           python -c "from pathlib import Path; p=Path('pubspec.yaml'); p.write_text(p.read_text().replace('build_assets: true', 'build_assets: false'))"
+          dart tool/geodata.dart
       - name: Mandatory CoreController integration test
         id: core-e2e
         shell: bash

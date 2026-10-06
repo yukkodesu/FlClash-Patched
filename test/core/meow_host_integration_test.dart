@@ -80,9 +80,6 @@ Future<void> _withRealHost(
     await controller.start();
     final data = Directory(await appPath.homeDirPath);
     await data.create(recursive: true);
-    for (final name in ['Country.mmdb', 'GeoLite2-ASN.mmdb', 'geosite.dat']) {
-      await File('${data.path}/$name').writeAsBytes([]);
-    }
     expect(await controller.init(1), isTrue);
     await exercise(controller);
   } finally {
@@ -107,6 +104,29 @@ Future<List<Group>> _groups(CoreController controller, String testUrl) {
 void main() {
   final executable = Platform.environment['FLCLASH_MEOW_HOST'];
   _HostBinding();
+
+  test(
+    'CoreController seeds missing geodata and preserves existing files',
+    () async {
+      await _withRealHost(executable!, (controller) async {
+        final home = await appPath.homeDirPath;
+        for (final name in [
+          'Country.mmdb',
+          'GeoLite2-ASN.mmdb',
+          'geosite.dat',
+        ]) {
+          expect(await File('$home/$name').length(), greaterThan(0));
+        }
+        final existing = File('$home/Country.mmdb');
+        await existing.writeAsBytes([1, 2, 3]);
+        expect(await controller.init(1), isTrue);
+        expect(await existing.readAsBytes(), [1, 2, 3]);
+      });
+    },
+    skip: executable == null
+        ? 'Set FLCLASH_MEOW_HOST to a built Rust host.'
+        : false,
+  );
 
   test(
     'CoreController validates fresh remote resources before applying their payloads',

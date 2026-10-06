@@ -8,6 +8,8 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
+import 'desktop/geodata.dart';
+
 class CoreController {
   static CoreController? _instance;
   late CoreHandlerInterface _interface;
@@ -64,6 +66,7 @@ class CoreController {
     await getCoreInfo();
     await ensureHomeDir();
     final homeDirPath = await appPath.homeDirPath;
+    await seedBundledGeodata(homeDirPath);
     return _interface.init(InitParams(homeDir: homeDirPath, version: version));
   }
 

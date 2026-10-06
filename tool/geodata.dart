@@ -2,16 +2,16 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+Future<void> main() async {
+  await ensureGeoData(rootDir: Directory.current.path);
+}
+
 const geoDataSources = {
-  'BundleMRS.7z':
-      'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/BundleMRS.7z',
-  'GeoIP.metadb':
-      'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb',
-  'ASN.mmdb':
+  'Country.mmdb':
+      'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb',
+  'GeoLite2-ASN.mmdb':
       'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb',
-  'GeoIP.dat':
-      'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat',
-  'GeoSite.dat':
+  'geosite.dat':
       'https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat',
 };
 
