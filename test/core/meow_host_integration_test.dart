@@ -644,7 +644,9 @@ rules: ['MATCH,route']
           'proxies:\n  - name: unsupported\n    type: tuic\n',
         );
         expect(rejected.valid, isFalse);
-        expect(rejected.diagnostics, isNotEmpty);
+        expect(rejected.diagnostics.single.path, 'proxies[0].type');
+        expect(rejected.diagnostics.single.reason, contains('tuic'));
+        expect(rejected.diagnostics.single.suggestion, isNotEmpty);
         expect((await controller.getRuntimeState()).configured, isFalse);
         for (final options in [
           'username: 123, password: 456',

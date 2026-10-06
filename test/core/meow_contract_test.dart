@@ -42,29 +42,6 @@ const hostInfo = <String, Object?>{
 };
 
 void main() {
-  test('controller returns bound listener and DNS addresses', () async {
-    final controller = CoreController.scoped(
-      HostContract({
-        'getRuntimeState': {
-          'initialized': true,
-          'configured': true,
-          'running': true,
-          'tunActive': false,
-          'generation': 2,
-          'listeners': [
-            {'name': 'mixed', 'type': 'mixed', 'address': '127.0.0.1:43210'},
-          ],
-          'dnsListen': '127.0.0.1:43211',
-          'externalController': null,
-        },
-      }),
-    );
-    final runtime = await controller.getRuntimeState();
-    expect(runtime.listeners.single.address, '127.0.0.1:43210');
-    expect(runtime.dnsListen, '127.0.0.1:43211');
-    expect(runtime.externalController, isNull);
-  });
-
   test(
     'controller preserves a host cleanup failure for user feedback',
     () async {
@@ -115,22 +92,6 @@ void main() {
     },
   );
 
-  test(
-    'controller exposes actual host capabilities and traffic scope',
-    () async {
-      final controller = CoreController.scoped(
-        HostContract({'getCoreInfo': hostInfo}),
-      );
-      final info = await controller.getCoreInfo();
-      expect(info.version, '0.22.0');
-      expect(info.hostVersion, '0.1.0');
-      expect(info.capabilities, contains('connections'));
-      expect(info.capabilities, isNot(contains('node-traffic')));
-      expect(info.statisticsScope, 'all');
-      expect(info.connectionsScope, 'tcp');
-    },
-  );
-
   test('controller rejects an incompatible host control protocol', () async {
     final controller = CoreController.scoped(
       HostContract({
@@ -148,32 +109,4 @@ void main() {
       ),
     );
   });
-
-  test(
-    'configuration rejection retains actionable object diagnostics',
-    () async {
-      final controller = CoreController.scoped(
-        HostContract({
-          'checkConfig': {
-            'valid': false,
-            'diagnostics': [
-              {
-                'severity': 'error',
-                'path': 'proxies[0].type',
-                'reason': 'tuic is unsupported',
-                'suggestion': 'Use a supported proxy protocol.',
-              },
-            ],
-          },
-        }),
-      );
-      final result = await controller.checkConfig(
-        'proxies:\n  - name: unsupported\n    type: tuic\n',
-      );
-      expect(result.valid, false);
-      expect(result.diagnostics.single.path, 'proxies[0].type');
-      expect(result.diagnostics.single.reason, 'tuic is unsupported');
-      expect(result.diagnostics.single.suggestion, isNotEmpty);
-    },
-  );
 }

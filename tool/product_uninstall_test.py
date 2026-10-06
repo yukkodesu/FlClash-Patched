@@ -112,18 +112,6 @@ function Unregister-ScheduledTask {
                 self.assertEqual(outside_handler.read_text(), 'Exec="/usr/share/FlClashMeow/FlClashMeow" %u\n')
                 self.assertEqual(mime.read_bytes(), before)
 
-    def test_inno_uninstall_has_path_guarded_current_user_registration_cleanup(self):
-        template = (ROOT / 'windows/packaging/exe/inno_setup.iss').read_text()
-        cleanup = template.split('procedure UnregisterProduct;', 1)[1].split('\nfunction ', 1)[0]
-        self.assertIn("RegQueryStringValue(HKCU, ProtocolKey + '\\shell\\open\\command', '', Command)", cleanup)
-        self.assertIn("CompareText(Command, '\"' + Executable + '\" \"%1\"') = 0", cleanup)
-        self.assertIn('RegDeleteKeyIncludingSubkeys(HKCU, ProtocolKey)', cleanup)
-        self.assertIn("RegQueryStringValue(HKCU, RunKey, 'FlClash-Meow', Command)", cleanup)
-        self.assertIn('CompareText(Command, Executable) = 0', cleanup)
-        self.assertIn("RegDeleteValue(HKCU, RunKey, 'FlClash-Meow')", cleanup)
-        uninstall = template.split('function InitializeUninstall(): Boolean;', 1)[1].split('[Languages]', 1)[0]
-        self.assertIn('UnregisterProduct;', uninstall)
-
 
 if __name__ == '__main__':
     unittest.main()

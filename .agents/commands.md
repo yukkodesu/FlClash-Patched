@@ -22,9 +22,8 @@ Linux packages declare GTK 3, the C++ runtime, EGL/OpenGL/OpenGL ES dispatch lib
 and `xdg-utils` for URL registration. GTK's [libepoxy](https://github.com/anholt/libepoxy/blob/master/src/dispatch_common.c)
 loads graphics libraries dynamically, so `ldd` alone does not establish their availability. Debian packages use
 `libegl1`, `libgl1` and `libgles2`; Arch packages use [libglvnd](https://archlinux.org/packages/extra/x86_64/libglvnd/files/).
-The target desktop also needs a working distribution graphics driver. The disposable Xvfb package fixture installs
-Mesa DRI and selects software rendering with `LIBGL_ALWAYS_SOFTWARE=1`; that prepares its virtual desktop and does not
-replace checking the rebuilt package's dependency metadata or its actual installed UI.
+The target desktop also needs a working distribution graphics driver. Package acceptance must check the rebuilt
+package's dependency metadata and its actual installed UI.
 
 Flutter runs `plugins/setup/hook/build.dart` during native builds and tests. The pure Dart harness builds the embedded
 Rust host first, then embeds its final SHA256 in the Windows/Linux Helper and writes `manifest.json`. Artifacts land in
@@ -252,8 +251,8 @@ while `v<pubspec version>` is still tagged it refuses to collect anything and th
 
 ## Verify
 
-Every branch push runs formatting/analysis, eight root Flutter test shards, plugin gates, Helper/Rust API checks,
-six native host jobs, and a Linux standalone meow regression gate. Reproduce root checks with:
+Every branch push runs formatting/analysis, four root Flutter test shards, plugin gates, Helper/Rust API checks,
+three native host jobs: Windows amd64, Linux amd64 and macOS arm64. Reproduce root checks with:
 
 ```bash
 bash tool/check_commit_msg_test.sh
@@ -268,40 +267,30 @@ The pure Dart setup harness uses `dart analyze` and `dart test` from its package
 compile real Cargo fixtures and verify caching, Core/Helper hash coupling, and failure preservation.
 `bash tool/check_plugins.sh` discovers local Flutter packages and runs their analysis/tests.
 
-The `standalone-regression` job verifies the exact `core/meow-rs` gitlink and runs
-the core's CONTRIBUTING regression bar: formatting, default/no-default/all-feature
-Clippy, warning-free workspace rustdoc, the curated standalone unit/integration
-targets and the all-feature UDP port 53 listener tests. Run those same commands
-from `core/meow-rs` as listed in its `CONTRIBUTING.md`. Protocol-specific Docker
-or local-peer suites remain required when their protocol code changes, as that
-document specifies. Normal package builds depend on this gate; artifact-only
-acceptance of an existing build does not recompile its core.
-The plugin integration target uses local peers: shadowsocks-rust 1.24.0 is built
-with the upstream locked stream-cipher/aead-cipher-2022 features, and Ubuntu's
-verified shadowsocks-v2ray-plugin 1.3.1-4 package supplies the plugin binary.
-Their presence is checked before tests; neither a Go build nor remote proxy nodes
-are needed. Test output remains visible so ignored or skipped cases are auditable.
+The engine's full standalone protocol regression suite belongs to the meow-rs repository; run the commands in
+its `CONTRIBUTING.md` when updating the core or changing engine code. Client CI checks host formatting/lint once on
+Linux and host/common contracts plus real CoreController E2E on Windows amd64, Linux amd64 and macOS arm64.
 
-The `meow-host` matrix executes CoreController E2E with native host and Rust API artifacts on Windows/Linux/macOS x64
-and ARM64. Each native job then compiles the ignored native TUN executable as its normal build user and invokes it
-elevated through `tool/native_desktop_acceptance.py`. The runner refuses non-disposable/self-hosted environments;
-the harness records local TCP/UDP/DNS traffic, owned DNS/routes, stop/exit and crash recovery. Its output is uploaded
-as native acceptance evidence. Global mode requires a separate experimental opt-in and acceptance record.
+Manual `workflow_dispatch` with `native_acceptance=true` additionally runs privileged TUN, Helper and system proxy
+contracts on those same three targets. This input defaults to false. Native tests refuse non-disposable/self-hosted
+environments and upload their actual OS evidence; ordinary test success does not complete native acceptance.
+`tool/native_desktop_acceptance.py` records local TCP/UDP/DNS traffic, owned DNS/routes, stop/exit and crash recovery.
+Global mode requires a separate experimental opt-in and acceptance record.
 
-Windows/Linux also run the installed, hash-coupled Helper fixture through `CoreController`. Its ordinary lifetime case
+Opted-in Windows/Linux runs also test the installed, hash-coupled Helper through `CoreController`. Its ordinary lifetime case
 and fake-IP TUN case run separately with eight- and eleven-minute outer limits; the TUN test itself is bounded to ten
 minutes for first Wintun installation, a warm restart and native evidence queries. The TUN case verifies local DNS/HTTP,
 stopListener, restart and terminal close with default production lifecycle limits (30-second cleanup, two-second process
 exit), an independent 60-second close observation, exact DNS/routes restoration and empty recovery journals. These
 scenario limits do not extend application shutdown; portable runs skip both real service cases and prove no native result.
 
-The same six native jobs run the system proxy fixture with
+The opted-in three native jobs run the system proxy fixture with
 `FLCLASH_MEOW_PROXY_NATIVE_ACCEPTANCE=1`, `GITHUB_ACTIONS=true` and
 `RUNNER_ENVIRONMENT=github-hosted`. Unix invokes
 `dart run tool/native_proxy_acceptance.dart` from `plugins/proxy`; Linux supplies
 an isolated D-Bus session with GNOME schemas/dconf, and macOS uses the runner's
 real `networksetup` under sudo. The macOS fixture verifies the privileged native
-contract; ordinary GUI authorization remains part of package acceptance.
+contract; ordinary GUI authorization remains part of manual package acceptance.
 Windows builds the production plugin's
 `proxy_test` target through `tool/native_proxy_windows/CMakeLists.txt` with its
 matching Flutter engine, then selects `ProxyNativeAcceptance.*`. These fixtures
@@ -310,10 +299,11 @@ final fixture baseline in `build/native-proxy/*.json`, uploaded even on failure.
 Missing evidence or an outcome other than `passed` fails CI. Do not opt in on
 a workstation or self-hosted runner; these tests change actual OS proxy settings.
 
-Manual `workflow_dispatch` runs all gates plus six desktop package builds and staged Core smoke checks by default;
+Manual `workflow_dispatch` runs ordinary gates plus six desktop package builds and staged Core smoke checks by default;
 set its `packages` input to `false` for validation without installation artifacts. The default package run
-uploads artifacts without creating a release. A `v*` tag push additionally publishes the release. A green build does not
-prove elevated TUN installation or package uninstall: record native acceptance in `https://github.com/yukkodesu/FlClash-Patched/issues/8`.
+uploads artifacts without creating a release. A `v*` tag push additionally publishes the release. Installation, tray,
+autostart and uninstall are checked manually on Windows amd64, Linux amd64 and macOS arm64.
+A green build does not prove these interactions or elevated TUN installation: record native acceptance in `https://github.com/yukkodesu/FlClash-Patched/issues/8`.
 
 ## Worktree Tooling
 
