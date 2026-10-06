@@ -722,6 +722,34 @@ rules: ['MATCH,route']
           compatibility.diagnostics.every((item) => item.severity == 'warning'),
           isTrue,
         );
+        final anytls =
+            '''
+proxies:
+  - name: pinned
+    type: anytls
+    server: localhost
+    port: 443
+    password: fixture
+    fingerprint: '${List.filled(64, '0').join()}'
+    name-cert-verify: localhost
+    client-fingerprint: chrome
+    alpn: [h2, http/1.1]
+rules: ['MATCH,DIRECT']
+''';
+        final tlsOptions = await controller.checkConfig(anytls);
+        expect(tlsOptions.valid, isTrue);
+        expect(tlsOptions.diagnostics, isEmpty);
+        final invalidPin = await controller.checkConfig(
+          'strict: true\n${anytls.replaceFirst(List.filled(64, '0').join(), 'invalid')}',
+        );
+        expect(invalidPin.valid, isFalse);
+        expect(
+          invalidPin.diagnostics.any(
+            (item) =>
+                item.severity == 'error' && item.reason.contains('fingerprint'),
+          ),
+          isTrue,
+        );
         final rejected = await controller.checkConfig(
           'strict: true\nproxies:\n  - name: unsupported\n    type: tuic\n',
         );
