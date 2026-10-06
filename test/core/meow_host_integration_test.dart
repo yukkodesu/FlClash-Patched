@@ -323,7 +323,7 @@ rules: ['GEOSITE,local,DIRECT', 'MATCH,DIRECT']
               (item) =>
                   item.severity == 'warning' &&
                   item.path == 'dns.default-nameserver' &&
-                  item.reason.contains('system'),
+                  item.reason.toLowerCase().contains('system'),
             ),
             isTrue,
           );

@@ -195,6 +195,7 @@ jobs:
         shell: bash
         run: |
           cargo test --locked -p flclash-meow-host -p meow-common
+          cargo test --locked -p meow-proxy --test direct_udp_binding
           cargo build --locked --release -p flclash-meow-host --target ${{ matrix.triple }}
       - name: Windows Helper and uninstall contracts
         if: matrix.platform == 'windows'
