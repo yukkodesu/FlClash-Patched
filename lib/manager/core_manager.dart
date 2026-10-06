@@ -8,6 +8,7 @@ import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/core.dart';
+import 'package:fl_clash/providers/state.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -42,21 +43,34 @@ class _CoreContainerState extends ConsumerState<CoreManager>
         unawaited(ref.read(setupActionProvider.notifier).fullSetup());
       });
     });
-    ref.listenManual(
-      networkSettingProvider.select((state) => state.authentication),
-      (prev, next) {
-        if (prev != next) {
-          ref
-              .read(setupActionProvider.notifier)
-              .applyProfileDebounce(force: true);
-        }
-      },
-    );
-    ref.listenManual(patchClashConfigProvider, (prev, next) {
+    ref.listenManual(updateParamsProvider, (prev, next) {
       if (prev != next) {
         ref.read(setupActionProvider.notifier).updateConfigDebounce();
       }
     });
+    ref.listenManual(profileReloadStateProvider, (prev, next) {
+      if (prev != next) _reloadProfile();
+    });
+    ref.listenManual(activeAddedRulesProvider, (prev, next) {
+      if (next.profileId == null ||
+          prev?.profileId != next.profileId ||
+          prev?.rules.value == null ||
+          next.rules.isLoading ||
+          next.rules.hasError ||
+          ruleListEquality.equals(prev?.rules.value, next.rules.value)) {
+        return;
+      }
+      _reloadProfile();
+    });
+  }
+
+  void _reloadProfile() {
+    if (!ref.read(initProvider) ||
+        ref.read(coreStatusProvider) != CoreStatus.connected ||
+        ref.read(currentProfileIdProvider) == null) {
+      return;
+    }
+    ref.read(setupActionProvider.notifier).applyProfileDebounce(silence: true);
   }
 
   @override

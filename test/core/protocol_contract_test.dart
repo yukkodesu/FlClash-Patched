@@ -165,6 +165,17 @@ class _RecordingCoreHandler extends CoreHandlerInterface {
         'heapReleased': 2048,
       },
       CoreMethod.getGoroutineCount => 42,
+      CoreMethod.queryRule => {
+        'target': 'example.com',
+        'port': 443,
+        'network': 'tcp',
+        'mode': 'rule',
+        'rule': 'DomainSuffix',
+        'rulePayload': 'example.com',
+        'proxy': 'DIRECT',
+        'ip': '',
+        'delay': 0,
+      },
       _ => '',
     };
     return result as T;
@@ -432,6 +443,47 @@ void main() {
     expect(memory.other, 128);
     expect(memory.heapReleased, 2048);
     expect(await handler.getGoroutineCount(), 42);
+    final ruleQuery = await handler.queryRule(
+      const RuleQueryParams(target: 'example.com'),
+    );
+    expect(handler.calls[CoreMethod.queryRule], {
+      'target': 'example.com',
+      'port': 443,
+      'network': 'tcp',
+    });
+    expect(ruleQuery.rule, 'DomainSuffix');
+    expect(ruleQuery.proxy, 'DIRECT');
+    expect(ruleQuery.mode, Mode.rule);
+    await handler.queryRule(
+      const RuleQueryParams(
+        target: 'example.com',
+        sourceIP: '192.0.2.2',
+        sourcePort: 12345,
+        destinationIP: '192.0.2.1',
+        process: 'browser',
+        processPath: '/usr/bin/browser',
+        uid: 123,
+        inboundName: 'mixed-in',
+        inboundUser: 'alice',
+        sniffHost: 'sniff.example',
+        dscp: 63,
+      ),
+    );
+    expect(handler.calls[CoreMethod.queryRule], {
+      'target': 'example.com',
+      'port': 443,
+      'network': 'tcp',
+      'sourceIP': '192.0.2.2',
+      'sourcePort': 12345,
+      'destinationIP': '192.0.2.1',
+      'process': 'browser',
+      'processPath': '/usr/bin/browser',
+      'uid': 123,
+      'inboundName': 'mixed-in',
+      'inboundUser': 'alice',
+      'sniffHost': 'sniff.example',
+      'dscp': 63,
+    });
   });
 
   test(

@@ -107,11 +107,17 @@ mixin CoreInterface {
 
   Future<DnsQuery> queryDns(String domain, String type);
 
+  Future<RuleQuery> queryRule(RuleQueryParams params);
+
   Future<bool> crash();
 
   FutureOr<List<TrackerInfo>> getConnections();
 
   FutureOr<bool> closeConnection(String id);
+
+  Future<List<CoreRule>> getRules();
+
+  Future<bool> setRuleDisabled(SetRuleDisabledParams params);
 
   FutureOr<String> clearEffect(int profileId);
 
@@ -468,6 +474,26 @@ abstract class CoreHandlerInterface with CoreInterface {
   }
 
   @override
+  Future<List<CoreRule>> getRules() async {
+    final data = await _invokeMethod<List<dynamic>>(
+      method: CoreMethod.getRules,
+    );
+    return (data ?? const [])
+        .whereType<Map>()
+        .map((item) => CoreRule.fromJson(Map<String, Object?>.from(item)))
+        .toList();
+  }
+
+  @override
+  Future<bool> setRuleDisabled(SetRuleDisabledParams params) async {
+    return await _invokeMethod<bool>(
+          method: CoreMethod.setRuleDisabled,
+          arguments: params.toJson(),
+        ) ??
+        false;
+  }
+
+  @override
   Future<Traffic> getTotalTraffic(bool onlyStatisticsProxy) async {
     final data = await _invokeMethod<Map<String, dynamic>>(
       method: CoreMethod.getTotalTraffic,
@@ -580,6 +606,21 @@ abstract class CoreHandlerInterface with CoreInterface {
       code: 'unsupported_method',
       message: 'meow-rs does not expose manual DNS queries.',
     );
+  }
+
+  @override
+  Future<RuleQuery> queryRule(RuleQueryParams params) async {
+    final data = await _invokeMethod<Map<String, dynamic>>(
+      method: CoreMethod.queryRule,
+      arguments: params.toJson(),
+    );
+    if (data == null) {
+      throw const CoreMethodException(
+        code: 'invalid_response',
+        message: 'Missing rule query result',
+      );
+    }
+    return RuleQuery.fromJson(data);
   }
 
   @override

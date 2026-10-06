@@ -234,6 +234,8 @@ enum TrackerInfoSortType {
 
 enum TunRouteMode { fakeIp, globalExperimental }
 
+enum CoreRuleSortType { ruleOrder, hitCount, lastHit }
+
 enum TunStack { mips, gvisor, system, mixed }
 
 enum TunCongestionController { cubic, reno, bbr, bbr3 }
@@ -454,6 +456,7 @@ enum PageLabel {
   networking,
   connections,
   dnsQueries,
+  rules,
 }
 
 enum RuleAction {

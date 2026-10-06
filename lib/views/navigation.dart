@@ -45,6 +45,12 @@ class Navigation implements NavigationPort {
         modes: [NavigationItemMode.desktop, NavigationItemMode.more],
       ),
       NavigationItem(
+        icon: const Icon(Symbols.rule),
+        label: PageLabel.rules,
+        builder: (_) => const RulesView(key: GlobalObjectKey(PageLabel.rules)),
+        modes: [NavigationItemMode.more],
+      ),
+      NavigationItem(
         icon: const Icon(Symbols.adb),
         label: PageLabel.logs,
         builder: (_) => const LogsView(key: GlobalObjectKey(PageLabel.logs)),

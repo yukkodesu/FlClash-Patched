@@ -21,6 +21,7 @@ NavigationItemsState navigationItemsState(Ref ref) {
             )
             .where(
               (item) => switch (item.label) {
+                PageLabel.rules => capabilities?.contains('rules') ?? false,
                 PageLabel.connections =>
                   capabilities?.contains('connections') ?? false,
                 PageLabel.logs => capabilities?.contains('logs') ?? false,

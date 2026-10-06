@@ -2,17 +2,21 @@ FlClash-Meow VERSION uses an embedded meow-rs core for Windows, macOS and Linux.
 
 ## Upstream Base
 
-- **FlClash-Patched:** [0.9.2 at `6adae513`](https://github.com/chenx-dust/FlClash-Patched/commit/6adae513).
+- **FlClash-Patched:** [0.9.2 at `71f94d5a`](https://github.com/chenx-dust/FlClash-Patched/commit/71f94d5af53eb6193e153ae2c039460b9011ad55).
 - **meow-rs:** [v0.22.0](https://github.com/meow-rs/meow-rs/releases/tag/v0.22.0).
 
 ## What's Changed
 
 - Fixed first startup by initializing missing Geo databases from bundled resources, without replacing existing files.
 - Followed meow-rs configuration handling: unsupported fields produce warnings; only error-level issues block configuration application.
-- Fixed provider cache paths and bootstrap DNS compatibility, including bare IPv6 nameserver addresses.
+- Fixed provider cache paths and DNS compatibility, including bare IPv6 nameserver addresses and unsupported system resolver entries.
 - Added AnyTLS certificate pinning and supported TLS options.
 - Kept startup diagnostics in Core logs with clean formatting and correct severity.
 - Simplified TUN routing labels, added an IPv6 capture setting, and updated the About page and connection labels.
+- Fixed Core restart recovery after unexpected process termination and Windows TUN address readiness.
+- Fixed UDP routing in Windows global TUN mode and destination-aware outbound binding across desktop platforms.
+- Preserved traffic history during TUN changes and moved configuration processing off the UI thread.
+- Synced upstream configuration auto-reload, proxy chain display, emoji rendering, and label improvements.
 
 **Download based on your OS:**
 
