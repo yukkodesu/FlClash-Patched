@@ -7,9 +7,12 @@ FlClash-Meow VERSION uses an embedded meow-rs core for Windows, macOS and Linux.
 
 ## What's Changed
 
-This preview provides ordinary proxy operation, configuration compatibility diagnostics, proxy groups, providers, logs and TCP connection management. Capabilities and limitations are visible in the client; mihomo-only features are unavailable.
-
-Fake-IP IPv4 TUN, cleanup and crash recovery have native acceptance evidence on Windows x64, Linux x64 and macOS arm64. Global/IPv6 capture is experimental, and Linux system DNS may be overwritten by other DNS managers. Installed desktop interactions and uninstall isolation remain under manual acceptance.
+- Fixed first startup by initializing missing Geo databases from bundled resources, without replacing existing files.
+- Followed meow-rs configuration handling: unsupported fields produce warnings; only error-level issues block configuration application.
+- Fixed provider cache paths and bootstrap DNS compatibility, including bare IPv6 nameserver addresses.
+- Added AnyTLS certificate pinning and supported TLS options.
+- Kept startup diagnostics in Core logs with clean formatting and correct severity.
+- Simplified TUN routing labels, added an IPv6 capture setting, and updated the About page and connection labels.
 
 **Download based on your OS:**
 
