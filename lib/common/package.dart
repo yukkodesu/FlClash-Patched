@@ -5,8 +5,12 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'common.dart';
 
 extension PackageInfoExtension on PackageInfo {
+  String get releaseVersion => buildNumber.isEmpty || version.contains('+')
+      ? version
+      : '$version+$buildNumber';
+
   String get ua => [
-    '$appName/v$version',
+    '$appName/v$releaseVersion',
     'clash-verge',
     'Platform/${Platform.operatingSystem}',
   ].join(' ');

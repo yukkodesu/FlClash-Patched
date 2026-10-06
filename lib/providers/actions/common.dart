@@ -164,11 +164,7 @@ class CommonAction extends _$CommonAction {
         cancelText: isUser ? null : currentAppLocalizations.noLongerRemind,
       );
       if (res == true) {
-        unawaited(
-          launchUrl(
-            Uri.parse('https://github.com/$repository/releases/latest'),
-          ),
-        );
+        unawaited(launchUrl(Uri.parse(data['html_url'] as String)));
       } else if (!isUser && res == false) {
         ref
             .read(appSettingProvider.notifier)

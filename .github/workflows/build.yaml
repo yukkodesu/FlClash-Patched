@@ -22,18 +22,26 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 env:
-  IS_STABLE: ${{ !contains(github.ref, '-') }}
   FLUTTER_VERSION: '3.47.6'
 
 jobs:
   dart-checks:
     name: Dart checks
     runs-on: ubuntu-latest
+    outputs:
+      release_channel: ${{ steps.release-channel.outputs.channel }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
+      - name: Read release channel
+        id: release-channel
+        run: |
+          channel=$(yq -r '.release_channel' build_config.yaml)
+          [[ "$channel" == pre || "$channel" == stable ]]
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
 
       - name: Test commit message hook
         run: bash tool/check_commit_msg_test.sh
@@ -61,7 +69,7 @@ jobs:
         run: flutter analyze --no-fatal-infos
 
       - name: Generate release notes
-        if: startsWith(github.ref, 'refs/tags/v') && env.IS_STABLE == 'true'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.release-channel.outputs.channel == 'stable'
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -70,7 +78,7 @@ jobs:
           dart run tool/changelog.dart render --tag "$TAG" --out release.md
 
       - name: Upload release notes
-        if: startsWith(github.ref, 'refs/tags/v') && env.IS_STABLE == 'true'
+        if: startsWith(github.ref, 'refs/tags/v') && steps.release-channel.outputs.channel == 'stable'
         uses: actions/upload-artifact@v7
         with:
           name: release-notes
@@ -433,15 +441,12 @@ jobs:
         shell: bash
         run: |
           release_version="${GITHUB_REF_NAME#v}"
-          [[ "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-pre\.[1-9][0-9]*)?$ ]]
-          pubspec_version=$(sed -n 's/^version: //p' pubspec.yaml)
-          app_version="${pubspec_version%%+*}"
-          build_number="${pubspec_version##*+}"
-          [[ "${release_version%%-*}" == "${app_version%%-*}" && "$build_number" =~ ^[0-9]+$ ]]
-          sed -i "s/^version:.*/version: $release_version+$build_number/" pubspec.yaml
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$ ]]
+          pubspec_version=$(sed -n 's/^version: //p' pubspec.yaml | tr -d '\r')
+          [[ "$release_version" == "$pubspec_version" ]]
 
       - name: Setup
-        run: dart setup.dart ${{ matrix.platform }} ${{ env.IS_STABLE == 'true' && '--env stable' || '' }} --arch ${{ matrix.arch }} -v
+        run: dart setup.dart ${{ matrix.platform }} --env ${{ needs.dart-checks.outputs.release_channel }} --arch ${{ matrix.arch }} -v
       - name: Smoke staged core
         shell: bash
         run: |
@@ -458,7 +463,9 @@ jobs:
     if: github.repository == 'yukkodesu/FlClash-Patched' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
-    needs: [ build ]
+    needs: [ build, dart-checks ]
+    env:
+      RELEASE_CHANNEL: ${{ needs.dart-checks.outputs.release_channel }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -472,7 +479,7 @@ jobs:
           merge-multiple: true
 
       - name: Download release notes
-        if: env.IS_STABLE == 'true'
+        if: env.RELEASE_CHANNEL == 'stable'
         uses: actions/download-artifact@v8
         with:
           name: release-notes
@@ -480,7 +487,7 @@ jobs:
 
       - name: Patch release.md
         run: |
-          if [[ "$IS_STABLE" != true ]]; then
+          if [[ "$RELEASE_CHANNEL" == pre ]]; then
             : > release.md
           fi
           version=$(echo "${{ github.ref_name }}" | sed 's/^v//')
@@ -489,6 +496,6 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
-          prerelease: ${{ env.IS_STABLE != 'true' }}
+          prerelease: ${{ env.RELEASE_CHANNEL == 'pre' }}
           files: ./dist/*
           body_path: './release.md'

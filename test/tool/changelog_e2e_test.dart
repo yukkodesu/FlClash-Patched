@@ -65,6 +65,32 @@ void main() {
     expect(versions.single.date, '2026-01-02');
   });
 
+  test('fork revisions retain full versions and sort numerically', () {
+    commit('fix: first fork fix');
+    git(['tag', 'v1.1.0+2']);
+    commit('feat: next fork feature');
+    git(['tag', 'v1.1.0+10']);
+
+    final versions = build().changelog.versions;
+
+    expect(versions.map((version) => version.tag), [
+      'v1.1.0+10',
+      'v1.1.0+2',
+      'v1.1.0',
+    ]);
+    expect(versions.map((version) => version.version), [
+      '1.1.0+10',
+      '1.1.0+2',
+      '1.1.0',
+    ]);
+    expect(versions.first.prerelease, isFalse);
+    expect(
+      versions.first.groups.single.entries.single.text,
+      'Next fork feature',
+    );
+    expect(versions[1].groups.single.entries.single.text, 'First fork fix');
+  });
+
   test('preserves frozen history before the first structured release', () {
     git(['checkout', '--quiet', '--orphan', 'frozen-history']);
     commit('chore: optimize commented policy');

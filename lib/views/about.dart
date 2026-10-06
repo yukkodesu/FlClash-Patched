@@ -139,8 +139,8 @@ class AboutView extends ConsumerWidget {
               _buildLinkItem(
                 icon: Symbols.memory,
                 title: appLocalizations.core,
-                url: 'https://github.com/chenx-dust/mihomo/tree/FlClash',
-                label: 'Github: chenx-dust/mihomo',
+                url: 'https://github.com/yukkodesu/meow-rs',
+                label: 'Github: yukkodesu/meow-rs',
               ),
             ],
           ),
@@ -205,7 +205,7 @@ class _AboutHero extends StatelessWidget {
             alignment: WrapAlignment.center,
             children: [
               _Pill(
-                label: 'v${globalState.packageInfo.version}',
+                label: 'v${globalState.packageInfo.releaseVersion}',
                 color: colorScheme.primary,
                 foregroundColor: colorScheme.onPrimary,
               ),

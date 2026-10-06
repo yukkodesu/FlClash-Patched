@@ -16,12 +16,16 @@ class Request {
   String? userAgent;
 
   ProviderReader? _read;
+  final bool _includePrereleases;
 
   void attach(ProviderReader read) {
     _read = read;
   }
 
-  Request() {
+  Request({
+    bool includePrereleases =
+        const String.fromEnvironment('APP_ENV', defaultValue: 'pre') == 'pre',
+  }) : _includePrereleases = includePrereleases {
     dio = Dio(BaseOptions(headers: {'User-Agent': browserUa}));
     _clashDio = Dio();
     _clashDio.httpClientAdapter = IOHttpClientAdapter(
@@ -74,18 +78,39 @@ class Request {
   Future<Map<String, dynamic>?> checkForUpdate() async {
     try {
       final response = await dio
-          .get(
-            'https://api.github.com/repos/$repository/releases/latest',
+          .get<List<dynamic>>(
+            'https://api.github.com/repos/$repository/releases',
+            queryParameters: {'per_page': 100},
             options: Options(responseType: ResponseType.json),
           )
           .timeout(const Duration(seconds: 10));
-      final data = response.data as Map<String, dynamic>;
-      final remoteVersion = data['tag_name'];
-      final version = globalState.packageInfo.version;
-      final hasUpdate =
-          compareVersions(remoteVersion.replaceAll('v', ''), version) > 0;
-      if (!hasUpdate) return null;
-      return data;
+      Map<String, dynamic>? newest;
+      var newestVersion = globalState.packageInfo.releaseVersion;
+      for (final entry in response.data ?? const []) {
+        if (entry is! Map<String, dynamic> ||
+            entry['draft'] != false ||
+            (!_includePrereleases && entry['prerelease'] != false)) {
+          continue;
+        }
+        final tag = entry['tag_name'];
+        if (tag is! String ||
+            !RegExp(r'^v[0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$').hasMatch(tag)) {
+          continue;
+        }
+        final version = tag.substring(1);
+        if (version
+                .replaceAll('+', '.')
+                .split('.')
+                .any((part) => int.tryParse(part) == null) ||
+            !_hasDesktopPackages(entry, version)) {
+          continue;
+        }
+        if (compareVersions(version, newestVersion) > 0) {
+          newest = entry;
+          newestVersion = version;
+        }
+      }
+      return newest;
     } catch (e) {
       commonPrint.log(
         'checkForUpdate failed: ${compactError(e)}',
@@ -93,6 +118,42 @@ class Request {
       );
       throw _requestException(e);
     }
+  }
+
+  bool _hasDesktopPackages(Map<String, dynamic> release, String version) {
+    final assets = release['assets'];
+    final htmlUrl = release['html_url'];
+    final url = htmlUrl is String ? Uri.tryParse(htmlUrl) : null;
+    if (assets is! List ||
+        url?.scheme != 'https' ||
+        url?.host != 'github.com') {
+      return false;
+    }
+    final targets = <String>{};
+    final namePattern = RegExp(
+      '^FlClash-Meow-${RegExp.escape(version)}-(windows|linux|macos)-(x64|arm64)(?:-setup)?\\.(.+)\$',
+    );
+    for (final asset in assets) {
+      if (asset is! Map ||
+          asset['name'] is! String ||
+          asset['size'] is! num ||
+          (asset['size'] as num) <= 0 ||
+          asset['browser_download_url'] is! String ||
+          (asset['browser_download_url'] as String).isEmpty) {
+        continue;
+      }
+      final match = namePattern.firstMatch(asset['name'] as String);
+      if (match == null) continue;
+      final platform = match[1]!;
+      final extension = match[3]!;
+      final supported = switch (platform) {
+        'windows' => const {'exe', 'zip'},
+        'macos' => const {'dmg'},
+        _ => const {'deb', 'zip', 'AppImage', 'tar.zst'},
+      };
+      if (supported.contains(extension)) targets.add('$platform-${match[2]}');
+    }
+    return targets.length == 6;
   }
 
   MessageException _requestException(Object error) {

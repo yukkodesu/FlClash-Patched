@@ -3,3 +3,4 @@ core_name: FlClashMeowCore
 output_dir: libclash
 helper_dir: services/helper
 helper_name: FlClashMeowHelperService
+release_channel: pre

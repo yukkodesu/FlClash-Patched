@@ -228,6 +228,8 @@ Future<int> _package(
       platform,
       '--targets',
       targets,
+      '--artifact-name',
+      '{{name}}-{{version}}-{{platform}}-{{description}}{{#is_installer}}-setup{{/is_installer}}.{{ext}}',
       '--flutter-build-args=${createFlutterBuildArgs(platform: platform, verbose: verbose).join(',')}',
       '--description',
       arch.name,

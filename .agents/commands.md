@@ -208,31 +208,28 @@ dart run tool/changelog.dart render release --out release.md
 dart run tool/changelog.dart render telegram --out telegram.md
 ```
 
-Releasing a stable version, in order:
+Fork releases retain the upstream base version and use a positive revision in both `pubspec.yaml` and the tag:
+`0.9.2+1` / `v0.9.2+1`. `tool/bump_version.sh` increments only this revision; it never changes the upstream base.
+Legacy date build numbers must be replaced explicitly before using the release tools.
 
 ```bash
-tool/bump_version.sh all
-dart run tool/changelog.dart release --version 0.8.96
-git commit -am "chore(release): v0.8.96"
-git tag v0.8.96
-git push origin main && git push origin v0.8.96
+tool/release.sh pre --dry-run        # inspect the next version without writing anything
+tool/release.sh pre --yes --push     # preview channel, GitHub prerelease
+tool/release.sh stable --yes --push  # stable channel, GitHub release
+tool/bump_version.sh                # optional manual increment of +N
 ```
 
-Push the tag by name. Every release tag here is lightweight, and `--follow-tags` carries annotated tags only: it skips a
-lightweight one silently, so the branch lands, the tag does not, and the release workflow never fires.
+`pre` and `stable` use the same `vX.Y.Z+N` tag format. They set `release_channel` in `build_config.yaml`, which CI uses
+for `APP_ENV` and the GitHub prerelease flag independently of the tag text. The script retains an unpublished pubspec
+revision, or advances past tags on the `my` fork remote and an existing local tag. `--version X.Y.Z+N` selects an explicit
+unpublished revision of the same base. Changes to version/channel are committed before tagging. Pushes require `--push`,
+verify every push URL points at `yukkodesu/FlClash-Patched`, and atomically send the branch and exact tag to `my`.
+Do not push release tags to the upstream `origin` remote. Lightweight tags require an explicit tag ref;
+`--follow-tags` carries annotated tags only.
 
-`tool/release.sh` drives both paths so the ordering below cannot be got wrong by hand. It resolves the version (bumping
-the patch when pubspec still names an already tagged one), prints the notes the tag would ship, and only pushes with
-`--push`:
-
-```bash
-tool/release.sh pre --dry-run     # plan and notes, changes nothing
-tool/release.sh pre --push        # bump, tag vX.Y.Z-pre.N, push
-tool/release.sh stable --push     # changelog, chore(release) commit, tag, push
-```
-
-The release commit comes before the tag on purpose: the generated wording is reviewable in the diff before it ships, and
-the tag is what `render release` reads. CI never writes back to the repository; it only runs `verify`. Wording in
+Stable-channel CI generates release notes before building packages. Preview releases use the download template.
+Both channels publish desktop assets; CI requires the full tag version to match pubspec and preserves `+N` in asset names.
+There are no Telegram publishing steps. CI never writes changelog files back to the repository. Wording in
 `changelog.json` may be edited by hand as long as no derivable entry disappears and every entry still points at a commit
 inside that version's range.
 
@@ -244,10 +241,8 @@ in `CHANGELOG.md`, and are never regenerated.
 skipped and moves on instead of reporting drift that does not exist. Checking mere tag existence is what made every such
 branch fail on an unrelated release.
 
-Prerelease tags (`v0.8.96-pre.N`) skip the release commit, and CI renders their notes with `build --unreleased` for the
-Telegram post. They publish no GitHub release, so the update dialog never sees them. `build --unreleased` reads the
-version from `pubspec.yaml` rather than the tag, so the patch has to be bumped before the first `-pre.N` of a cycle:
-while `v<pubspec version>` is still tagged it refuses to collect anything and the release job fails.
+The changelog parser retains upstream `vX.Y.Z` and historical `vX.Y.Z-pre.N` tags, and orders fork `+N` revisions
+numerically. A fork revision is a release boundary regardless of the current publishing channel.
 
 ## Verify
 
